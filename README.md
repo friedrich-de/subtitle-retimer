@@ -5,7 +5,8 @@ subtitle, or both). An AI agent diagnoses the file and chooses the operations;
 deterministic tools do all the timing math.
 
 The project is built in milestones. This repository currently holds the first
-one, the subtitle core. It involves no AI and needs no API keys.
+two: the subtitle core and the benchmark harness. Neither involves AI or needs
+API keys.
 
 ## What the subtitle core does
 
@@ -36,6 +37,25 @@ retimer sample episode.ass --label sign          # look at lines by label, style
 retimer clean episode.srt --remove-hearing-impaired -o cleaned.srt
 retimer apply episode.ass plan.json -o synced.srt --format srt
 ```
+
+## Benchmark
+
+The benchmark turns in-sync subtitles into mistimed ones in known ways, runs
+every system on them, and measures how close each line lands to its true time.
+It is how every later choice (speech model, embedding model, agent model) gets
+decided. Details are in [bench/README.md](bench/README.md).
+
+```bash
+retimer bench fetch-seeds     # download the audio of the two seed films (once)
+retimer bench run             # generate the cases, run every system, print the summary
+retimer bench run --systems alass --only tears-of-steel.ja --repeats 3
+retimer bench report data/bench/results/<run>
+retimer bench systems         # which systems can run on this machine
+```
+
+`ffsubsync` and `alass-cli` are the baselines. Install them to include them
+(`pipx install ffsubsync`, `cargo install alass-cli`); a system that is not
+installed is skipped and named in the summary.
 
 ## The plan
 
@@ -79,3 +99,10 @@ Rules the engine enforces:
 | `retimer.plan` | The plan schema |
 | `retimer.engine` | Plan validation and application |
 | `retimer.cli` | Command line entry point |
+| `retimer.bench.distort` | Distortion generator with ground truth and the ideal plan |
+| `retimer.bench.cases` | Case format, seed recipes and case generation |
+| `retimer.bench.metrics` | Line error, tolerance shares, file success, decisions, stability |
+| `retimer.bench.runners` | The systems under test: ffsubsync, alass, input and oracle |
+| `retimer.bench.harness` | Runs systems over cases and stores the results |
+| `retimer.bench.report` | Summary tables |
+| `bench/seeds` | Seed material: two open films with English and Japanese subtitles |

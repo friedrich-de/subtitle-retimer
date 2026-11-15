@@ -1,0 +1,28 @@
+{
+  "seeds": [
+    {
+      "id": "tears-of-steel",
+      "title": "Tears of Steel",
+      "subtitles": {"en": "tears-of-steel/en.srt", "ja": "tears-of-steel/ja.srt"},
+      "audio": {
+        "file": "tears-of-steel.ogg",
+        "language": "en",
+        "source_url": "https://download.blender.org/demo/movies/ToS/tears_of_steel_720p.mov"
+      },
+      "license": "CC BY 3.0",
+      "attribution": "(CC) Blender Foundation | mango.blender.org"
+    },
+    {
+      "id": "sintel",
+      "title": "Sintel",
+      "subtitles": {"en": "sintel/en.srt", "ja": "sintel/ja.srt"},
+      "audio": {
+        "file": "sintel.ogg",
+        "language": "en",
+        "source_url": "https://archive.org/download/Sintel/sintel-2048-stereo_512kb.mp4"
+      },
+      "license": "CC BY 3.0",
+      "attribution": "(CC) Blender Foundation | durian.blender.org"
+    }
+  ]
+}

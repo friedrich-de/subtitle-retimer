@@ -1,4 +1,4 @@
-"""Command line access to the subtitle core, for trying the tools on real files."""
+"""Command line access to the subtitle core and the benchmark."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ import json
 import sys
 from pathlib import Path
 
+from retimer.bench.cli import add_bench_commands
 from retimer.classify import classify_lines
 from retimer.engine import PlanError, apply_plan
 from retimer.inspection import inspect_subtitle, sample_lines
@@ -105,6 +106,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_output(apply)
     apply.set_defaults(run=_cmd_apply)
 
+    add_bench_commands(commands)
     return parser
 
 

@@ -26,6 +26,9 @@ class Options(BaseModel):
     remove_karaoke: bool = False
     strip_formatting: bool = False
     remove_symbols: bool = False
+    # Trim leading or trailing lines that the reference confirms are absent. This one
+    # is decided while syncing, so it yields no content operation here.
+    drop_unmatched: bool = True
 
 
 class MatchLine(BaseModel):

@@ -1,0 +1,123 @@
+"""The `retimer bench` commands."""
+
+from __future__ import annotations
+
+import argparse
+import sys
+from datetime import UTC, datetime
+from pathlib import Path
+
+from retimer.bench.cases import CASE_FILE, generate_cases, load_cases
+from retimer.bench.harness import SUMMARY_MD, load_results, run_benchmark
+from retimer.bench.report import build_summary, render_markdown
+from retimer.bench.runners import DEFAULT_SYSTEMS, Runner, builtin_runners
+from retimer.bench.seeds import SeedError, fetch_seed_audio
+
+DEFAULT_SEEDS = Path("bench/seeds")
+DEFAULT_MEDIA = Path("data/bench/media")
+DEFAULT_CASES = Path("data/bench/cases")
+DEFAULT_RESULTS = Path("data/bench/results")
+
+
+def all_runners() -> dict[str, Runner]:
+    """Every system the benchmark can run. Later milestones add theirs here."""
+    return builtin_runners()
+
+
+def _say(message: str) -> None:
+    print(message, file=sys.stderr, flush=True)
+
+
+def _cmd_fetch(args: argparse.Namespace) -> int:
+    try:
+        fetch_seed_audio(args.seeds, args.media, _say)
+    except (SeedError, OSError) as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 1
+    return 0
+
+
+def _generate(args: argparse.Namespace) -> int:
+    written = generate_cases(args.seeds, args.media, args.cases, progress=_say)
+    _say(f"wrote {len(written)} cases to {args.cases}")
+    return len(written)
+
+
+def _cmd_generate(args: argparse.Namespace) -> int:
+    return 0 if _generate(args) else 1
+
+
+def _cmd_systems(args: argparse.Namespace) -> int:
+    for name, runner in all_runners().items():
+        reason = runner.unavailable()
+        print(f"{name:<18} {'ready' if reason is None else reason}")
+    return 0
+
+
+def _cmd_run(args: argparse.Namespace) -> int:
+    if not any(args.cases.glob(f"*/{CASE_FILE}")):
+        _generate(args)
+    cases = load_cases(args.cases, args.only)
+    if not cases:
+        print("error: no cases to run", file=sys.stderr)
+        return 1
+    known = all_runners()
+    names = args.systems.split(",") if args.systems else list(DEFAULT_SYSTEMS)
+    unknown = [name for name in names if name not in known]
+    if unknown:
+        print(f"error: unknown systems: {', '.join(unknown)}", file=sys.stderr)
+        return 1
+    stamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
+    out = args.out or DEFAULT_RESULTS / (f"{stamp}-{args.label}" if args.label else stamp)
+    run_benchmark(
+        cases,
+        [known[name] for name in names],
+        out,
+        repeats=args.repeats,
+        workers=args.workers,
+        progress=_say,
+    )
+    print((out / SUMMARY_MD).read_text(encoding="utf-8"))
+    _say(f"results are in {out}")
+    return 0
+
+
+def _cmd_report(args: argparse.Namespace) -> int:
+    print(render_markdown(build_summary(load_results(args.results))))
+    return 0
+
+
+def add_bench_commands(commands: argparse._SubParsersAction) -> None:
+    bench = commands.add_parser("bench", help="generate benchmark cases and run systems on them")
+    actions = bench.add_subparsers(dest="bench_command", required=True)
+
+    def add_dirs(parser: argparse.ArgumentParser, cases: bool = True) -> None:
+        parser.add_argument("--seeds", type=Path, default=DEFAULT_SEEDS, help="seed material")
+        parser.add_argument("--media", type=Path, default=DEFAULT_MEDIA, help="seed audio files")
+        if cases:
+            parser.add_argument("--cases", type=Path, default=DEFAULT_CASES, help="case set")
+
+    fetch = actions.add_parser("fetch-seeds", help="download the audio of the seed material")
+    add_dirs(fetch, cases=False)
+    fetch.set_defaults(run=_cmd_fetch)
+
+    generate = actions.add_parser("generate", help="write the case set from the seed material")
+    add_dirs(generate)
+    generate.set_defaults(run=_cmd_generate)
+
+    systems = actions.add_parser("systems", help="list the systems and whether they can run here")
+    systems.set_defaults(run=_cmd_systems)
+
+    run = actions.add_parser("run", help="run systems over the cases and store the results")
+    add_dirs(run)
+    run.add_argument("--systems", help=f"comma separated, default: {','.join(DEFAULT_SYSTEMS)}")
+    run.add_argument("--only", help="run only the cases whose id contains this text")
+    run.add_argument("--repeats", type=int, default=1, help="runs per case, for stability")
+    run.add_argument("--workers", type=int, default=2, help="cases run at the same time")
+    run.add_argument("--label", help="a name added to the results directory")
+    run.add_argument("--out", type=Path, help="results directory, default: a new timestamped one")
+    run.set_defaults(run=_cmd_run)
+
+    report = actions.add_parser("report", help="print the summary of a stored run")
+    report.add_argument("results", type=Path)
+    report.set_defaults(run=_cmd_report)
