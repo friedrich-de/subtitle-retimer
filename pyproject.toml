@@ -1,0 +1,37 @@
+[project]
+name = "retimer"
+version = "0.1.0"
+description = "Synchronizes subtitles to a reference with an agent that plans and deterministic tools that compute."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "pysubs2>=1.8",
+    "pydantic>=2.6",
+    "charset-normalizer>=3.3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "ruff>=0.6",
+]
+
+[project.scripts]
+retimer = "retimer.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/retimer"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
