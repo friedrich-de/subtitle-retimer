@@ -12,7 +12,7 @@ import shutil
 import subprocess
 import time
 from pathlib import Path
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 from pydantic import BaseModel, Field
 
@@ -22,6 +22,13 @@ from retimer.cache import Cache
 from retimer.engine import PlanError, apply_plan
 from retimer.io import load, save
 from retimer.providers import OPENROUTER_KEY_ENV, OpenRouter, ProviderError
+
+if TYPE_CHECKING:
+    from retimer.pipeline import SyncResult
+
+# The name of the variable is repeated here so that listing the systems does
+# not load the agent, and with it the provider's library.
+ANTHROPIC_KEY_ENV = "ANTHROPIC_RETIMER_API_KEY"
 
 DEFAULT_TIMEOUT_S = 600
 _ERROR_CHARS = 600
@@ -242,23 +249,26 @@ class PipelineRunner:
     def supports(self, case: LoadedCase) -> bool:
         return True
 
-    def run(self, case: LoadedCase, work_dir: Path) -> RunOutput:
+    def _sync(self, case: LoadedCase) -> SyncResult:
         # Imported here: the other systems do not need numpy and start faster without it.
         from retimer.pipeline import Settings, sync
 
         reference = case.reference_subtitle_path
+        return sync(
+            load(case.target_path),
+            audio=case.audio_path,
+            reference=load(reference) if reference else None,
+            options=case.case.options,
+            reference_language=case.case.reference.subtitle_language,
+            settings=Settings(**self.settings),
+            client=self.client,
+            cache=self.cache,
+        )
+
+    def run(self, case: LoadedCase, work_dir: Path) -> RunOutput:
         started = time.monotonic()
         try:
-            result = sync(
-                load(case.target_path),
-                audio=case.audio_path,
-                reference=load(reference) if reference else None,
-                options=case.case.options,
-                reference_language=case.case.reference.subtitle_language,
-                settings=Settings(**self.settings),
-                client=self.client,
-                cache=self.cache,
-            )
+            result = self._sync(case)
         except (ProviderError, AudioError) as error:
             return RunOutput(
                 outcome="failed",
@@ -290,6 +300,65 @@ class PipelineRunner:
         )
 
 
+class AgentRunner(PipelineRunner):
+    """The pipeline with a model settling what its draft leaves open.
+
+    The routine steps are the same as the fixed pipeline's. The model is asked
+    only about the cases where they leave a question, so the difference to
+    `pipeline` is what the model adds, and what it costs.
+    """
+
+    name = "agent"
+
+    def __init__(
+        self,
+        name: str | None = None,
+        model: str = "haiku",
+        effort: str = "medium",
+        consult: str = "auto",
+        client: OpenRouter | None = None,
+        cache: Cache | None = None,
+        model_client: object | None = None,
+        **settings: object,
+    ) -> None:
+        super().__init__(name, client, cache, **settings)
+        self.model = model
+        self.effort = effort
+        self.consult = consult
+        self.model_client = model_client
+
+    def unavailable(self) -> str | None:
+        reason = super().unavailable()
+        if reason:
+            return reason
+        if self.model_client is None and not os.environ.get(ANTHROPIC_KEY_ENV):
+            return f"{ANTHROPIC_KEY_ENV} is not set"
+        return None
+
+    def version(self) -> str:
+        from retimer.agent import resolve_model
+
+        return f"{resolve_model(self.model)}, effort {self.effort}, consult {self.consult}"
+
+    def _sync(self, case: LoadedCase) -> SyncResult:
+        from retimer.agent import AgentSettings, sync_with_agent
+        from retimer.pipeline import Settings
+
+        reference = case.reference_subtitle_path
+        return sync_with_agent(
+            load(case.target_path),
+            audio=case.audio_path,
+            reference=load(reference) if reference else None,
+            options=case.case.options,
+            reference_language=case.case.reference.subtitle_language,
+            settings=Settings(**self.settings),
+            agent=AgentSettings(model=self.model, effort=self.effort, consult=self.consult),
+            client=self.client,
+            cache=self.cache,
+            model_client=self.model_client,
+        )
+
+
 def builtin_runners() -> dict[str, Runner]:
     runners: list[Runner] = [
         InputRunner(),
@@ -298,6 +367,9 @@ def builtin_runners() -> dict[str, Runner]:
         FfsubsyncRunner("ffsubsync-split", ("--split-penalty",)),
         AlassRunner(),
         PipelineRunner(),
+        AgentRunner("agent-opus", model="opus"),
+        AgentRunner("agent-sonnet", model="sonnet"),
+        AgentRunner("agent-haiku", model="haiku"),
     ]
     return {runner.name: runner for runner in runners}
 

@@ -8,9 +8,19 @@ from retimer.bench.harness import run_one
 from retimer.bench.runners import PipelineRunner, builtin_runners
 from retimer.cache import Cache
 from retimer.cli import EXIT_REJECTED, main
-from retimer.fit import KNOWN_RATES
+from retimer.fit import HOLD_WINDOW_MS, KNOWN_RATES, Evidence, Pin
 from retimer.model import Line
-from retimer.pipeline import BlockReport, _break_start, _merge_weakest, _settle, sync
+from retimer.pipeline import (
+    Adjustments,
+    BlockReport,
+    _break_start,
+    _merge_weakest,
+    _rest_on_synced,
+    _settle,
+    prepare,
+    propose,
+    sync,
+)
 from retimer.plan import RemoveLines, Scale, Shift
 from retimer.views import Options
 
@@ -302,6 +312,138 @@ def test_blocks_that_cross_by_a_hair_are_straightened_out():
 
     far = [block(None, 70_200, 0, 5.0), block(70_200, None, -65_000, 5.0)]
     assert _settle(far, lines, 1.0, slack_ms=300)[1].shift_ms == -65_000
+
+
+def test_a_part_in_sync_is_left_alone_and_sets_the_style_for_the_rest():
+    blocks = [block(None, 100, 60, 9.0), block(100, None, -20_000, 6.0)]
+    rested = _rest_on_synced(blocks, bar_ms=100, exact_ms=100, style=False)
+    assert [b.shift_ms for b in rested] == [0, -20_000]
+
+    # Against audio the part in sync shows how far this subtitle leads the voice.
+    # The other part was timed by the same hand, so it keeps that lead.
+    led = [block(None, 100, -270, 9.0), block(100, None, -20_270, 6.0)]
+    rested = _rest_on_synced(led, bar_ms=350, exact_ms=100, style=True)
+    assert [b.shift_ms for b in rested] == [0, -20_000]
+
+    out_of_sync = [block(None, 100, -900, 9.0), block(100, None, -20_000, 6.0)]
+    assert _rest_on_synced(out_of_sync, bar_ms=350, exact_ms=100, style=True) == out_of_sync
+    alone = [block(None, None, 60, 9.0)]
+    assert _rest_on_synced(alone, bar_ms=100, exact_ms=100, style=False) == alone
+
+
+@pytest.fixture
+def one_line_unplaced(tmp_path):
+    """A file that is two seconds late, with one line that matching cannot place."""
+    truth = spread(30)
+    texts = list(SENTENCES[:30])
+    texts[12] = "Du hast versprochen, den silbernen Schlüssel zurückzugeben"
+    target = make_subtitle([start + 2_000 for start in truth], texts)
+    prepared = prepare(
+        target,
+        reference=make_subtitle(truth),
+        client=FakeClient(),
+        cache=Cache(tmp_path / "cache"),
+    )
+    return prepared, truth
+
+
+def test_without_adjustments_a_proposal_is_the_fixed_pipeline(one_line_unplaced):
+    prepared, truth = one_line_unplaced
+
+    proposal = propose(prepared)
+
+    assert Adjustments().empty
+    assert not Adjustments(fit="constant").empty
+    assert Adjustments(held={3: 28_000}).empty
+    assert proposal.result.plan.timing_ops == [Shift(ms=-2_000)]
+    assert 12 not in proposal.matched and {11, 13} <= proposal.matched
+    assert proposal.in_place == 29
+    assert proposal.new_times[12][0] == truth[12]
+    assert proposal.result.report.agent is None
+
+
+def test_an_asserted_pair_puts_its_line_where_the_place_is(one_line_unplaced):
+    prepared, truth = one_line_unplaced
+    start = truth[12] + 2_000
+
+    def proposed(ref_ms: int, slack_ms: int = 0):
+        pin = Pin(line_id=12, line_start_ms=start, ref_ms=ref_ms, slack_ms=slack_ms)
+        return propose(prepared, Adjustments(pins=[pin]))
+
+    # A pair that agrees with the block of its line joins it, and counts as placed.
+    agreeing = proposed(truth[12])
+    assert [b.shift_ms for b in agreeing.blocks] == [-2_000]
+    assert 12 in agreeing.matched
+    assert agreeing.in_place == 30
+
+    # A place that is timed exactly is taken at its word: the line gets a block of its own.
+    exact = proposed(truth[12] + 600)
+    assert [(b.from_ms, b.shift_ms) for b in exact.blocks] == [
+        (None, -2_000),
+        (start, -1_400),
+        (truth[13] + 2_000, -2_000),
+    ]
+    assert exact.new_times[12][0] == truth[12] + 600
+
+    # A clause heard in a transcript is timed loosely. Such a pair says which block
+    # its line belongs to, and the lines matching found say when the block starts.
+    loose = proposed(truth[12] + 600, slack_ms=1_000)
+    assert [b.shift_ms for b in loose.blocks] == [-2_000]
+    assert 12 in loose.matched
+    assert loose.in_place == 30
+    assert loose.new_times[12][0] == truth[12]
+
+
+def test_a_placed_line_is_held_to_its_counterpart_while_pairs_are_asserted(tmp_path):
+    truth = spread(30)
+    reference = list(SENTENCES[:30])
+    # Line 5 is said again later on, so it has two counterparts to choose from.
+    reference[20] = SENTENCES[5]
+    target = make_subtitle([start + 2_000 for start in truth])
+    prepared = prepare(
+        target,
+        reference=make_subtitle(truth, reference),
+        client=FakeClient(),
+        cache=Cache(tmp_path / "cache"),
+    )
+    pin = Pin(line_id=12, line_start_ms=truth[12] + 2_000, ref_ms=truth[12])
+
+    free = Evidence.from_matching(prepared.matching)
+    held = Evidence.from_matching(prepared.matching, [pin], {5: truth[5]})
+
+    assert sorted(free.ref_starts[free.strength[5] > 0]) == [truth[5], truth[20]]
+    assert list(held.ref_starts[held.strength[5] > 0]) == [truth[5]]
+    assert held.held == [(5, float(truth[5]))]
+    assert truth[20] - truth[5] > HOLD_WINDOW_MS
+    # The pinned line counts for its pair alone, and the pair is an anchor of its own kind.
+    assert held.pinned == [(12, float(truth[12]), 0)]
+    assert held.strength[12].max() == 3.0 and (held.strength[12] > 0).sum() == 1
+    assert [anchor.ref_index for anchor in held.anchors if anchor.target_id == 12] == [-1]
+
+
+def test_the_reader_decides_about_edge_lines_and_the_verdict(run, tmp_path):
+    truth = spread(20)
+    target = make_subtitle(
+        [start + 4_000 for start in truth] + [truth[-1] + 14_000, truth[-1] + 18_000],
+        SENTENCES[:20] + [OUTRO, CREDIT],
+    )
+    prepared = prepare(target, reference=make_subtitle(truth), client=FakeClient(), cache=run.cache)
+
+    removed = propose(prepared, Adjustments(trim=[20], edges_reviewed=True))
+    assert removed.result.report.trimmed == [20, 21]
+    assert removed.removed == {20, 21}
+
+    kept = propose(prepared, Adjustments(keep=[21], edges_reviewed=True))
+    assert kept.result.report.trimmed == []
+    assert kept.result.report.unmatched_kept == [20, 21]
+
+    rejected = propose(prepared, Adjustments(same_content=False))
+    assert rejected.result.plan.outcome == "rejected_no_match"
+    assert rejected.result.subtitle is None
+    assert "Read side by side" in rejected.result.report.warnings[-1]
+
+    one_block = propose(prepared, Adjustments(fit="constant"))
+    assert one_block.result.report.chosen == "constant"
 
 
 def test_the_pipeline_is_a_benchmark_system(tmp_path):

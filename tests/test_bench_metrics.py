@@ -3,6 +3,7 @@ import pytest
 from retimer import Plan, apply_plan, loads
 from retimer.bench.distort import Distortion, Noise, distort
 from retimer.bench.metrics import (
+    agent_use,
     evaluate,
     infer_outcome,
     match_output_ids,
@@ -10,6 +11,7 @@ from retimer.bench.metrics import (
     stability,
     summarize,
 )
+from retimer.bench.report import build_summary, render_markdown
 
 from .bench_helpers import make_base
 
@@ -229,3 +231,56 @@ def test_summary_and_stability():
     assert spread.cases_repeated == 1
     assert spread.outcome_agreement == 0.0
     assert spread.max_spread_ms == 3_000
+
+
+def test_the_summary_says_what_the_model_was_asked():
+    case = distort(make_base(), Distortion(offset_ms=3_000))
+    good = evaluate(
+        case.truth,
+        case.subtitle,
+        shifted(case.subtitle, -3_000),
+        outcome=None,
+        expected_outcome="synced",
+    )
+
+    def traced(name, **trace):
+        base = {"family": "constant", "reference": "subtitle"}
+        agent = {"model": "claude-haiku-5-5", "consulted": False, "finished": "not_needed"}
+        report = {"agent": {**agent, **trace}}
+        return {**record(name, "agent-haiku", good), **base, "details": {"report": report}}
+
+    asked = {"consulted": True, "finished": "submitted", "accepted": True}
+    kept_back = {**asked, "changed": True, "accepted": False}
+    out_of_budget = {**asked, "finished": "budget"}
+    results = [
+        traced("a"),
+        traced("b", **asked, turns=2, seconds=4.0, cost_usd=0.001, changed=True),
+        traced("c", **kept_back, turns=4, seconds=8.0, cost_usd=0.003),
+        traced("d", **out_of_budget, turns=8, seconds=9.0, cost_usd=0.002),
+    ]
+
+    use = agent_use(results, "agent-haiku")
+    assert (use.model, use.runs, use.asked) == ("claude-haiku-5-5", 4, 3)
+    assert use.turns_per_asked == pytest.approx(14 / 3)
+    assert use.seconds_per_asked == pytest.approx(7.0)
+    assert use.cost_per_asked_usd == pytest.approx(0.002)
+    assert use.cost_per_run_usd == pytest.approx(0.0015)
+    assert (use.changed, use.kept_back) == (2, 1)
+    assert use.unfinished == {"budget": 1}
+
+    # A system without a model has no such figures, and no section in the summary.
+    tool = [{**record("a", "tool", good), "family": "constant", "reference": "subtitle"}]
+    assert agent_use(tool, "tool") is None
+    assert "## What the model was asked" not in render_markdown(build_summary(tool))
+
+    summary = build_summary(results + tool)
+    assert [row["system"] for row in summary["agent"]] == ["agent-haiku"]
+    assert summary["stability"] == []
+    again = {**traced("b", **asked, turns=3, seconds=5.0, cost_usd=0.001), "repeat": 1}
+    assert [row["system"] for row in build_summary([*results, again, *tool])["stability"]] == [
+        "agent-haiku"
+    ]
+    text = render_markdown(summary)
+    assert "## What the model was asked" in text
+    assert "| agent-haiku | claude-haiku-5-5 | 4 | 3 (75%) | 4.7 | 7.0 | 0.0020 | 0.00150 " in text
+    assert "| 2 | 1 | 1 budget |" in text

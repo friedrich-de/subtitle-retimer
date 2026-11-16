@@ -96,6 +96,7 @@ may sort the file.
 | `ffsubsync-split` | ffsubsync with `--split-penalty`, which also looks for breaks. |
 | `alass` | alass with its defaults: finds splits and guesses the frame rate ratio. |
 | `pipeline` | This project's fixed pipeline: transcript or reference subtitle, anchors by meaning, offset fits, plan. No agent. Needs `OPENROUTER_API_KEY`. |
+| `agent-haiku`, `agent-sonnet`, `agent-opus` | The pipeline with a model settling what its draft leaves open, on Claude Haiku 5.5, Sonnet 5.5 or Opus 5.5. Also needs `ANTHROPIC_RETIMER_API_KEY`. |
 
 The external tools take one reference. When a case has both audio and a
 reference subtitle they get the audio. A tool is found on the `PATH`, or
@@ -104,6 +105,16 @@ through `RETIMER_FFSUBSYNC` and `RETIMER_ALASS`.
 The pipeline caches transcripts and embeddings, so a rerun over the same audio
 costs nothing and its time and cost columns then only show what was new. Set
 `RETIMER_CACHE_DIR` to an empty directory to measure a first run.
+
+The agent systems are not part of the default run, because they cost money on
+every run: name them with `--systems`. What a model answers is not cached, so
+their cost column is what the model cost on that run, computed from the token
+counts and the list prices. The routine steps are the same as the pipeline's,
+which makes the difference between `pipeline` and an agent system what the
+model adds. The summary has a table of its own for them: how many files the
+model was asked about at all, how many turns, seconds and dollars that took,
+and how often its changes were kept back. Run them with `--repeats`, since a
+model does not answer the same way twice.
 
 A new system is a class with `name`, `unavailable()`, `supports(case)` and
 `run(case, work_dir)` that returns a `RunOutput`, added in

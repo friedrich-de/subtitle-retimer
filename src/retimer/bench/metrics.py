@@ -296,3 +296,56 @@ def stability(results: Sequence[dict], system: str) -> Stability:
         mean_spread_ms=statistics.fmean(spreads) if spreads else None,
         max_spread_ms=max(spreads) if spreads else None,
     )
+
+
+class AgentUse(BaseModel):
+    """What the model was asked to do over the runs of one agent system.
+
+    `asked` counts the runs in which the model was called at all. The figures
+    per asked run are means over those. `kept_back` are plans the model changed
+    that were dropped for the plan it started from.
+    """
+
+    system: str
+    model: str | None
+    runs: int
+    asked: int
+    turns_per_asked: float | None
+    seconds_per_asked: float | None
+    cost_per_asked_usd: float | None
+    cost_per_run_usd: float
+    changed: int
+    kept_back: int
+    unfinished: dict[str, int]
+
+
+def agent_use(results: Sequence[dict], system: str) -> AgentUse | None:
+    """Summarize the agent traces in the result records, or None when there are none."""
+    traces = [
+        trace
+        for result in results
+        if (trace := ((result.get("details") or {}).get("report") or {}).get("agent"))
+    ]
+    if not traces:
+        return None
+    asked = [trace for trace in traces if trace.get("consulted")]
+    unfinished: dict[str, int] = defaultdict(int)
+    for trace in asked:
+        if trace.get("finished") != "submitted":
+            unfinished[trace.get("finished") or "unknown"] += 1
+    cost = sum(trace.get("cost_usd") or 0.0 for trace in asked)
+    return AgentUse(
+        system=system,
+        model=traces[0].get("model"),
+        runs=len(results),
+        asked=len(asked),
+        turns_per_asked=statistics.fmean(t.get("turns") or 0 for t in asked) if asked else None,
+        seconds_per_asked=(
+            statistics.fmean(t.get("seconds") or 0.0 for t in asked) if asked else None
+        ),
+        cost_per_asked_usd=cost / len(asked) if asked else None,
+        cost_per_run_usd=cost / len(results),
+        changed=sum(1 for trace in asked if trace.get("changed")),
+        kept_back=sum(1 for trace in asked if trace.get("changed") and not trace.get("accepted")),
+        unfinished=dict(unfinished),
+    )

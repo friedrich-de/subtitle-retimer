@@ -9,7 +9,7 @@ benchmark's measure of what the agent adds.
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
 
@@ -19,8 +19,8 @@ from retimer.cache import Cache
 from retimer.classify import LineLabel, classify_lines
 from retimer.embed import Embedder
 from retimer.engine import PlanError, PlanIssue, apply_plan, validate_plan
-from retimer.fit import KNOWN_RATES, Evidence, Fit, choose_fit, fit_offsets
-from retimer.match import Coverage, Matching, match_content, match_lines
+from retimer.fit import KNOWN_RATES, Evidence, Fit, FitKind, Pin, choose_fit, fit_offsets
+from retimer.match import Anchor, Coverage, Matching, match_content, match_lines
 from retimer.model import Line, Subtitle
 from retimer.plan import ContentOp, Outcome, Plan, RemoveLines, Scale, Shift, TimingOp
 from retimer.providers import (
@@ -38,7 +38,7 @@ from retimer.reference import (
 from retimer.score import Score, score_alignment
 from retimer.speech import Correlation, correlate_speech
 from retimer.transcribe import Transcript, transcribe_audio
-from retimer.views import MatchLine, Options, build_views
+from retimer.views import MatchLine, Options, Views, build_views
 
 # From this strength on, the text of a line occurs in the reference.
 FOUND_STRENGTH = 0.5
@@ -117,6 +117,8 @@ class SyncReport(BaseModel):
     unmatched_kept: list[int] = Field(default_factory=list)
     score: Score | None = None
     warnings: list[str] = Field(default_factory=list)
+    # What the agent did, when one was asked. None for the fixed pipeline.
+    agent: dict | None = None
     cost_usd: dict[str, float] = Field(default_factory=dict)
     seconds: dict[str, float] = Field(default_factory=dict)
 
@@ -133,14 +135,44 @@ class SyncResult(BaseModel):
     report: SyncReport
 
 
+class Adjustments(BaseModel):
+    """What a reader changes about the pipeline's own reading of a file.
+
+    The fixed pipeline runs with none of them. The agent arrives at its plan by
+    adding to them: it never writes a time, it says which fit, which line
+    belongs to which place in the reference, and what happens to lines that
+    have no counterpart. Everything else is computed as it always is.
+    """
+
+    fit: FitKind | None = None
+    pins: list[Pin] = Field(default_factory=list)
+    # Lines at the edges to remove although the rules would keep them, and the reverse.
+    trim: list[int] = Field(default_factory=list)
+    keep: list[int] = Field(default_factory=list)
+    # The reader looked at the lines at the edges and decided about each.
+    edges_reviewed: bool = False
+    # The verdict on whether both sides are the same content, when the reader overrules it.
+    same_content: bool | None = None
+    # Lines the routine steps placed, with the reference time they were placed
+    # at. They keep that counterpart while pairs are asserted around them.
+    held: dict[int, int] = Field(default_factory=dict)
+
+    @property
+    def empty(self) -> bool:
+        return self.model_copy(update={"held": {}}) == Adjustments()
+
+
 @dataclass
 class Alignment:
     """Matching and fitting of a list of lines against a timeline.
 
-    `matched` are the lines that found their counterpart under the chosen fit.
+    `anchors` are the pairs the fits were checked against: those found from the
+    text, and those a reader asserted. `matched` are the lines that found their
+    counterpart under the chosen fit.
     """
 
     matching: Matching
+    anchors: list[Anchor]
     fits: list[Fit]
     chosen: Fit | None
     matched: set[int]
@@ -148,16 +180,24 @@ class Alignment:
     verdict: Literal["aligned", "no_match", "too_little_text"]
 
 
-def align_lines(
-    lines: list[MatchLine], timeline: ReferenceTimeline, embedder: Embedder, settings: Settings
+def align(
+    matching: Matching,
+    settings: Settings,
+    pins: list[Pin] | None = None,
+    kind: FitKind | None = None,
+    hold: dict[int, int] | None = None,
 ) -> Alignment:
-    """Match the lines, fit the offsets, and say whether the two sides are the same content."""
-    matching = match_lines(lines, timeline, embedder)
-    fits = fit_offsets(Evidence.from_matching(matching))
-    chosen = choose_fit(fits)
+    """Fit the offsets and say whether the two sides are the same content.
+
+    `kind` asks for the fit of that kind where there is one. Without it, or
+    when there is none, the best-scoring fit is taken.
+    """
+    evidence = Evidence.from_matching(matching, pins, hold if pins else None)
+    fits = fit_offsets(evidence)
+    chosen = next((fit for fit in fits if fit.kind == kind), None) or choose_fit(fits)
     # The verdict rests on the anchors alone. They were found from the text
     # without looking at the clock, so their agreeing on a fit is real evidence.
-    in_place = chosen.explained(matching.anchors) if chosen else set()
+    in_place = chosen.explained(evidence.anchors) if chosen else set()
     matched = in_place | set(chosen.matched_ids) if chosen else set()
     result = matching.result
     comparable = min(result.eligible_lines, result.eligible_events)
@@ -171,12 +211,20 @@ def align_lines(
         verdict = "too_little_text"
     return Alignment(
         matching=matching,
+        anchors=evidence.anchors,
         fits=fits,
         chosen=chosen,
         matched=matched,
-        coverage=match_content(lines, matched),
+        coverage=match_content(matching.lines, matched),
         verdict=verdict,
     )
+
+
+def align_lines(
+    lines: list[MatchLine], timeline: ReferenceTimeline, embedder: Embedder, settings: Settings
+) -> Alignment:
+    """Match the lines against the timeline, then fit the offsets."""
+    return align(match_lines(lines, timeline, embedder), settings)
 
 
 def _break_start(
@@ -399,6 +447,30 @@ def _in_sync(rate: float, blocks: list[BlockReport], bar_ms: int) -> bool:
     return rate == 1.0 and len(blocks) == 1 and abs(blocks[0].shift_ms) <= bar_ms
 
 
+def _rest_on_synced(
+    blocks: list[BlockReport], bar_ms: int, exact_ms: int, style: bool
+) -> list[BlockReport]:
+    """Leave alone the part of a file that is in sync already.
+
+    A block whose offset is below the bar is in sync, as a whole file with that
+    offset would be. With `style`, against audio, its small offset is the hand
+    of whoever timed the subtitle: how far the lines lead or trail the voice.
+    The other blocks were timed by the same hand, so they move by their offset
+    less that one, and land the way the part in sync does.
+    """
+    synced = [block for block in blocks if abs(block.shift_ms) <= bar_ms]
+    if len(blocks) < 2 or not synced:
+        return blocks
+    lead = max(synced, key=lambda block: (block.matched, block.support)).shift_ms if style else 0
+    settled = []
+    for block in blocks:
+        shift = block.shift_ms - lead
+        if abs(shift) <= (exact_ms if style else bar_ms):
+            shift = 0
+        settled.append(block.model_copy(update={"shift_ms": shift}))
+    return settled
+
+
 def _move_events(events: list[RefEvent], rate: float, blocks: list[BlockReport]) -> list[RefEvent]:
     moved = []
     for event in events:
@@ -506,7 +578,50 @@ def _merge_weakest(blocks: list[BlockReport]) -> list[BlockReport]:
     ]
 
 
-def sync(
+@dataclass
+class Prepared:
+    """What the routine steps find out about a job, before any plan is made.
+
+    The reference is transcribed or read, the target's lines are labelled, and
+    the two are matched. None of this depends on a decision, so it is done once
+    and every plan for the job is built from it.
+    """
+
+    target: Subtitle
+    options: Options
+    settings: Settings
+    label_of: dict[int, str]
+    views: Views
+    # The lines of the target that are not comments, in time order.
+    lines: list[Line]
+    dialogue_ids: set[int]
+    timeline: ReferenceTimeline
+    matching: Matching
+    cost_usd: dict[str, float] = field(default_factory=dict)
+    seconds: dict[str, float] = field(default_factory=dict)
+
+
+@dataclass
+class Proposal:
+    """A plan for a job, with what it was built from.
+
+    `result` is what the caller gets. The rest lets a reader see why the plan
+    looks the way it does: the fit behind it, the blocks, where every line
+    lands, and which lines found a counterpart.
+    """
+
+    result: SyncResult
+    adjustments: Adjustments
+    alignment: Alignment
+    blocks: list[BlockReport]
+    rate: float
+    new_times: dict[int, tuple[int, int]]
+    matched: set[int]
+    removed: set[int]
+    in_place: int = 0
+
+
+def prepare(
     target: Subtitle,
     *,
     audio: Path | None = None,
@@ -518,12 +633,8 @@ def sync(
     client: OpenRouter | None = None,
     cache: Cache | None = None,
     labels: list[LineLabel] | None = None,
-) -> SyncResult:
-    """Synchronize `target` to the audio, the reference subtitle, or both.
-
-    `audio_language` is a hint for the speech model; without it the language is
-    detected. `reference_language` only labels the reference subtitle.
-    """
+) -> Prepared:
+    """Run the steps that need no decision: the reference, the labels and the matching."""
     if audio is None and reference is None:
         raise ValueError("a reference is needed: audio, a subtitle, or both")
     options = options or Options()
@@ -532,13 +643,9 @@ def sync(
     embedder = Embedder(client=client, cache=cache, model=settings.embedding_model)
     seconds: dict[str, float] = {}
     cost: dict[str, float] = {}
-    warnings: list[str] = []
 
     labels = labels if labels is not None else classify_lines(target)
-    label_of = {label.id: label.label for label in labels}
     views = build_views(target, options, labels)
-    match_lines_ = views.match_view.lines
-    dialogue_ids = {line.id for line in match_lines_}
     lines = sorted(
         (line for line in target.lines if not line.is_comment),
         key=lambda line: (line.start_ms, line.id),
@@ -570,11 +677,42 @@ def sync(
         timeline = timeline_from_transcript(transcript)
     else:
         timeline = timeline_from_subtitle(reference, reference_language)
-    warnings += [note for note in timeline.notes if "disagrees" in note or "not seem" in note]
-
-    alignment = align_lines(match_lines_, timeline, embedder, settings)
+    matching = match_lines(views.match_view.lines, timeline, embedder)
     seconds["matching"] = round(time.monotonic() - started, 2)
     cost["embeddings"] = embedder.cost_usd
+    return Prepared(
+        target=target,
+        options=options,
+        settings=settings,
+        label_of={label.id: label.label for label in labels},
+        views=views,
+        lines=lines,
+        dialogue_ids={line.id for line in views.match_view.lines},
+        timeline=timeline,
+        matching=matching,
+        cost_usd=cost,
+        seconds=seconds,
+    )
+
+
+def propose(prepared: Prepared, adjustments: Adjustments | None = None) -> Proposal:
+    """Build the plan for a prepared job: fit, blocks, edge lines, score and outcome.
+
+    Without adjustments this is the fixed pipeline. With them it is the same
+    computation under what a reader decided.
+    """
+    adjust = adjustments or Adjustments()
+    target, options, settings = prepared.target, prepared.options, prepared.settings
+    timeline, views, lines = prepared.timeline, prepared.views, prepared.lines
+    label_of = prepared.label_of
+    dialogue_ids = prepared.dialogue_ids | {pin.line_id for pin in adjust.pins}
+
+    alignment = align(prepared.matching, settings, adjust.pins, adjust.fit, adjust.held)
+    verdict = alignment.verdict
+    if adjust.same_content is False:
+        verdict = "no_match"
+    elif adjust.same_content and alignment.chosen is not None:
+        verdict = "aligned"
 
     result = alignment.matching.result
     report = SyncReport(
@@ -593,14 +731,23 @@ def sync(
         anchors=len(result.anchors),
         coverage=alignment.coverage,
         fits=alignment.fits,
-        warnings=warnings,
-        cost_usd=cost,
-        seconds=seconds,
+        warnings=[note for note in timeline.notes if "disagrees" in note or "not seem" in note],
+        cost_usd=dict(prepared.cost_usd),
+        seconds=dict(prepared.seconds),
     )
-    # The report keeps its own list, and everything from here on is added to that one.
     warnings = report.warnings
+    state = Proposal(
+        result=None,  # type: ignore[arg-type]
+        adjustments=adjust,
+        alignment=alignment,
+        blocks=[],
+        rate=1.0,
+        new_times={},
+        matched=set(),
+        removed=set(),
+    )
 
-    def finish(outcome: Outcome, content: list[ContentOp], timing: list[TimingOp]) -> SyncResult:
+    def finish(outcome: Outcome, content: list[ContentOp], timing: list[TimingOp]) -> Proposal:
         plan = Plan(
             outcome=outcome,
             content_ops=content,
@@ -608,28 +755,35 @@ def sync(
             confidence=round(min(1.0, max(0.0, report.confidence)), 2),
         )
         report.outcome = outcome
-        if outcome == "rejected_no_match":
-            return SyncResult(plan=plan, subtitle=None, report=report)
-        return SyncResult(plan=plan, subtitle=apply_plan(target, plan).subtitle, report=report)
+        subtitle = None if outcome == "rejected_no_match" else apply_plan(target, plan).subtitle
+        state.result = SyncResult(plan=plan, subtitle=subtitle, report=report)
+        return state
 
-    def unchanged(reason: str) -> SyncResult:
+    def unchanged(reason: str) -> Proposal:
         warnings.append(reason + " Timing is unchanged.")
         report.blocks = []
         report.confidence = 0.0
+        state.blocks = []
+        state.rate = 1.0
+        state.new_times = _new_times(lines, 1.0, [])
         try:
             return finish("partial", list(views.content_ops), [])
         except PlanError:
             return finish("partial", [], [])
 
-    if alignment.verdict == "no_match":
+    if verdict == "no_match":
         report.confidence = 1.0 - alignment.coverage.share
-        warnings.append(
-            f"Only {alignment.coverage.matched_lines} of {alignment.coverage.eligible_lines} "
-            "lines found a counterpart in the reference, so it is treated as other content."
-        )
+        if adjust.same_content is False:
+            warnings.append("Read side by side, the reference is other content than the target.")
+        else:
+            warnings.append(
+                f"Only {alignment.coverage.matched_lines} of "
+                f"{alignment.coverage.eligible_lines} lines found a counterpart in the "
+                "reference, so it is treated as other content."
+            )
         return finish("rejected_no_match", [], [])
 
-    if alignment.verdict == "too_little_text" or alignment.chosen is None:
+    if verdict == "too_little_text" or alignment.chosen is None:
         found, rate, rate_name = _fallback(lines, dialogue_ids, timeline, settings)
         report.fallback = found
         warnings.append(
@@ -661,6 +815,8 @@ def sync(
         in_sync = _in_sync(rate, blocks, bar)
         if in_sync:
             blocks = [block.model_copy(update={"shift_ms": 0}) for block in blocks]
+        elif rate == 1.0:
+            blocks = _rest_on_synced(blocks, bar, settings.in_sync_ms, timeline.kind == "audio")
 
     removed = {
         line_id for op in views.content_ops if isinstance(op, RemoveLines) for line_id in op.ids
@@ -680,6 +836,9 @@ def sync(
         trim, keep, too_many = _edge_lines(
             lines, label_of, matched, new_times, timeline, elsewhere, settings
         )
+        # What the reader decided about a line stands over what the rules say.
+        trim = sorted((set(trim) | set(adjust.trim)) - set(adjust.keep) - matched)
+        keep = sorted((set(keep) | set(adjust.keep)) - set(trim))
         if not options.drop_unmatched:
             keep, trim = sorted(set(keep) | set(trim)), []
         trim = sorted(set(trim) - removed)
@@ -711,6 +870,7 @@ def sync(
         blocks = _merge_weakest(blocks)
         merged = True
 
+    too_many = too_many and not adjust.edges_reviewed
     if merged:
         warnings.append(
             "Some blocks ran into each other. The least supported were joined with "
@@ -733,15 +893,16 @@ def sync(
         line_id: start for line_id, (start, _) in new_times.items() if line_id not in gone
     }
     report.score = score_alignment(
-        alignment.matching.anchors,
+        alignment.anchors,
         kept_starts,
         [(block.from_ms, block.to_ms) for block in blocks],
         [block.support for block in blocks],
+        slack_ms={pin.line_id: pin.slack_ms for pin in adjust.pins},
     )
     for block, scored in zip(blocks, report.score.blocks, strict=True):
         block.confidence = scored.confidence
     report.blocks = blocks
-    if alignment.verdict == "aligned":
+    if verdict == "aligned":
         weights = [max(1, block.lines) for block in blocks]
         report.confidence = sum(
             block.confidence * weight for block, weight in zip(blocks, weights, strict=True)
@@ -749,13 +910,53 @@ def sync(
     else:
         report.confidence = 0.3
 
+    state.blocks = blocks
+    state.rate = rate
+    state.new_times = new_times
+    state.matched = set(matched)
+    state.removed = gone
+    state.in_place = round((report.score.within_tolerance or 0.0) * report.score.anchors)
+
     weak = [block for block in blocks if block.confidence < settings.min_block_confidence]
-    if weak and alignment.verdict == "aligned":
+    if weak and verdict == "aligned":
         warnings.append(f"{len(weak)} of {len(blocks)} blocks could not be placed with confidence.")
-    if weak or merged or too_many or alignment.verdict != "aligned":
+    if weak or merged or too_many or verdict != "aligned":
         outcome: Outcome = "partial"
     elif in_sync or not timing:
         outcome = "already_in_sync"
     else:
         outcome = "synced"
     return finish(outcome, content, timing)
+
+
+def sync(
+    target: Subtitle,
+    *,
+    audio: Path | None = None,
+    reference: Subtitle | None = None,
+    options: Options | None = None,
+    audio_language: str | None = None,
+    reference_language: str | None = None,
+    settings: Settings | None = None,
+    client: OpenRouter | None = None,
+    cache: Cache | None = None,
+    labels: list[LineLabel] | None = None,
+) -> SyncResult:
+    """Synchronize `target` to the audio, the reference subtitle, or both.
+
+    `audio_language` is a hint for the speech model; without it the language is
+    detected. `reference_language` only labels the reference subtitle.
+    """
+    prepared = prepare(
+        target,
+        audio=audio,
+        reference=reference,
+        options=options,
+        audio_language=audio_language,
+        reference_language=reference_language,
+        settings=settings,
+        client=client,
+        cache=cache,
+        labels=labels,
+    )
+    return propose(prepared).result

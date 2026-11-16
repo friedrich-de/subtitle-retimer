@@ -68,6 +68,18 @@ def test_score_counts_anchors_in_place_per_block():
     assert second.confidence == 0.5
 
 
+def test_a_loosely_timed_counterpart_allows_its_line_more():
+    anchors = [anchor(0, 10_000, 12_000), anchor(1, 20_000, 22_900)]
+    new_starts = {0: 12_000, 1: 22_000}
+
+    strict = score_alignment(anchors, new_starts, [(None, None)], [6.0])
+    loose = score_alignment(anchors, new_starts, [(None, None)], [6.0], slack_ms={1: 1_000})
+
+    assert strict.within_tolerance == 0.5
+    assert loose.within_tolerance == 1.0
+    assert loose.blocks[0].confidence == 1.0
+
+
 def test_confidence_needs_support_and_anchors_in_place():
     assert block_confidence(0, 1.0) == 0.0
     assert block_confidence(6, 1.0) == 1.0

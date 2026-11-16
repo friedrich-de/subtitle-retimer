@@ -4,9 +4,10 @@ An API that synchronizes a subtitle file to a reference (audio, an in-sync
 subtitle, or both). An AI agent diagnoses the file and chooses the operations;
 deterministic tools do all the timing math.
 
-The project is built in milestones. This repository holds the first three: the
-subtitle core, the benchmark harness, and the fixed pipeline that syncs a file
-without an agent. The agent and the HTTP API come next.
+The project is built in milestones. This repository holds the first four: the
+subtitle core, the benchmark harness, the fixed pipeline that syncs a file
+without an agent, and the agent that settles what the pipeline leaves open.
+The HTTP API comes next.
 
 ## What the subtitle core does
 
@@ -21,9 +22,9 @@ without an agent. The agent and the HTTP API come next.
 
 ## What the fixed pipeline does
 
-It runs the tools the agent will use, in one set order, and always takes the
-best-scoring answer. It is the floor of the service, and the benchmark's
-measure of what the agent adds.
+It runs the routine steps in one set order and always takes the best-scoring
+answer. It is the floor of the service, and the benchmark's measure of what the
+agent adds.
 
 1. **Reference.** Audio is transcribed with word timestamps (Whisper large v3
    turbo, through OpenRouter, pinned to one upstream) and grouped into
@@ -42,9 +43,65 @@ measure of what the agent adds.
 5. **Score.** The anchors are checked against the retimed file, per block. A
    block with too little behind it makes the outcome `partial`.
 
-On the 194 seed cases the pipeline syncs 86% of the files, against 43% for the
-best existing tool. The figures and what is behind them are in
+On the 194 seed cases the pipeline syncs 87% of the files, against 43% for the
+best existing tool. How it got there is in
 [bench/baselines/2026-11-16-fixed-pipeline.md](bench/baselines/2026-11-16-fixed-pipeline.md).
+
+## What the agent does
+
+The agent starts where the fixed pipeline stops. The routine steps run first,
+without a model, and their plan is the draft. A workbench then looks for what
+the draft rests on too little:
+
+- lines between two blocks, or at the start or the end of the file, that found
+  no counterpart;
+- a block with hardly anything certain behind it;
+- a verdict on whether both sides are the same content that was reached by a
+  small margin;
+- no timing at all, because the parts that were placed cannot follow each
+  other.
+
+When nothing is open, no model is called. On the benchmark that is two files in
+three. Otherwise the model gets a dossier: the job, what the routine steps
+found, and every open question with the lines concerned next to the stretch of
+the reference they can belong to. It has eight tools and never writes a time.
+It says which line begins at which place in the reference, what happens to a
+line at the edge of the file, which fit to go with, and whether the two sides
+are the same content. Each answer is an adjustment to the pipeline, which then
+builds and validates the plan as it always does.
+
+What keeps a wrong answer from doing harm:
+
+- Only open lines can be paired, pairs keep the order of both files, and a line
+  the routine steps placed keeps its place.
+- Pairs that would take two cuts which cancel each other out are taken back.
+  That is what a stretch of a transcript with wrong times looks like. One line
+  heard in a transcript is never a block of its own, and one pair with a
+  reference subtitle does not move a line by the little that two subtitles
+  differ anyway.
+- A plan that puts fewer certain lines in place than the draft is dropped for
+  the draft. The verdict of the routine steps is overruled only where they were
+  in doubt.
+- A job has a budget of eight model calls and one dollar. When it runs out, the
+  plan so far is returned as `partial`. When the model declines or cannot be
+  reached, the job gets the plan of the fixed pipeline.
+- The text of subtitles and transcripts is data. The model is told not to
+  follow instructions in it, and none of its tools could do harm if it did.
+
+On the 194 seed cases:
+
+| System | Files synced | At 500 ms | Decisions right | Cost per file |
+| --- | --- | --- | --- | --- |
+| Best existing tool | 43% | 45% | 16% | none |
+| Fixed pipeline | 87% | 89% | 66% | none |
+| Agent on Claude Haiku 5.5 | 94% | 98% | 100% | 0.03 cents |
+| Agent on Claude Opus 5.5 | 95% | 98% | 100% | 0.6 cents |
+
+The model is asked about 31% of the files and takes two turns and six seconds
+on those. Haiku 5.5 is the default. What is left are block cases against audio
+alone, where the limit is the transcript and not the model. The figures and
+what is behind them are in
+[bench/baselines/2026-11-16-agent.md](bench/baselines/2026-11-16-agent.md).
 
 ## Setup
 
@@ -65,6 +122,8 @@ retimer clean episode.srt --remove-hearing-impaired -o cleaned.srt
 retimer apply episode.ass plan.json -o synced.srt --format srt
 retimer sync episode.ja.srt --audio episode.ogg -o synced.srt
 retimer sync episode.ja.srt --reference episode.en.srt -o synced.srt --plan plan.json
+retimer sync episode.ja.srt --audio episode.ogg -o synced.srt --agent            # with the agent
+retimer sync episode.ja.srt --audio episode.ogg -o synced.srt --agent opus --report report.json
 ```
 
 `sync` takes audio, a reference subtitle, or both. It prints the outcome, the
@@ -78,6 +137,13 @@ embeddings are cached by content under `data/cache` (or `RETIMER_CACHE_DIR`),
 so a second subtitle for the same audio costs no second transcription. A
 quarter hour of audio costs about one cent to transcribe and takes about 20
 seconds; the embeddings cost a small fraction of a cent.
+
+`--agent` lets a model settle what the routine steps leave open. It takes
+`haiku` (the default), `sonnet`, `opus` or a full model id, and needs
+`ANTHROPIC_RETIMER_API_KEY` in the environment. `--agent-effort` sets how much
+the model may think (default `medium`), and `--agent-always` asks it about
+every file. The summary then says whether the model was asked, about what, how
+it finished and what it cost, and the report holds every call it made.
 
 ## Benchmark
 
@@ -96,8 +162,11 @@ retimer bench systems         # which systems can run on this machine
 
 `ffsubsync` and `alass-cli` are the baselines. Install them to include them
 (`pipx install ffsubsync`, `cargo install alass-cli`). `pipeline` is this
-project's fixed pipeline and needs `OPENROUTER_API_KEY`. A system that cannot
-run is skipped and named in the summary.
+project's fixed pipeline and needs `OPENROUTER_API_KEY`. `agent-haiku`,
+`agent-sonnet` and `agent-opus` are the agent on each model. They also need
+`ANTHROPIC_RETIMER_API_KEY` and run only when named, because every run costs
+money: `retimer bench run --systems pipeline,agent-haiku --repeats 3`. A system
+that cannot run is skipped and named in the summary.
 
 ## The plan
 
@@ -147,15 +216,18 @@ Rules the engine enforces:
 | `retimer.reference` | The reference timeline, from a transcript or a subtitle |
 | `retimer.embed` | Cached text embeddings |
 | `retimer.match` | Anchors and the table of how alike every line and event are |
-| `retimer.fit` | Offset fits: constant, rate, blocks, rate plus blocks |
+| `retimer.fit` | Offset fits: constant, rate, blocks, rate plus blocks, with pairs a reader asserted |
 | `retimer.speech` | Text-free alignment of line starts and speech onsets |
 | `retimer.score` | The verification score, per block |
-| `retimer.pipeline` | The fixed pipeline: reference, matching, fit, plan, report |
+| `retimer.pipeline` | The fixed pipeline: reference, matching, fit, plan, report. Also builds a plan under a reader's adjustments |
+| `retimer.agent.workbench` | The agent's desk: the draft, the open questions, the dossier and the tools |
+| `retimer.agent.prompt` | What the model is told, and the tool definitions |
+| `retimer.agent.loop` | The tool loop, budgets, fallbacks, and what goes into the report |
 | `retimer.cli` | Command line entry point |
 | `retimer.bench.distort` | Distortion generator with ground truth and the ideal plan |
 | `retimer.bench.cases` | Case format, seed recipes and case generation |
 | `retimer.bench.metrics` | Line error, tolerance shares, file success, decisions, stability |
-| `retimer.bench.runners` | The systems under test: ffsubsync, alass, the pipeline, input and oracle |
+| `retimer.bench.runners` | The systems under test: ffsubsync, alass, the pipeline, the agent, input and oracle |
 | `retimer.bench.harness` | Runs systems over cases and stores the results |
 | `retimer.bench.report` | Summary tables |
 | `bench/seeds` | Seed material: two open films with English and Japanese subtitles |

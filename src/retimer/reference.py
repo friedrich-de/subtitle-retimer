@@ -38,12 +38,23 @@ _INVENTED = re.compile(
 )
 
 
+class RefWord(BaseModel):
+    start_ms: int
+    text: str
+
+
 class RefEvent(BaseModel):
-    """A span of the reference with what is said in it."""
+    """A span of the reference with what is said in it.
+
+    An utterance from a transcript also keeps its words and when each one
+    starts, so that a reader can point at the place inside it where a subtitle
+    line begins.
+    """
 
     start_ms: int
     end_ms: int
     text: str
+    words: list[RefWord] = Field(default_factory=list, exclude=True, repr=False)
 
 
 class ReferenceTimeline(BaseModel):
@@ -174,7 +185,18 @@ def utterances_from_transcript(transcript: Transcript) -> tuple[list[RefEvent], 
         if end <= start and len(group) > 1:
             drop("no_duration")
             continue
-        events.append(RefEvent(start_ms=start, end_ms=max(end, start + 200), text=text))
+        events.append(
+            RefEvent(
+                start_ms=start,
+                end_ms=max(end, start + 200),
+                text=text,
+                words=[
+                    RefWord(start_ms=word.start_ms, text=word.text.strip())
+                    for word in group
+                    if word.text.strip()
+                ],
+            )
+        )
     events.sort(key=lambda event: event.start_ms)
     return events, dropped
 

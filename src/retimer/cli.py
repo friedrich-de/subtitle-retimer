@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import dataclasses
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -66,14 +67,27 @@ def _cmd_sync(args: argparse.Namespace) -> int:
     if not args.audio and not args.reference:
         print("error: give --audio, --reference, or both", file=sys.stderr)
         return 1
+    job = {
+        "audio": Path(args.audio) if args.audio else None,
+        "reference": load(args.reference) if args.reference else None,
+        "options": _options(args),
+        "audio_language": args.audio_language,
+    }
     try:
-        result = sync(
-            load(args.file),
-            audio=Path(args.audio) if args.audio else None,
-            reference=load(args.reference) if args.reference else None,
-            options=_options(args),
-            audio_language=args.audio_language,
-        )
+        if args.agent:
+            from retimer.agent import ANTHROPIC_KEY_ENV, AgentSettings, sync_with_agent
+
+            if not os.environ.get(ANTHROPIC_KEY_ENV):
+                print(f"error: --agent needs {ANTHROPIC_KEY_ENV} to be set", file=sys.stderr)
+                return 1
+            settings = AgentSettings(
+                model=args.agent,
+                effort=args.agent_effort,
+                consult="always" if args.agent_always else "auto",
+            )
+            result = sync_with_agent(load(args.file), agent=settings, **job)
+        else:
+            result = sync(load(args.file), **job)
     except (ProviderError, AudioError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 1
@@ -97,6 +111,11 @@ def _cmd_sync(args: argparse.Namespace) -> int:
         "warnings": report.warnings,
         "cost_usd": round(report.total_cost_usd, 5),
     }
+    if report.agent:
+        summary["agent"] = {
+            key: report.agent[key]
+            for key in ("model", "consulted", "questions", "finished", "turns", "cost_usd")
+        }
     print(json.dumps(summary, indent=2, ensure_ascii=False))
     return EXIT_REJECTED if result.subtitle is None else 0
 
@@ -167,6 +186,25 @@ def build_parser() -> argparse.ArgumentParser:
         "--keep-unmatched",
         action="store_true",
         help="keep leading and trailing lines that the reference has no counterpart for",
+    )
+    syncer.add_argument(
+        "--agent",
+        nargs="?",
+        const="haiku",
+        metavar="MODEL",
+        help="let a model settle what the routine steps leave open: haiku (the default), "
+        "sonnet, opus, or a full model id",
+    )
+    syncer.add_argument(
+        "--agent-effort",
+        default="medium",
+        choices=("low", "medium", "high", "xhigh", "max"),
+        help="how much the model may think, default: medium",
+    )
+    syncer.add_argument(
+        "--agent-always",
+        action="store_true",
+        help="ask the model about every file, not only where something is open",
     )
     syncer.add_argument("--plan", help="also write the plan here, as JSON")
     syncer.add_argument("--report", help="also write the full report here, as JSON")

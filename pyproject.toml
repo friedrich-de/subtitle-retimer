@@ -10,6 +10,7 @@ dependencies = [
     "charset-normalizer>=3.3",
     "numpy>=1.26",
     "httpx>=0.27",
+    "anthropic>=2.0",
 ]
 
 [project.optional-dependencies]

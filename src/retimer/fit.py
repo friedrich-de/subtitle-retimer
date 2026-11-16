@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import math
 import statistics
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal
 
 import numpy as np
@@ -70,8 +70,52 @@ CLOSE_SCORE = 1.0
 # that explain the lines equally well.
 PAUSE_BONUS = 0.3
 PAUSE_FULL_MS = 10_000
+# What a pair counts that a reader asserted. It outweighs any pair found by
+# similarity and pays for a break on its own, so one asserted line can open a
+# block at the end of a file or between two blocks.
+PIN_STRENGTH = 3.0
+# In working out the offset of a block an asserted pair weighs no more than a
+# pair found by matching. One whose place is timed loosely weighs nothing where
+# the block has a line that was measured: the reader only read.
+PIN_WEIGHT = 1.0
+# A line the routine steps placed keeps the counterpart it was placed on. With
+# asserted pairs in play, it counts only for reference events this close to it,
+# and leaving the block that puts it there costs as much as breaking a pair.
+HOLD_WINDOW_MS = 1_500
+HOLD_STRENGTH = 3.0
 
 FitKind = Literal["constant", "rate", "blocks", "rate_blocks"]
+
+
+class Pin(BaseModel):
+    """A line and the moment in the reference where it is said, asserted by a reader.
+
+    The reader says which line and which place in the reference belong
+    together. The times are looked up, never written by the reader.
+
+    `slack_ms` is how well the time of the place is known. A line of a
+    reference subtitle starts when it says. A clause inside a transcribed
+    utterance starts about when its first word was heard, and a subtitle line
+    leads or trails that by more than the lines of one block differ. So the
+    pair says that its line belongs to any block that puts it this close to
+    the place, without saying when exactly the block starts.
+    """
+
+    line_id: int
+    line_start_ms: int
+    ref_ms: int
+    slack_ms: int = 0
+
+    @property
+    def anchor(self) -> Anchor:
+        return Anchor(
+            target_id=self.line_id,
+            target_start_ms=self.line_start_ms,
+            ref_index=-1,
+            ref_start_ms=self.ref_ms,
+            offset_ms=self.ref_ms - self.line_start_ms,
+            score=PIN_STRENGTH,
+        )
 
 
 @dataclass
@@ -80,7 +124,15 @@ class Evidence:
 
     `strength` says, for every line and every reference event, how much the
     pair counts as the same line, from 0 to 1. Lines and events are in time
-    order. `anchors` are the pairs that are certain from the text alone.
+    order. `anchors` are the pairs that are certain from the text alone. A
+    pinned line counts for its pin alone, and for more than any other pair.
+    `pinned` gives, for each pin, the row of its line, the time of its place
+    and how well that time is known.
+
+    `hold` names lines with the reference time they were placed at before any
+    pair was asserted. Such a line keeps that counterpart: an asserted pair
+    may open a block for lines nobody placed, but it does not pull placed
+    lines over to it.
     """
 
     line_ids: list[int]
@@ -88,17 +140,56 @@ class Evidence:
     ref_starts: np.ndarray
     strength: np.ndarray
     anchors: list[Anchor]
+    pins: list[Pin] = field(default_factory=list)
+    pinned: list[tuple[int, float, int]] = field(default_factory=list)
+    held: list[tuple[int, float]] = field(default_factory=list)
 
     @classmethod
-    def from_matching(cls, matching: Matching) -> Evidence:
+    def from_matching(
+        cls,
+        matching: Matching,
+        pins: list[Pin] | None = None,
+        hold: dict[int, int] | None = None,
+    ) -> Evidence:
+        pins = list(pins or [])
+        pinned = {pin.line_id for pin in pins}
+        lines = [(line.start_ms, line.id) for line in matching.lines]
+        known = {line.id for line in matching.lines}
+        # A pinned line that matching left out, a sign that turned out to be spoken, joins.
+        extra = sorted({(pin.line_start_ms, pin.line_id) for pin in pins} - set(lines))
+        extra = [item for item in extra if item[1] not in known]
+        strength = matching.strength().astype(np.float64)
+        if extra:
+            strength = np.vstack([strength, np.zeros((len(extra), strength.shape[1]))])
+            lines += extra
         ref_starts = np.array([event.start_ms for event in matching.events], dtype=np.float64)
+        homes: dict[int, float] = {}
+        for row, (_, line_id) in enumerate(lines):
+            home = (hold or {}).get(line_id)
+            if home is not None and line_id not in pinned and row < len(matching.lines):
+                strength[row, np.abs(ref_starts - home) > HOLD_WINDOW_MS] = 0.0
+                homes[line_id] = float(home)
+        if pins:
+            row_of = {line_id: row for row, (_, line_id) in enumerate(lines)}
+            strength = np.hstack([strength, np.zeros((len(lines), len(pins)))])
+            for column, pin in enumerate(pins):
+                row = row_of[pin.line_id]
+                strength[row, :] = 0.0
+                strength[row, len(matching.events) + column] = PIN_STRENGTH
+            ref_starts = np.concatenate([ref_starts, [float(pin.ref_ms) for pin in pins]])
+        rows = sorted(range(len(lines)), key=lambda row: lines[row])
         order = np.argsort(ref_starts, kind="stable")
+        new_row = {lines[row][1]: position for position, row in enumerate(rows)}
         return cls(
-            line_ids=[line.id for line in matching.lines],
-            line_starts=np.array([line.start_ms for line in matching.lines], dtype=np.float64),
+            line_ids=[lines[row][1] for row in rows],
+            line_starts=np.array([lines[row][0] for row in rows], dtype=np.float64),
             ref_starts=ref_starts[order],
-            strength=matching.strength()[:, order],
-            anchors=matching.anchors,
+            strength=strength[rows][:, order],
+            anchors=[anchor for anchor in matching.anchors if anchor.target_id not in pinned]
+            + [pin.anchor for pin in pins],
+            pins=pins,
+            pinned=[(new_row[pin.line_id], float(pin.ref_ms), pin.slack_ms) for pin in pins],
+            held=[(new_row[line_id], home) for line_id, home in homes.items()],
         )
 
 
@@ -235,6 +326,13 @@ def _table(
             value[:, index] = np.where(better, worth, value[:, index])
             text[:, index] = np.where(better, alike, text[:, index])
             residual[:, index] = np.where(better, delta, residual[:, index])
+    offsets = np.asarray(centers, dtype=np.float64)
+    for row, ref_ms, slack in evidence.pinned:
+        delta = ref_ms - (predicted[row] + offsets)
+        inside = np.abs(delta) <= max(tolerance, slack)
+        value[row] = np.where(inside, PIN_STRENGTH, 0.0)
+        text[row] = np.where(inside, PIN_WEIGHT, 0.0)
+        residual[row] = np.where(inside, delta, 0.0)
     return value, text, residual
 
 
@@ -277,8 +375,28 @@ def _assign(
     return labels
 
 
+def _middle(residual: np.ndarray, weight: np.ndarray, loose: np.ndarray) -> float:
+    """The offset the lines of a block agree on.
+
+    `loose` marks asserted pairs whose place is timed loosely, such as the
+    start of a clause in a transcript. Where the block has anything better,
+    that alone says when it starts, and a loose pair only says that its line
+    belongs to the block. A block that rests on loose pairs alone has few of
+    them, often two, and then the plain middle is a better estimate than
+    either of the two.
+    """
+    exact = ~loose
+    if exact.any():
+        return _weighted_median(residual[exact], weight[exact])
+    return float(np.median(residual)) if len(residual) else 0.0
+
+
 def _refined(
-    centers: list[float], labels: np.ndarray, text: np.ndarray, residual: np.ndarray
+    centers: list[float],
+    labels: np.ndarray,
+    text: np.ndarray,
+    residual: np.ndarray,
+    loose: np.ndarray,
 ) -> list[float]:
     """Move every candidate in use to the middle of the lines that chose it."""
     refined = list(centers)
@@ -286,7 +404,7 @@ def _refined(
     for state in set(labels.tolist()):
         chosen = rows[(labels == state) & (text[rows, labels] >= MATCHED_STRENGTH)]
         if len(chosen):
-            refined[state] += _weighted_median(residual[chosen, state], text[chosen, state])
+            refined[state] += _middle(residual[chosen, state], text[chosen, state], loose[chosen])
     return refined
 
 
@@ -324,17 +442,27 @@ def _fit(
     landing = evidence.line_starts * rate
     count = len(landing)
     rows = np.arange(count)
+    asserted = np.zeros(count, dtype=bool)
+    asserted[[row for row, _, _ in evidence.pinned]] = True
+    loose = np.zeros(count, dtype=bool)
+    loose[[row for row, _, slack in evidence.pinned if slack > 0]] = True
 
     def assign(table: np.ndarray, offsets: list[float]) -> np.ndarray:
         if with_blocks:
-            return _assign(table, landing, offsets, _break_cost(tolerance), tolerance)
+            # A held line is worth more to the candidate that leaves it where it
+            # was placed. That only steers the choice, it is not counted as support.
+            grip = np.zeros_like(table)
+            for row, home in evidence.held:
+                near = np.abs(landing[row] + np.asarray(offsets) - home) <= tolerance
+                grip[row] = np.where(near, HOLD_STRENGTH, 0.0)
+            return _assign(table + grip, landing, offsets, _break_cost(tolerance), tolerance)
         return np.full(count, int(np.argmax(table.sum(axis=0))), dtype=np.int32)
 
     # Twice: the first round shows which lines belong to a candidate, and their
     # middle is a better offset for it than the first guess.
     value, text, residual = _table(evidence, rate, centers, tolerance)
     labels = assign(value, centers)
-    centers = _refined(centers, labels, text, residual)
+    centers = _refined(centers, labels, text, residual, loose)
     value, text, residual = _table(evidence, rate, centers, tolerance)
     labels = assign(value, centers)
 
@@ -351,8 +479,12 @@ def _fit(
         shift = 0.0
         spread = 0.0
         if len(found):
-            shift = _weighted_median(residual[found, state], text[found, state])
-            away = np.abs(residual[found, state] - shift)
+            shift = _middle(residual[found, state], text[found, state], loose[found])
+            # How tightly a fit holds is judged by the lines matching found. An
+            # asserted pair is not a measurement of time, unless it is all there is.
+            own = found[~asserted[found]]
+            measured = own if len(own) else found
+            away = np.abs(residual[measured, state] - shift)
             spread = float(np.median(away))
             errors += [float(error) for error in away]
             matched_ids += [evidence.line_ids[row] for row in found]
@@ -406,8 +538,13 @@ def fit_offsets(evidence: Evidence) -> list[Fit]:
     """
     if len(evidence.anchors) < MIN_ANCHORS or len(evidence.line_starts) == 0:
         return []
-    anchor_starts = np.array([anchor.target_start_ms for anchor in evidence.anchors], dtype=float)
-    anchor_refs = np.array([anchor.ref_start_ms for anchor in evidence.anchors], dtype=float)
+    # How tightly the pairs of a block agree is judged by the pairs matching
+    # found. Asserted pairs join only when there are too few of those.
+    measured = [anchor for anchor in evidence.anchors if anchor.ref_index >= 0]
+    if len(measured) < MIN_ANCHORS:
+        measured = evidence.anchors
+    anchor_starts = np.array([anchor.target_start_ms for anchor in measured], dtype=float)
+    anchor_refs = np.array([anchor.ref_start_ms for anchor in measured], dtype=float)
     lines, events = np.nonzero(evidence.strength > 0)
     weights = evidence.strength[lines, events]
 
@@ -418,6 +555,13 @@ def fit_offsets(evidence: Evidence) -> list[Fit]:
         centers = _candidates(
             evidence.ref_starts[events] - evidence.line_starts[lines] * rate, weights, tolerance
         )
+        # An asserted pair that no candidate explains is a candidate of its own,
+        # however little else speaks for its offset.
+        for pin in evidence.pins:
+            offset = pin.ref_ms - pin.line_start_ms * rate
+            reach = max(tolerance / 2, pin.slack_ms)
+            if all(abs(offset - center) > reach for center in centers):
+                centers.append(float(offset))
         if not centers:
             continue
         for with_blocks in (False, True):

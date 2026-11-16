@@ -60,30 +60,37 @@ def score_alignment(
     ranges: list[tuple[int | None, int | None]],
     supports: list[float],
     tolerance_ms: int = SCORE_TOLERANCE_MS,
+    slack_ms: dict[int, int] | None = None,
 ) -> Score:
     """Score the anchors against the new start times of their lines.
 
     `new_starts` maps line ids to start times after the plan; lines the plan
     removed are absent. `ranges` are the blocks of the plan, in original target
     time, with what supports each, and every block gets its own figures.
+    `slack_ms` names lines whose counterpart is timed less exactly than the
+    tolerance: such a line is in place within its own slack.
     """
+    slack = slack_ms or {}
     placed = [
         (anchor, abs(anchor.ref_start_ms - new_starts[anchor.target_id]))
         for anchor in anchors
         if anchor.target_id in new_starts
     ]
     errors = [error for _, error in placed]
+    # What each line may be off by, next to how far off it is.
+    allowed = [max(tolerance_ms, slack.get(anchor.target_id, 0)) for anchor, _ in placed]
 
-    def within(values: list[float]) -> float | None:
-        if not values:
+    def within(members: list[int]) -> float | None:
+        if not members:
             return None
-        return round(sum(1 for value in values if value <= tolerance_ms) / len(values), 3)
+        inside = sum(1 for index in members if errors[index] <= allowed[index])
+        return round(inside / len(members), 3)
 
     blocks = []
     for (from_ms, to_ms), support in zip(ranges, supports, strict=True):
         inside = [
-            error
-            for anchor, error in placed
+            index
+            for index, (anchor, _) in enumerate(placed)
             if (from_ms is None or anchor.target_start_ms >= from_ms)
             and (to_ms is None or anchor.target_start_ms < to_ms)
         ]
@@ -94,13 +101,15 @@ def score_alignment(
                 to_ms=to_ms,
                 anchors=len(inside),
                 within_tolerance=share,
-                median_error_ms=statistics.median(inside) if inside else None,
+                median_error_ms=statistics.median(errors[index] for index in inside)
+                if inside
+                else None,
                 confidence=block_confidence(support, share),
             )
         )
     return Score(
         anchors=len(placed),
-        within_tolerance=within(errors),
+        within_tolerance=within(list(range(len(placed)))),
         median_error_ms=statistics.median(errors) if errors else None,
         p90_error_ms=round(_percentile(errors, 0.9), 1) if errors else None,
         blocks=blocks,

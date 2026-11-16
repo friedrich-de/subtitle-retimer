@@ -12,6 +12,7 @@ from retimer.bench.metrics import (
     TOLERANCES_MS,
     UNMOVED_MS,
     Summary,
+    agent_use,
     stability,
     summarize,
 )
@@ -33,7 +34,9 @@ def build_summary(results: Sequence[dict]) -> dict:
     by_system = {name: [r for r in results if r["system"] == name] for name in systems}
     families = _grouped(results, "family")
     references = _grouped(results, "reference")
-    repeated = any(result["repeat"] > 0 for result in results)
+    # Stability is a figure for the systems that were run more than once per case.
+    repeated = [name for name in systems if any(result["repeat"] > 0 for result in by_system[name])]
+    agents = [agent_use(by_system[name], name) for name in systems]
     return {
         "overall": [summarize(by_system[name], name, "all").model_dump() for name in systems],
         "by_family": [
@@ -48,9 +51,8 @@ def build_summary(results: Sequence[dict]) -> dict:
             for kind in _REFERENCE_ORDER
             if kind in references[name]
         ],
-        "stability": (
-            [stability(by_system[name], name).model_dump() for name in systems] if repeated else []
-        ),
+        "stability": [stability(by_system[name], name).model_dump() for name in repeated],
+        "agent": [use.model_dump() for use in agents if use is not None],
     }
 
 
@@ -60,6 +62,10 @@ def _pct(value: float | None) -> str:
 
 def _ms(value: float | None) -> str:
     return "n/a" if value is None else f"{value:,.0f}"
+
+
+def _number(value: float | None, digits: int) -> str:
+    return "n/a" if value is None else f"{value:.{digits}f}"
 
 
 def _row(cells: Sequence[str]) -> str:
@@ -139,6 +145,49 @@ def render_markdown(summary: dict, run_info: dict | None = None) -> str:
         if rows:
             lines += [f"## {title}", ""]
             lines += _table(["System", label, *header], _overall_rows(rows, with_group=True))
+
+    if summary.get("agent"):
+        lines += [
+            "## What the model was asked",
+            "",
+            "An agent system calls its model only for files whose draft plan leaves something "
+            "open. Turns, time and cost are means over the runs in which it was called. A plan "
+            "is kept back when the model's changes put fewer certain lines in place than the "
+            "plan it started from.",
+            "",
+        ]
+        lines += _table(
+            [
+                "System",
+                "Model",
+                "Runs",
+                "Model asked",
+                "Turns when asked",
+                "Seconds when asked",
+                "Cost when asked (USD)",
+                "Cost per run (USD)",
+                "Plans changed",
+                "Kept back",
+                "Not finished",
+            ],
+            [
+                [
+                    row["system"],
+                    row["model"] or "n/a",
+                    str(row["runs"]),
+                    f"{row['asked']} ({_pct(row['asked'] / row['runs'] if row['runs'] else None)})",
+                    _number(row["turns_per_asked"], 1),
+                    _number(row["seconds_per_asked"], 1),
+                    _number(row["cost_per_asked_usd"], 4),
+                    _number(row["cost_per_run_usd"], 5),
+                    str(row["changed"]),
+                    str(row["kept_back"]),
+                    ", ".join(f"{count} {how}" for how, count in sorted(row["unfinished"].items()))
+                    or "0",
+                ]
+                for row in summary["agent"]
+            ],
+        )
 
     if summary.get("stability"):
         lines += ["## Stability over repeated runs", ""]
