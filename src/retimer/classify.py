@@ -40,6 +40,7 @@ _CREDIT = re.compile(
     r"|corrections?\s+by|opensubtitles|addic7ed|subscene|podnapisi"
     r"|www\.[a-z0-9-]+\.[a-z]{2,}|https?://|downloaded\s+from|encoded\s+by|ripped\s+by"
     r"|translat(?:ed|ion)\s+by|timing\s+by|typeset(?:ting)?\s+by|advertise\s+your"
+    r"|become\s+(?:a\s+)?vip\s+member"
 )
 _BRACKETED_LINE = re.compile(r"^[-–—]?\s*(?:\[[^\]]*\]|\([^)]*\)|（[^）]*）|［[^］]*］)$")
 # A style that carries at least this share of the lines is taken to be dialogue.

@@ -6,6 +6,7 @@ from collections import defaultdict
 from collections.abc import Sequence
 
 from retimer.bench.metrics import (
+    LOOSE_TOLERANCE_MS,
     SUCCESS_SHARE,
     SUCCESS_TOLERANCE_MS,
     TOLERANCES_MS,
@@ -78,6 +79,7 @@ def _overall_rows(rows: Sequence[Summary], with_group: bool) -> list[list[str]]:
         cells += [
             str(row.runs),
             _pct(row.file_success),
+            _pct(row.file_success_loose),
             _ms(row.median_error_ms),
             _ms(row.p90_error_ms),
             *(_pct(row.within.get(str(tolerance))) for tolerance in TOLERANCES_MS),
@@ -94,6 +96,7 @@ def render_markdown(summary: dict, run_info: dict | None = None) -> str:
     header = [
         "Runs",
         "File success",
+        f"At {LOOSE_TOLERANCE_MS} ms",
         "Median error (ms)",
         "90th pct error (ms)",
         *(f"Within {tolerance} ms" for tolerance in TOLERANCES_MS),
@@ -117,7 +120,8 @@ def render_markdown(summary: dict, run_info: dict | None = None) -> str:
         lines += [f"Skipped {name}: {reason}.", ""]
     lines += [
         f"File success is the share of files with at least {SUCCESS_SHARE:.0%} of dialogue lines "
-        f"within {SUCCESS_TOLERANCE_MS} ms of their true start. Error columns are medians over "
+        f"within {SUCCESS_TOLERANCE_MS} ms of their true start, and the column after it is the "
+        f"same with {LOOSE_TOLERANCE_MS} ms. Error columns are medians over "
         "files. The tolerance columns pool all dialogue lines. A tool that reports no outcome "
         f"counts as having left a file alone when no line moved more than {UNMOVED_MS} ms.",
         "",

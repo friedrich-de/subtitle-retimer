@@ -2,7 +2,7 @@
 
 External tools are run as commands, exactly as a user would run them. They take
 one reference, so a case with both audio and a reference subtitle gives them the
-audio.
+audio. The project's own pipeline is called directly.
 """
 
 from __future__ import annotations
@@ -16,9 +16,12 @@ from typing import Protocol
 
 from pydantic import BaseModel, Field
 
+from retimer.audio import AudioError
 from retimer.bench.cases import LoadedCase
+from retimer.cache import Cache
 from retimer.engine import PlanError, apply_plan
 from retimer.io import load, save
+from retimer.providers import OPENROUTER_KEY_ENV, OpenRouter, ProviderError
 
 DEFAULT_TIMEOUT_S = 600
 _ERROR_CHARS = 600
@@ -213,6 +216,80 @@ class AlassRunner(CommandRunner):
         return [self._path(), *self.extra_args, str(reference), str(target), str(output)]
 
 
+class PipelineRunner:
+    """This project's fixed pipeline: anchors, fits and scoring, with no agent deciding."""
+
+    name = "pipeline"
+
+    def __init__(
+        self,
+        name: str | None = None,
+        client: OpenRouter | None = None,
+        cache: Cache | None = None,
+        **settings: object,
+    ) -> None:
+        if name:
+            self.name = name
+        self.client = client
+        self.cache = cache
+        self.settings = settings
+
+    def unavailable(self) -> str | None:
+        if self.client is None and not os.environ.get(OPENROUTER_KEY_ENV):
+            return f"{OPENROUTER_KEY_ENV} is not set"
+        return None
+
+    def supports(self, case: LoadedCase) -> bool:
+        return True
+
+    def run(self, case: LoadedCase, work_dir: Path) -> RunOutput:
+        # Imported here: the other systems do not need numpy and start faster without it.
+        from retimer.pipeline import Settings, sync
+
+        reference = case.reference_subtitle_path
+        started = time.monotonic()
+        try:
+            result = sync(
+                load(case.target_path),
+                audio=case.audio_path,
+                reference=load(reference) if reference else None,
+                options=case.case.options,
+                reference_language=case.case.reference.subtitle_language,
+                settings=Settings(**self.settings),
+                client=self.client,
+                cache=self.cache,
+            )
+        except (ProviderError, AudioError) as error:
+            return RunOutput(
+                outcome="failed",
+                seconds=time.monotonic() - started,
+                error=str(error)[-_ERROR_CHARS:],
+            )
+        seconds = time.monotonic() - started
+        report = result.report
+        details = {
+            "plan": result.plan.model_dump(mode="json", by_alias=True, exclude_none=True),
+            "report": report.model_dump(mode="json", exclude={"fits", "coverage"}),
+        }
+        if result.subtitle is None:
+            return RunOutput(
+                outcome=result.plan.outcome,
+                seconds=seconds,
+                cost_usd=report.total_cost_usd,
+                details=details,
+            )
+        output = work_dir / case.case.target
+        save(result.subtitle, output)
+        return RunOutput(
+            outcome=result.plan.outcome,
+            output_path=output,
+            kept_ids=result.subtitle.ids,
+            seconds=seconds,
+            cost_usd=report.total_cost_usd,
+            details=details,
+        )
+
+
 def builtin_runners() -> dict[str, Runner]:
     runners: list[Runner] = [
         InputRunner(),
@@ -220,8 +297,9 @@ def builtin_runners() -> dict[str, Runner]:
         FfsubsyncRunner(),
         FfsubsyncRunner("ffsubsync-split", ("--split-penalty",)),
         AlassRunner(),
+        PipelineRunner(),
     ]
     return {runner.name: runner for runner in runners}
 
 
-DEFAULT_SYSTEMS = ("input", "ffsubsync", "ffsubsync-split", "alass")
+DEFAULT_SYSTEMS = ("input", "ffsubsync", "ffsubsync-split", "alass", "pipeline")

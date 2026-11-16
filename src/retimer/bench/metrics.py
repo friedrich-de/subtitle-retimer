@@ -18,6 +18,10 @@ TOLERANCES_MS = (100, 250, 500)
 # A file counts as synced when this share of its dialogue lines is within the tolerance.
 SUCCESS_TOLERANCE_MS = 250
 SUCCESS_SHARE = 0.95
+# The same share within this wider tolerance is reported next to it. Hand-timed
+# subtitles lead or trail the voice by a quarter of a second as a matter of
+# style, so against audio the strict figure also measures that style.
+LOOSE_TOLERANCE_MS = 500
 # A system that reports no outcome is taken to have left the file alone when no
 # line moved further than the tightest tolerance.
 UNMOVED_MS = TOLERANCES_MS[0]
@@ -201,6 +205,7 @@ class Summary(BaseModel):
     runs: int
     failed: int
     file_success: float | None
+    file_success_loose: float | None = None
     median_error_ms: float | None
     p90_error_ms: float | None
     within: dict[str, float]
@@ -237,6 +242,12 @@ def summarize(results: Sequence[dict], system: str, group: str) -> Summary:
         runs=len(results),
         failed=sum(1 for m in metrics if m.outcome == "failed"),
         file_success=sum(1 for m in timing if m.success) / len(timing) if timing else None,
+        file_success_loose=(
+            sum(1 for m in timing if m.within.get(str(LOOSE_TOLERANCE_MS), 0.0) >= SUCCESS_SHARE)
+            / len(timing)
+            if timing
+            else None
+        ),
         median_error_ms=statistics.median(medians) if medians else None,
         p90_error_ms=statistics.median(p90s) if p90s else None,
         within=within,

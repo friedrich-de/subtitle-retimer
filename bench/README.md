@@ -62,6 +62,7 @@ rebuilds them and always produces the same set.
 | Line error | Distance between the start of a dialogue line after syncing and its true start. Median and 90th percentile per file. |
 | Within tolerance | Share of dialogue lines within 100 ms, 250 ms and 500 ms. A dialogue line the system removed counts as outside. |
 | File success | At least 95% of a file's dialogue lines within 250 ms. For a wrong-content case: the system rejected it. |
+| At 500 ms | The same with 500 ms. See the note on audio below. |
 | Decisions right | Correct outcome on the in-sync and wrong-content cases, and trailing lines trimmed without losing dialogue. |
 | Time and cost | Wall-clock seconds and provider cost per file. |
 | Stability | With `--repeats`, how often repeated runs agree and how far their median errors spread. |
@@ -70,6 +71,15 @@ The summary reports medians over files for the error columns, so a long file
 does not outweigh the rest, and pools all dialogue lines for the tolerance
 columns. It breaks every figure down by distortion family and by reference
 kind.
+
+The truth is the timing a person gave the seed subtitle, and a person does not
+time to the sound exactly. Measured against the sound itself, the Tears of
+Steel subtitles appear about a quarter of a second before the voice sets in,
+and the Sintel subtitles about a quarter of a second after. A system that
+places every line exactly on the voice is therefore up to 250 ms off the truth
+on audio cases, right at the edge of the strict tolerance. That is why the
+figure at 500 ms is reported next to it. Against a reference subtitle the
+question does not arise.
 
 Tools that only retime do not report an outcome. They count as having left a
 file alone when no line moved more than 100 ms, and as having synced it
@@ -85,10 +95,15 @@ may sort the file.
 | `ffsubsync` | ffsubsync with its defaults: one offset and a frame rate ratio for the whole file. |
 | `ffsubsync-split` | ffsubsync with `--split-penalty`, which also looks for breaks. |
 | `alass` | alass with its defaults: finds splits and guesses the frame rate ratio. |
+| `pipeline` | This project's fixed pipeline: transcript or reference subtitle, anchors by meaning, offset fits, plan. No agent. Needs `OPENROUTER_API_KEY`. |
 
 The external tools take one reference. When a case has both audio and a
 reference subtitle they get the audio. A tool is found on the `PATH`, or
 through `RETIMER_FFSUBSYNC` and `RETIMER_ALASS`.
+
+The pipeline caches transcripts and embeddings, so a rerun over the same audio
+costs nothing and its time and cost columns then only show what was new. Set
+`RETIMER_CACHE_DIR` to an empty directory to measure a first run.
 
 A new system is a class with `name`, `unavailable()`, `supports(case)` and
 `run(case, work_dir)` that returns a `RunOutput`, added in
