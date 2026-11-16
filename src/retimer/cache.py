@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import os
 import sqlite3
+import time
 from contextlib import closing
 from pathlib import Path
 
@@ -20,6 +21,7 @@ CREATE TABLE IF NOT EXISTS entries (
     namespace TEXT NOT NULL,
     key TEXT NOT NULL,
     value BLOB NOT NULL,
+    written_at REAL,
     PRIMARY KEY (namespace, key)
 )
 """
@@ -44,6 +46,10 @@ class Cache:
         self.path = directory / "cache.sqlite3"
         with closing(self._connect()) as connection, connection:
             connection.execute(_SCHEMA)
+            columns = {row[1] for row in connection.execute("PRAGMA table_info(entries)")}
+            if "written_at" not in columns:
+                # A cache from before entries had an age. They count from now on.
+                connection.execute("ALTER TABLE entries ADD COLUMN written_at REAL")
 
     def _connect(self) -> sqlite3.Connection:
         return sqlite3.connect(self.path, timeout=30)
@@ -72,11 +78,27 @@ class Cache:
         self.put_many(namespace, {key: value})
 
     def put_many(self, namespace: str, values: dict[str, bytes]) -> None:
+        now = time.time()
         with closing(self._connect()) as connection, connection:
             connection.executemany(
-                "INSERT OR REPLACE INTO entries (namespace, key, value) VALUES (?, ?, ?)",
-                [(namespace, key, value) for key, value in values.items()],
+                "INSERT OR REPLACE INTO entries (namespace, key, value, written_at) "
+                "VALUES (?, ?, ?, ?)",
+                [(namespace, key, value, now) for key, value in values.items()],
             )
+
+    def prune(self, max_age_s: float) -> int:
+        """Forget what was written longer ago than `max_age_s`. Returns how many entries went.
+
+        A service that takes uploads keeps what it derived from them no longer
+        than it says, and the file stays a size the disk can hold.
+        """
+        now = time.time()
+        with closing(self._connect()) as connection, connection:
+            connection.execute("UPDATE entries SET written_at = ? WHERE written_at IS NULL", (now,))
+            gone = connection.execute(
+                "DELETE FROM entries WHERE written_at < ?", (now - max_age_s,)
+            ).rowcount
+        return gone
 
 
 class NoCache(Cache):
@@ -93,3 +115,6 @@ class NoCache(Cache):
 
     def put_many(self, namespace: str, values: dict[str, bytes]) -> None:
         return None
+
+    def prune(self, max_age_s: float) -> int:
+        return 0

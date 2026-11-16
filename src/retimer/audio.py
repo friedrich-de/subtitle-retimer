@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 import shutil
 import subprocess
@@ -10,6 +11,20 @@ from pathlib import Path
 
 # Mono Opus at 24 kbps: the form the client uploads and the provider accepts.
 SPEECH_CODEC_ARGS = ("-vn", "-ac", "1", "-c:a", "libopus", "-b:a", "24k", "-application", "voip")
+
+# The containers audio is accepted in. ffmpeg also reads playlists and scripts
+# that name other files or addresses, and an upload must never get it to open
+# anything but itself. So every input is held to these containers and to local
+# files, whatever it claims to be.
+ALLOWED_CONTAINERS = ("ogg", "matroska", "webm", "mp3", "mov", "mp4", "m4a", "flac", "wav", "aac")
+INPUT_GUARD_ARGS = (
+    "-protocol_whitelist",
+    "file",
+    "-format_whitelist",
+    ",".join(ALLOWED_CONTAINERS),
+)
+# No step on one file takes this long unless something is wrong with the file.
+TOOL_TIMEOUT_S = 900.0
 
 _SILENCE_END = re.compile(r"silence_end: ([0-9.]+) \| silence_duration: ([0-9.]+)")
 _SILENCE_NOISE = "-35dB"
@@ -20,6 +35,10 @@ class AudioError(RuntimeError):
     """The audio could not be read or converted."""
 
 
+class ToolMissing(AudioError):
+    """ffmpeg is not installed. That is the machine's fault and not the file's."""
+
+
 @dataclass(frozen=True)
 class Chunk:
     path: Path
@@ -27,37 +46,74 @@ class Chunk:
     duration_ms: int
 
 
+@dataclass(frozen=True)
+class AudioInfo:
+    container: str
+    codec: str
+    duration_ms: int
+
+
 def _require(tool: str) -> str:
     path = shutil.which(tool)
     if path is None:
-        raise AudioError(f"{tool} is not installed")
+        raise ToolMissing(f"{tool} is not installed")
     return path
 
 
 def _run(command: list[str]) -> subprocess.CompletedProcess[str]:
-    done = subprocess.run(command, capture_output=True, text=True, errors="replace", check=False)
+    tool = Path(command[0]).name
+    try:
+        done = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            errors="replace",
+            check=False,
+            stdin=subprocess.DEVNULL,
+            timeout=TOOL_TIMEOUT_S,
+        )
+    except subprocess.TimeoutExpired as error:
+        raise AudioError(f"{tool} did not finish in {TOOL_TIMEOUT_S:.0f} s") from error
     if done.returncode != 0:
-        raise AudioError(f"{Path(command[0]).name} failed: {done.stderr.strip()[-400:]}")
+        raise AudioError(f"{tool} failed: {done.stderr.strip()[-400:]}")
     return done
 
 
-def probe_duration_ms(path: Path) -> int:
+def probe_audio(path: Path) -> AudioInfo:
+    """What the file is, if it is audio in a container that is accepted."""
     done = _run(
         [
             _require("ffprobe"),
             "-v",
             "error",
+            *INPUT_GUARD_ARGS,
             "-show_entries",
-            "format=duration",
+            "format=format_name,duration:stream=codec_type,codec_name",
             "-of",
-            "csv=p=0",
+            "json",
             str(path),
         ]
     )
     try:
-        return round(float(done.stdout.strip()) * 1000)
-    except ValueError as error:
+        found = json.loads(done.stdout)
+        container = str(found["format"]["format_name"])
+        duration_ms = round(float(found["format"]["duration"]) * 1000)
+    except (ValueError, KeyError, TypeError) as error:
         raise AudioError("the file has no readable duration; is it audio?") from error
+    codecs = [
+        str(stream.get("codec_name", ""))
+        for stream in found.get("streams", [])
+        if stream.get("codec_type") == "audio"
+    ]
+    if not codecs:
+        raise AudioError("the file has no audio track")
+    if duration_ms <= 0:
+        raise AudioError("the file has no readable duration; is it audio?")
+    return AudioInfo(container=container, codec=codecs[0], duration_ms=duration_ms)
+
+
+def probe_duration_ms(path: Path) -> int:
+    return probe_audio(path).duration_ms
 
 
 def find_silences(path: Path) -> list[tuple[int, int]]:
@@ -67,6 +123,7 @@ def find_silences(path: Path) -> list[tuple[int, int]]:
             _require("ffmpeg"),
             "-hide_banner",
             "-nostats",
+            *INPUT_GUARD_ARGS,
             "-i",
             str(path),
             "-vn",
@@ -132,6 +189,7 @@ def split_audio(path: Path, work_dir: Path, max_chunk_ms: int) -> list[Chunk]:
                 f"{start / 1000:.3f}",
                 "-t",
                 f"{(end - start) / 1000:.3f}",
+                *INPUT_GUARD_ARGS,
                 "-i",
                 str(path),
                 *SPEECH_CODEC_ARGS,

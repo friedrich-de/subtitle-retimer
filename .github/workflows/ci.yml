@@ -16,6 +16,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+      # The API checks uploaded audio with ffprobe, and its tests feed it hostile files.
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
       - run: pip install -e ".[dev]"
       - run: ruff check .
       - run: ruff format --check .

@@ -97,6 +97,7 @@ may sort the file.
 | `alass` | alass with its defaults: finds splits and guesses the frame rate ratio. |
 | `pipeline` | This project's fixed pipeline: transcript or reference subtitle, anchors by meaning, offset fits, plan. No agent. Needs `OPENROUTER_API_KEY`. |
 | `agent-haiku`, `agent-sonnet`, `agent-opus` | The pipeline with a model settling what its draft leaves open, on Claude Haiku 5.5, Sonnet 5.5 or Opus 5.5. Also needs `ANTHROPIC_RETIMER_API_KEY`. |
+| `api` | A running service, reached over HTTP as a client reaches it. Needs `RETIMER_API_URL` and `RETIMER_API_KEY`. |
 
 The external tools take one reference. When a case has both audio and a
 reference subtitle they get the audio. A tool is found on the `PATH`, or
@@ -115,6 +116,13 @@ model adds. The summary has a table of its own for them: how many files the
 model was asked about at all, how many turns, seconds and dollars that took,
 and how often its changes were kept back. Run them with `--repeats`, since a
 model does not answer the same way twice.
+
+`api` submits each case as a job, waits for it, fetches the result and the
+plan, and deletes the job again. It measures what a client gets, and it checks
+one promise on the way: the plan of a job, run on the target here, has to give
+exactly the file the service delivered. The service decides which model its
+agent runs on. Its limits apply to the benchmark as to any client: a run of all
+cases needs `RETIMER_JOBS_PER_HOUR` raised on the server, or it waits.
 
 A new system is a class with `name`, `unavailable()`, `supports(case)` and
 `run(case, work_dir)` that returns a `RunOutput`, added in

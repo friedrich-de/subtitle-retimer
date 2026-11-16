@@ -9,6 +9,7 @@ benchmark's measure of what the agent adds.
 from __future__ import annotations
 
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
@@ -633,10 +634,15 @@ def prepare(
     client: OpenRouter | None = None,
     cache: Cache | None = None,
     labels: list[LineLabel] | None = None,
+    progress: Callable[[str], None] | None = None,
 ) -> Prepared:
-    """Run the steps that need no decision: the reference, the labels and the matching."""
+    """Run the steps that need no decision: the reference, the labels and the matching.
+
+    `progress` is told which step begins: "transcribing", then "matching".
+    """
     if audio is None and reference is None:
         raise ValueError("a reference is needed: audio, a subtitle, or both")
+    say = progress or (lambda step: None)
     options = options or Options()
     settings = settings or Settings()
     cache = cache if cache is not None else Cache()
@@ -654,6 +660,7 @@ def prepare(
     started = time.monotonic()
     transcript: Transcript | None = None
     if audio is not None:
+        say("transcribing")
         transcript = transcribe_audio(
             audio,
             model=settings.speech_model,
@@ -665,6 +672,7 @@ def prepare(
         cost["transcription"] = transcript.cost_usd
     seconds["transcription"] = round(time.monotonic() - started, 2)
 
+    say("matching")
     started = time.monotonic()
     if transcript is not None and reference is not None:
         timeline = combine_references(

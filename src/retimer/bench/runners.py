@@ -7,6 +7,8 @@ audio. The project's own pipeline is called directly.
 
 from __future__ import annotations
 
+import contextlib
+import json
 import os
 import shutil
 import subprocess
@@ -14,13 +16,15 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
 
+import httpx
 from pydantic import BaseModel, Field
 
 from retimer.audio import AudioError
 from retimer.bench.cases import LoadedCase
 from retimer.cache import Cache
 from retimer.engine import PlanError, apply_plan
-from retimer.io import load, save
+from retimer.io import dumps, load, save
+from retimer.plan import Plan
 from retimer.providers import OPENROUTER_KEY_ENV, OpenRouter, ProviderError
 
 if TYPE_CHECKING:
@@ -29,6 +33,10 @@ if TYPE_CHECKING:
 # The name of the variable is repeated here so that listing the systems does
 # not load the agent, and with it the provider's library.
 ANTHROPIC_KEY_ENV = "ANTHROPIC_RETIMER_API_KEY"
+
+# Where a running service is, and the key to it, for the system that goes through HTTP.
+API_URL_ENV = "RETIMER_API_URL"
+API_KEY_ENV = "RETIMER_API_KEY"
 
 DEFAULT_TIMEOUT_S = 600
 _ERROR_CHARS = 600
@@ -359,6 +367,167 @@ class AgentRunner(PipelineRunner):
         )
 
 
+class ApiRunner:
+    """A running service, reached over HTTP as a client reaches it.
+
+    Each case is submitted as a job, waited for, fetched and deleted again. The
+    result is measured like every other system's, so this shows what a client
+    gets, with everything between the request and the file included. The
+    service decides which model its agent runs on.
+    """
+
+    name = "api"
+
+    def __init__(
+        self,
+        url: str | None = None,
+        key: str | None = None,
+        *,
+        agent: str | None = None,
+        timeout_s: float = DEFAULT_TIMEOUT_S,
+        poll_s: float = 0.5,
+        client: httpx.Client | None = None,
+    ) -> None:
+        self._url = url
+        self._key = key
+        self.agent = agent
+        self.timeout_s = timeout_s
+        self.poll_s = poll_s
+        self._client = client
+
+    @property
+    def url(self) -> str | None:
+        return self._url or os.environ.get(API_URL_ENV)
+
+    @property
+    def key(self) -> str | None:
+        return self._key or os.environ.get(API_KEY_ENV)
+
+    def unavailable(self) -> str | None:
+        if self._client is not None:
+            return None
+        missing = [
+            name for name, value in ((API_URL_ENV, self.url), (API_KEY_ENV, self.key)) if not value
+        ]
+        return f"{' and '.join(missing)} not set" if missing else None
+
+    def supports(self, case: LoadedCase) -> bool:
+        return True
+
+    def _connect(self) -> httpx.Client:
+        return httpx.Client(
+            base_url=(self.url or "").rstrip("/"),
+            headers={"Authorization": f"Bearer {self.key}"},
+            timeout=120.0,
+        )
+
+    def _send(self, client: httpx.Client, method: str, path: str, deadline: float, **kwargs):
+        """One request. When the service says to wait, it is waited and sent again."""
+        while True:
+            response = client.request(method, path, **kwargs)
+            wait_s = float(response.headers.get("retry-after", 1))
+            if response.status_code != 429 or time.monotonic() + wait_s > deadline:
+                return response
+            time.sleep(wait_s)
+
+    def run(self, case: LoadedCase, work_dir: Path) -> RunOutput:
+        started = time.monotonic()
+        deadline = started + self.timeout_s
+        spec = case.case
+        options: dict[str, object] = spec.options.model_dump()
+        if spec.reference.subtitle_language:
+            options["reference_language"] = spec.reference.subtitle_language
+        if self.agent:
+            options["agent"] = self.agent
+        files = {"target": (spec.target, case.target_path.read_bytes())}
+        if case.audio_path is not None:
+            files["reference_audio"] = (case.audio_path.name, case.audio_path.read_bytes())
+        if case.reference_subtitle_path is not None:
+            reference = case.reference_subtitle_path
+            files["reference_subtitle"] = (reference.name, reference.read_bytes())
+
+        def failed(error: str, **details: object) -> RunOutput:
+            return RunOutput(
+                outcome="failed",
+                seconds=time.monotonic() - started,
+                error=error[-_ERROR_CHARS:],
+                details=details,
+            )
+
+        client = self._client or self._connect()
+        link = None
+        try:
+            response = self._send(
+                client,
+                "POST",
+                "/v1/jobs",
+                deadline,
+                files=files,
+                data={"options": json.dumps(options)},
+            )
+            if response.status_code != 202:
+                return failed(f"the job was refused: {response.status_code} {response.text}")
+            job = response.json()
+            link = job["links"]["self"]
+            pause_s = self.poll_s
+            while job["status"] != "finished":
+                if time.monotonic() > deadline:
+                    return failed(f"the job was still {job['status']} after {self.timeout_s:.0f} s")
+                time.sleep(pause_s)
+                # A job that takes long is asked about less often.
+                pause_s = min(pause_s * 1.5, 3.0)
+                response = self._send(client, "GET", link, deadline)
+                if response.status_code != 200:
+                    return failed(f"the job could not be read: {response.status_code}")
+                job = response.json()
+            seconds = time.monotonic() - started
+            summary = job.get("summary") or {}
+            details: dict[str, object] = {
+                "job": {key: job[key] for key in ("id", "outcome", "summary", "error")},
+            }
+            if job["outcome"] == "failed":
+                return failed(json.dumps(job.get("error")), **details)
+            plan = Plan.model_validate(
+                self._send(client, "GET", job["links"]["plan"], deadline).json()
+            )
+            details["plan"] = plan.model_dump(mode="json", by_alias=True, exclude_none=True)
+            produced = RunOutput(
+                outcome=job["outcome"],
+                seconds=seconds,
+                cost_usd=float(summary.get("cost_usd") or 0.0),
+                details=details,
+            )
+            if "result" not in job["links"]:
+                return produced
+            delivered = self._send(client, "GET", job["links"]["result"], deadline)
+            if delivered.status_code != 200:
+                return failed(
+                    f"the result could not be fetched: {delivered.status_code}", **details
+                )
+            output = work_dir / spec.target
+            output.write_bytes(delivered.content)
+            produced.output_path = output
+            # The plan is the record of what was done: run here on the same
+            # target, it has to give the file the service delivered. It also
+            # names the target line behind every line of that file.
+            try:
+                replayed = apply_plan(load(case.target_path), plan).subtitle
+            except PlanError as error:
+                return failed(f"the plan of the job does not run: {error}", **details)
+            same = dumps(replayed) == delivered.content.decode("utf-8")
+            produced.details["file_matches_plan"] = same
+            produced.kept_ids = replayed.ids if same else None
+            return produced
+        except httpx.HTTPError as error:
+            return failed(f"{type(error).__name__}: {error}")
+        finally:
+            if link is not None:
+                with contextlib.suppress(httpx.HTTPError):
+                    client.delete(link)
+            if self._client is None:
+                client.close()
+
+
 def builtin_runners() -> dict[str, Runner]:
     runners: list[Runner] = [
         InputRunner(),
@@ -370,6 +539,7 @@ def builtin_runners() -> dict[str, Runner]:
         AgentRunner("agent-opus", model="opus"),
         AgentRunner("agent-sonnet", model="sonnet"),
         AgentRunner("agent-haiku", model="haiku"),
+        ApiRunner(),
     ]
     return {runner.name: runner for runner in runners}
 

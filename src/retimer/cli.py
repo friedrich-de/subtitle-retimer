@@ -120,6 +120,34 @@ def _cmd_sync(args: argparse.Namespace) -> int:
     return EXIT_REJECTED if result.subtitle is None else 0
 
 
+def _cmd_serve(args: argparse.Namespace) -> int:
+    from retimer.api.server import serve
+
+    return serve(args.host, args.port, dev=args.dev, run_worker=not args.no_worker)
+
+
+def _cmd_worker(args: argparse.Namespace) -> int:
+    from retimer.api.server import work
+
+    return work()
+
+
+def _cmd_api_key(args: argparse.Namespace) -> int:
+    from retimer.api.auth import format_entry, new_key
+    from retimer.api.config import API_KEYS_ENV
+
+    try:
+        key, entry = new_key(args.label)
+    except ValueError as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 1
+    print("API key, for the client. It is shown once and stored nowhere:")
+    print(f"  {key}")
+    print(f"Entry for {API_KEYS_ENV} on the server. Several entries are separated by commas:")
+    print(f"  {format_entry(entry)}")
+    return 0
+
+
 def _cmd_apply(args: argparse.Namespace) -> int:
     plan = Plan.model_validate_json(Path(args.plan).read_text(encoding="utf-8"))
     return _apply(load(args.file), plan, args)
@@ -216,6 +244,28 @@ def build_parser() -> argparse.ArgumentParser:
     apply.add_argument("plan", help="path to a plan in JSON")
     _add_output(apply)
     apply.set_defaults(run=_cmd_apply)
+
+    server = commands.add_parser("serve", help="run the HTTP API")
+    server.add_argument("--host", default="127.0.0.1", help="default: this machine only")
+    server.add_argument("--port", type=int, default=8000)
+    server.add_argument(
+        "--dev",
+        action="store_true",
+        help="development server: plain HTTP and /docs, on this machine only",
+    )
+    server.add_argument(
+        "--no-worker",
+        action="store_true",
+        help="only take requests; jobs are run by a separate `retimer worker`",
+    )
+    server.set_defaults(run=_cmd_serve)
+
+    worker = commands.add_parser("worker", help="run queued jobs, next to `serve --no-worker`")
+    worker.set_defaults(run=_cmd_worker)
+
+    api_key = commands.add_parser("api-key", help="make an API key and its entry for the server")
+    api_key.add_argument("--label", default="default", help="a name for the key in the logs")
+    api_key.set_defaults(run=_cmd_api_key)
 
     add_bench_commands(commands)
     return parser

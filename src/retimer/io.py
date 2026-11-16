@@ -102,7 +102,10 @@ def loads(text: str, encoding: str = "utf-8") -> Subtitle:
 
 
 def load_bytes(data: bytes) -> Subtitle:
-    text, encoding = decode(data)
+    try:
+        text, encoding = decode(data)
+    except UnicodeDecodeError as error:
+        raise SubtitleError("the text of the file could not be decoded") from error
     return loads(text, encoding)
 
 

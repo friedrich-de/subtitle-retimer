@@ -4,10 +4,10 @@ An API that synchronizes a subtitle file to a reference (audio, an in-sync
 subtitle, or both). An AI agent diagnoses the file and chooses the operations;
 deterministic tools do all the timing math.
 
-The project is built in milestones. This repository holds the first four: the
+The project is built in milestones. This repository holds the first five: the
 subtitle core, the benchmark harness, the fixed pipeline that syncs a file
-without an agent, and the agent that settles what the pipeline leaves open.
-The HTTP API comes next.
+without an agent, the agent that settles what the pipeline leaves open, and
+the HTTP API. Deployment comes next.
 
 ## What the subtitle core does
 
@@ -103,6 +103,196 @@ alone, where the limit is the transcript and not the model. The figures and
 what is behind them are in
 [bench/baselines/2026-11-16-agent.md](bench/baselines/2026-11-16-agent.md).
 
+## The HTTP API
+
+A job takes from under a second to a minute, so the API is job-based: submit,
+ask how it is doing, fetch what it produced.
+
+Run through a live service, the 194 seed cases come out exactly as they do
+when the agent is called directly, and every delivered file is the file its
+plan describes. That run is in
+[bench/baselines/2026-11-16-api.md](bench/baselines/2026-11-16-api.md).
+
+| Call | Purpose |
+| --- | --- |
+| `POST /v1/jobs` | Submit target, reference and options. Answers with the job. |
+| `GET /v1/jobs/{id}` | Status, the current stage, and the outcome with a summary once finished. |
+| `GET /v1/jobs/{id}/result` | The retimed subtitle. |
+| `GET /v1/jobs/{id}/plan` | The operation plan as JSON. |
+| `GET /v1/jobs/{id}/report` | Diagnosis, decisions, scores and warnings. |
+| `GET /v1/jobs` | The jobs of the key, newest first. |
+| `DELETE /v1/jobs/{id}` | Delete a job and its files before they expire. |
+| `GET /healthz` | Whether the service is up. The only call that needs no key. |
+
+```bash
+ffmpeg -i episode.mkv -vn -ac 1 -c:a libopus -b:a 24k -application voip episode.ogg
+
+curl https://retimer.example/v1/jobs \
+  -H "Authorization: Bearer $RETIMER_API_KEY" \
+  -F target=@episode.ja.srt \
+  -F reference_audio=@episode.ogg \
+  -F 'options={"remove_hearing_impaired": true}'
+```
+
+A job is a multipart form with up to four parts:
+
+| Part | Content |
+| --- | --- |
+| `target` | The subtitle to synchronize, SRT or ASS. Required. |
+| `reference_audio` | Audio of the video, without the picture. Mono Opus at 24 kbps is enough and keeps an episode near 4 MB. |
+| `reference_subtitle` | A subtitle that is in sync, in any language. SRT or ASS. |
+| `options` | A JSON object, see below. |
+
+One reference is required, and both may be sent. Audio is taken in Ogg,
+Matroska or WebM, MP3, MP4 or M4A, FLAC, WAV and AAC.
+
+| Option | Default | Meaning |
+| --- | --- | --- |
+| `remove_hearing_impaired` | `false` | Drop sound descriptions and speaker labels from the output. |
+| `remove_karaoke` | `false` | Drop karaoke and song lines from the output. |
+| `strip_formatting` | `false` | Remove styling tags, keep the text. |
+| `remove_symbols` | `false` | Remove music notes and similar symbols. |
+| `drop_unmatched` | `true` | Trim leading or trailing lines when the reference confirms the content is absent. |
+| `audio_language`, `reference_language` | detected | Hints such as `"ja"`. |
+| `output_format` | as the target | `"srt"` or `"ass"`. |
+| `agent` | the server's | `"haiku"`, `"sonnet"`, `"opus"`, or `"off"` for the fixed pipeline. |
+
+An option the service does not know is refused, not ignored.
+
+The answer to every job call is the job:
+
+```json
+{
+  "id": "b0dd7dc2896b4956aeab67099d6aeed2",
+  "status": "finished",
+  "stage": null,
+  "outcome": "synced",
+  "expires_at": "2026-11-17T08:48:06Z",
+  "summary": {
+    "confidence": 0.93,
+    "fit": "blocks",
+    "blocks": [
+      {"from_ms": null, "to_ms": 239724, "shift_ms": 0, "lines": 17, "confidence": 0.79},
+      {"from_ms": 239724, "to_ms": null, "shift_ms": -40901, "lines": 59, "confidence": 0.95}
+    ],
+    "target_lines": 76,
+    "delivered_lines": 76,
+    "trimmed_lines": 0,
+    "warnings": [],
+    "agent": {"model": "claude-haiku-5-5", "consulted": true, "turns": 2, "cost_usd": 0.0008},
+    "cost_usd": 0.0116,
+    "seconds": 21.4
+  },
+  "error": null,
+  "links": {"self": "/v1/jobs/b0dd…", "result": "…/result", "plan": "…/plan", "report": "…/report"}
+}
+```
+
+`status` goes from `queued` to `running` to `finished`. While a job runs,
+`stage` says where it is: `transcribing`, `matching`, `deciding`, `writing`.
+`links` only names what exists.
+
+| Outcome | Meaning | Delivered |
+| --- | --- | --- |
+| `synced` | The plan was applied and verified. | File, plan, report |
+| `already_in_sync` | The timing was fine. Only the content options were applied. | File, plan, report |
+| `partial` | Some blocks could not be placed with confidence. The summary names them. | File, plan, report |
+| `rejected_no_match` | Reference and target are different content. | Plan and report, no file |
+| `failed` | A technical error. `error` holds a code and a sentence. | Nothing |
+
+A refusal is JSON as well, `{"error": {"code": "…", "message": "…"}}`, with
+the usual status: 401 without a valid key, 409 for a result that is not there
+yet, 413 for an upload over the limit, 422 for a file or an option that cannot
+be used, and 429 with `Retry-After` when a limit is reached. A file that is no
+subtitle, or audio that cannot be read, is refused when it is submitted and
+not when the job runs.
+
+### Running the service
+
+```bash
+retimer api-key --label al     # a key for the client, and its entry for the server
+export RETIMER_API_KEYS="al:9f2c…"
+
+retimer serve --dev            # on this machine: plain HTTP, and /docs with the schema
+retimer serve                  # production: on 127.0.0.1:8000, behind a proxy that does HTTPS
+```
+
+The server needs `ffmpeg`, `OPENROUTER_API_KEY`, and for the agent
+`ANTHROPIC_RETIMER_API_KEY`. Without the last one jobs run the fixed pipeline.
+One process serves requests and runs the jobs, one at a time. Jobs are rows in
+a SQLite file and their files a directory each under `RETIMER_DATA_DIR`. A job
+that was running when the server stopped is started over once at the next
+start. `retimer serve --no-worker` with a separate `retimer worker` splits the
+two.
+
+### What keeps the service closed
+
+The provider keys behind the service cost money, so nothing is served to a
+stranger.
+
+- **A key on every call.** Every request passes one gate before anything else
+  looks at it, so a route cannot be left open by forgetting to protect it.
+  Without a valid key the answer is 401, for a path that exists and for one
+  that does not. The health check is the exception and says only that the
+  service is up. The service does not start without a key.
+- **Keys are not stored.** A key is 256 random bits. The server holds its
+  SHA-256 hash and a label for the logs, compares in constant time, and takes
+  the key from a header only, never from the address of a request.
+- **HTTPS only.** The server listens on the machine itself and expects a proxy
+  in front that terminates TLS. A request that did not arrive over HTTPS is
+  refused, and only the proxy is believed about that
+  (`RETIMER_TRUSTED_PROXIES`, default `127.0.0.1`). A server that is exposed
+  directly by mistake therefore answers nothing.
+- **No documentation in production.** `/docs` and the schema exist on a
+  development server only, and a development server only listens on its own
+  machine.
+- **Limits before the body is read.** A request without a key is refused
+  before its upload is taken. The size of an upload is checked from its header
+  and counted while it arrives. Each file has a size limit of its own, audio a
+  length limit and subtitles a line limit. An upload that has not arrived
+  after 15 minutes is dropped. Connections that send no request at all are
+  for the proxy to close.
+- **Rate limits.** Requests per key and minute, jobs per key and hour, jobs
+  under way per key, and wrong keys per address. A limit answers 429 and says
+  how long to wait.
+- **A daily budget.** What the jobs of a day cost at the providers is added
+  up. When the budget is spent, new jobs are refused until the next day. The
+  agent has a cost limit per job on top.
+- **Uploads are data.** Nothing a client sends names a file on the server.
+  Audio is only opened in a fixed list of containers and only from the local
+  disk, so a playlist or script that points at other files or addresses is
+  refused. Text is cleaned by patterns that read a line once, however it is
+  built.
+- **Nothing is kept.** The audio of a job is deleted when the job is done, the
+  job with its files 24 hours later, transcripts and embeddings after 30 days.
+  `DELETE` removes a job at once.
+- **Errors say little.** A failure on the server's side reaches the client as
+  a code and a sentence. The cause goes to the log, and the log blanks the
+  provider keys and anything shaped like an API key.
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `RETIMER_API_KEYS` | none, required | Entries `label:sha256`, separated by commas. |
+| `RETIMER_DATA_DIR` | `data` | Jobs, their files, the cache. |
+| `RETIMER_TRUSTED_PROXIES` | `127.0.0.1` | Whose word on HTTPS and the client's address is taken. |
+| `RETIMER_MAX_AUDIO_MB` | 100 | Largest audio upload. |
+| `RETIMER_MAX_AUDIO_MINUTES` | 240 | Longest audio. |
+| `RETIMER_MAX_SUBTITLE_MB` | 10 | Largest subtitle upload. |
+| `RETIMER_MAX_DIALOGUE_LINES` | 4000 | Most lines of dialogue in a subtitle. Matching needs about 320 MB of memory at 3000 lines and 1 GB at 6000. |
+| `RETIMER_REQUESTS_PER_MINUTE` | 120 | Per key. |
+| `RETIMER_JOBS_PER_HOUR` | 60 | Per key. |
+| `RETIMER_MAX_ACTIVE_JOBS` | 10 | Queued or running, per key. |
+| `RETIMER_DAILY_BUDGET_USD` | 5 | Provider cost of all jobs of one day (UTC). |
+| `RETIMER_RETENTION_HOURS` | 24 | How long a finished job is kept. |
+| `RETIMER_CACHE_DAYS` | 30 | How long transcripts and embeddings are kept. |
+| `RETIMER_AGENT` | `haiku` | The model when a job names none, or `off`. |
+| `RETIMER_AGENT_MAX_COST_USD` | 0.25 | What the agent may spend on one job. |
+| `RETIMER_WORKERS` | 1 | Jobs that run side by side. |
+
+Jobs that are queued or running when the budget runs out still finish, so a
+day can end a little above it. A spending limit on the provider accounts
+themselves is the last line.
+
 ## Setup
 
 ```bash
@@ -116,6 +306,7 @@ Python 3.11 or newer.
 ## Command line
 
 ```bash
+retimer serve --dev                              # the HTTP API, see above
 retimer inspect episode.ass                      # the inspection report as JSON
 retimer sample episode.ass --label sign          # look at lines by label, style or pattern
 retimer clean episode.srt --remove-hearing-impaired -o cleaned.srt
@@ -223,6 +414,13 @@ Rules the engine enforces:
 | `retimer.agent.workbench` | The agent's desk: the draft, the open questions, the dossier and the tools |
 | `retimer.agent.prompt` | What the model is told, and the tool definitions |
 | `retimer.agent.loop` | The tool loop, budgets, fallbacks, and what goes into the report |
+| `retimer.api.app` | The HTTP API: the gate every request passes, the routes, the intake of uploads |
+| `retimer.api.auth` | API keys: making, hashing and checking them |
+| `retimer.api.limits` | Rate limits |
+| `retimer.api.store` | Jobs in SQLite and their files, the queue, expiry |
+| `retimer.api.worker` | Runs queued jobs and cleans up |
+| `retimer.api.config` | Settings from the environment |
+| `retimer.api.server` | Start-up checks, and logs that keep secrets out |
 | `retimer.cli` | Command line entry point |
 | `retimer.bench.distort` | Distortion generator with ground truth and the ideal plan |
 | `retimer.bench.cases` | Case format, seed recipes and case generation |

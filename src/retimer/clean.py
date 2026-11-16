@@ -11,11 +11,15 @@ from collections.abc import Callable
 
 from retimer.text import LINE_BREAK, MUSIC_SYMBOLS, OVERRIDE_BLOCK, is_drawing, strip_tags
 
+# Every pattern here runs on text a stranger wrote, so each one is written to
+# take time in proportion to the length of a line, whatever the line holds. A
+# pattern that can start at every position and then scan ahead does not.
+
 # Sound descriptions and speaker names: [door slams], (laughs), （笑い）, ［音楽］
-_BRACKETED = re.compile(r"\[[^\]]*\]|\([^)]*\)|（[^）]*）|［[^］]*］")
+_BRACKETS = {"[": "]", "(": ")", "（": "）", "［": "］"}
 # Speaker labels in capitals at the start of a line: "JOHN:", "- MAN 2:"
-_SPEAKER_LABEL = re.compile(r"^(\s*[-–—]?\s*)[A-Z][A-Z0-9 .'’-]{1,24}:(?=\s|$)")
-_HASH_MARKERS = re.compile(r"^(\s*[-–—]?\s*)#+\s*|\s*#+\s*$")
+_SPEAKER_LABEL = re.compile(r"^(\s*(?:[-–—]\s*)?)[A-Z][A-Z0-9 .'’-]{1,24}:(?=\s|$)")
+_LEADING_HASHES = re.compile(r"^(\s*(?:[-–—]\s*)?)#+\s*")
 _NO_BREAK_SPACE = chr(0xA0)
 _SPACES = re.compile(f"[ \t{_NO_BREAK_SPACE}]{{2,}}")
 _LEADING_DASH = re.compile(r"^\s*[-–—]\s*")
@@ -26,7 +30,45 @@ _PLACEHOLDER_BASE = 0xE000
 _PLACEHOLDER_CLASS = f"[{chr(_PLACEHOLDER_BASE)}-{chr(0xF8FF)}]"
 _PLACEHOLDER = re.compile(_PLACEHOLDER_CLASS)
 _SPACE_AFTER_LEADING_TAGS = re.compile(f"^({_PLACEHOLDER_CLASS}+)\\s+")
-_SPACE_BEFORE_TRAILING_TAGS = re.compile(f"\\s+({_PLACEHOLDER_CLASS}+)$")
+
+
+def _remove_bracketed(text: str) -> str:
+    """Drop every stretch from an opening bracket to the next closing one of its kind."""
+    kept: list[str] = []
+    unclosed: set[str] = set()
+    position = 0
+    while position < len(text):
+        char = text[position]
+        closing = _BRACKETS.get(char)
+        if closing is not None and closing not in unclosed:
+            end = text.find(closing, position + 1)
+            if end >= 0:
+                position = end + 1
+                continue
+            # None from here on, so no later bracket of this kind closes either.
+            unclosed.add(closing)
+        kept.append(char)
+        position += 1
+    return "".join(kept)
+
+
+def _remove_hash_markers(text: str) -> str:
+    """Drop hash signs that open or close a line, with the space next to them."""
+    text = _LEADING_HASHES.sub(r"\1", text)
+    stripped = text.rstrip()
+    if stripped.endswith("#"):
+        return stripped.rstrip("#").rstrip()
+    return text
+
+
+def _close_up_trailing_tags(text: str) -> str:
+    """Remove the space between the text and the tags a line ends with."""
+    end = len(text)
+    while end and _PLACEHOLDER_BASE <= ord(text[end - 1]) <= 0xF8FF:
+        end -= 1
+    if end == len(text):
+        return text
+    return text[:end].rstrip() + text[end:]
 
 
 def _protect(text: str) -> tuple[str, list[str]]:
@@ -65,7 +107,7 @@ def _edit_sublines(text: str, edit: Callable[[str], str]) -> str:
         changed = True
         edited = _SPACES.sub(" ", edited).strip()
         edited = _SPACE_AFTER_LEADING_TAGS.sub(r"\1", edited)
-        edited = _SPACE_BEFORE_TRAILING_TAGS.sub(r"\1", edited)
+        edited = _close_up_trailing_tags(edited)
         if _readable(edited):
             kept.append(edited)
     if not changed:
@@ -77,8 +119,7 @@ def remove_hearing_impaired(text: str) -> str:
     """Remove sound descriptions in brackets and speaker labels in capitals."""
 
     def edit(subline: str) -> str:
-        subline = _BRACKETED.sub("", subline)
-        return _SPEAKER_LABEL.sub(r"\1", subline)
+        return _SPEAKER_LABEL.sub(r"\1", _remove_bracketed(subline))
 
     return _edit_sublines(text, edit)
 
@@ -89,7 +130,7 @@ def remove_symbols(text: str) -> str:
     def edit(subline: str) -> str:
         for symbol in MUSIC_SYMBOLS:
             subline = subline.replace(symbol, "")
-        return _HASH_MARKERS.sub(r"\1", subline)
+        return _remove_hash_markers(subline)
 
     return _edit_sublines(text, edit)
 
