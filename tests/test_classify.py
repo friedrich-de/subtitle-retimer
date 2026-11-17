@@ -203,3 +203,14 @@ def test_a_style_full_of_typesetting_does_not_become_the_dialogue_style_by_its_s
     assert [label.label for label in labels[:2]] == ["dialogue", "dialogue"]
     assert labels[0].reasons == ("dialogue style",)
     assert {label.label for label in labels[2:]} == {"sign"}
+
+
+def test_a_description_over_two_lines_is_one_and_a_thought_is_speech():
+    subtitle = loads(
+        "1\n00:00:01,000 --> 00:00:03,000\n（スピーカーから流れる\n「FIRE BURNING WOMAN」）\n\n"
+        "2\n00:00:04,000 --> 00:00:06,000\n((衛宮切嗣という男は\nひと言で言えば　殺し屋だった))\n\n"
+        "3\n00:00:07,000 --> 00:00:09,000\n（潜在犯たちの\nざわめき）\n\n"
+        "4\n00:00:10,000 --> 00:00:12,000\n（朱）＜きっと　彼らは\n分かったはずだ＞\n"
+    )
+
+    assert labels_of(subtitle) == ["sound_description", "dialogue", "sound_description", "dialogue"]

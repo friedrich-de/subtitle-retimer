@@ -15,8 +15,14 @@ from retimer.text import LINE_BREAK, OVERRIDE_BLOCK, is_drawing, strip_tags
 # take time in proportion to the length of a line, whatever the line holds. A
 # pattern that can start at every position and then scan ahead does not.
 
-# Sound descriptions and speaker names: [door slams], (laughs), （笑い）, ［音楽］
-_BRACKETS = {"[": "]", "(": ")", "（": "）", "［": "］"}
+# Sound descriptions and speaker names: [door slams], (laughs), （笑い）, ［音楽］.
+# A bracket may be closed by its half-width or its full-width partner, because
+# files that were typed by hand mix the two.
+_CLOSERS = {"[": "]］", "(": ")）", "（": "）)", "［": "］]"}
+# Doubled parentheses are how Japanese broadcast captions mark a thought or a
+# voice-over: ((そうだったのか)). What is inside is spoken, and it stays.
+_THOUGHT_CLOSERS = {"(": "))", "（": "））"}
+_BREAK = "\n"
 # Speaker labels in capitals at the start of a line: "JOHN:", "- MAN 2:"
 _SPEAKER_LABEL = re.compile(r"^(\s*(?:[-–—]\s*)?)[A-Z][A-Z0-9 .'’-]{1,24}:(?=\s|$)")
 _LEADING_HASHES = re.compile(r"^(\s*(?:[-–—]\s*)?)#+\s*")
@@ -46,24 +52,65 @@ _PLACEHOLDER = re.compile(_PLACEHOLDER_CLASS)
 _SPACE_AFTER_LEADING_TAGS = re.compile(f"^({_PLACEHOLDER_CLASS}+)\\s+")
 
 
-def _remove_bracketed(text: str) -> str:
-    """Drop every stretch from an opening bracket to the next closing one of its kind."""
+def _without_brackets(sublines: list[str]) -> list[tuple[str, bool]]:
+    """The visual lines of one subtitle without their bracketed stretches.
+
+    A stretch runs from an opening bracket to the next closing one of its
+    kind. It may run over a line break, as a long sound description does: the
+    lines it joins become one. Returns each remaining line and whether
+    anything was taken from it.
+    """
+    text = _BREAK.join(sublines)
+    lines: list[tuple[str, bool]] = []
     kept: list[str] = []
-    unclosed: set[str] = set()
+    touched = False
+    # Closers that do not occur from here on. They are looked for once.
+    gone: set[str] = set()
     position = 0
     while position < len(text):
         char = text[position]
-        closing = _BRACKETS.get(char)
-        if closing is not None and closing not in unclosed:
-            end = text.find(closing, position + 1)
+        if char == _BREAK:
+            lines.append(("".join(kept), touched))
+            kept, touched = [], False
+            position += 1
+            continue
+        thought = _THOUGHT_CLOSERS.get(char)
+        if thought is not None and text.startswith(char, position + 1):
+            end = -1 if thought in gone else text.find(thought, position + 2)
+            if end < 0:
+                gone.add(thought)
+            stop = end + 2 if end >= 0 else position + 2
+            for inside in text[position:stop]:
+                if inside == _BREAK:
+                    lines.append(("".join(kept), touched))
+                    kept, touched = [], False
+                else:
+                    kept.append(inside)
+            position = stop
+            continue
+        closers = _CLOSERS.get(char)
+        if closers is not None:
+            end = -1
+            for closer in closers:
+                if closer in gone:
+                    continue
+                found = text.find(closer, position + 1)
+                if found < 0:
+                    gone.add(closer)
+                elif end < 0 or found < end:
+                    end = found
             if end >= 0:
-                position = end + 1
-                continue
-            # None from here on, so no later bracket of this kind closes either.
-            unclosed.add(closing)
+                inside = text[position + 1 : end]
+                # Over a break only a plain stretch counts. With another bracket
+                # in it, this one was never closed and the closer is another's.
+                if _BREAK not in inside or not any(opener in inside for opener in _CLOSERS):
+                    touched = True
+                    position = end + 1
+                    continue
         kept.append(char)
         position += 1
-    return "".join(kept)
+    lines.append(("".join(kept), touched))
+    return lines
 
 
 def _remove_hash_markers(text: str) -> str:
@@ -119,9 +166,7 @@ def _edit_sublines(text: str, edit: Callable[[str], str]) -> str:
             kept.append(subline)
             continue
         changed = True
-        edited = _SPACES.sub(" ", edited).strip()
-        edited = _SPACE_AFTER_LEADING_TAGS.sub(r"\1", edited)
-        edited = _close_up_trailing_tags(edited)
+        edited = _tidy(edited)
         if _readable(edited):
             kept.append(edited)
     if not changed:
@@ -129,13 +174,34 @@ def _edit_sublines(text: str, edit: Callable[[str], str]) -> str:
     return _restore("\\N".join(kept), blocks)
 
 
+def _tidy(subline: str) -> str:
+    """An edited visual line without the space the edit left behind."""
+    subline = _SPACES.sub(" ", subline).strip()
+    subline = _SPACE_AFTER_LEADING_TAGS.sub(r"\1", subline)
+    return _close_up_trailing_tags(subline)
+
+
 def remove_hearing_impaired(text: str) -> str:
-    """Remove sound descriptions in brackets and speaker labels in capitals."""
+    """Remove sound descriptions in brackets and speaker labels in capitals.
 
-    def edit(subline: str) -> str:
-        return _SPEAKER_LABEL.sub(r"\1", _remove_bracketed(subline))
-
-    return _edit_sublines(text, edit)
+    A visual line that loses something and is left without a letter or digit
+    is dropped. Lines nothing is taken from stay exactly as they are.
+    """
+    protected, blocks = _protect(text)
+    kept: list[str] = []
+    changed = False
+    for subline, touched in _without_brackets(LINE_BREAK.split(protected)):
+        edited = _SPEAKER_LABEL.sub(r"\1", subline)
+        if not touched and edited == subline:
+            kept.append(subline)
+            continue
+        changed = True
+        edited = _tidy(edited)
+        if _readable(edited):
+            kept.append(edited)
+    if not changed:
+        return text
+    return _restore("\\N".join(kept), blocks)
 
 
 def remove_symbols(text: str) -> str:

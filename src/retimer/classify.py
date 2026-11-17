@@ -59,6 +59,12 @@ _CREDIT = re.compile(
     r"|become\s+(?:a\s+)?vip\s+member"
 )
 _BRACKETED_LINE = re.compile(r"^[-–—]?\s*(?:\[[^\]]*\]|\([^)]*\)|（[^）]*）|［[^］]*］)$")
+# One bracket around everything, also over a line break, as a long sound
+# description is written. Doubled parentheses mark a thought and are speech.
+_BRACKETED_BLOCK = re.compile(
+    r"^[-–—]?\s*(?:\[[^\[\]［］]*[\]］]|［[^\[\]［］]*[］\]]"
+    r"|\((?!\()[^()（）]*[)）]|（(?!（)[^()（）]*[）)])$"
+)
 # A style that carries at least this share of the lines is taken to be dialogue.
 _MAIN_STYLE_SHARE = 0.3
 
@@ -88,7 +94,11 @@ def _is_music_line(plain: str) -> bool:
 
 def _is_sound_description(plain: str) -> bool:
     sublines = [part for part in plain.split("\n") if part]
-    return bool(sublines) and all(_BRACKETED_LINE.match(part) for part in sublines)
+    if not sublines:
+        return False
+    return all(_BRACKETED_LINE.match(part) for part in sublines) or bool(
+        _BRACKETED_BLOCK.match(plain)
+    )
 
 
 def _is_plain(line: Line) -> bool:

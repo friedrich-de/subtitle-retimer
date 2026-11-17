@@ -23,6 +23,22 @@ from retimer.clean import (
         ("Note: it works.", "Note: it works."),
         ("...", "..."),
         ("12:30 is too late.", "12:30 is too late."),
+        # A long description runs over the line break.
+        ("（スピーカーから流れる\\N「FIRE BURNING WOMAN」）", ""),
+        ("（潜在犯たちの\\Nざわめき）\\N逃げろ！", "逃げろ！"),
+        ("Wait. [door\\Nslams] Who is it?", "Wait. Who is it?"),
+        # A bracket that was never closed does not reach for another's closer.
+        ("(I mean it\\N- (laughs) Sure", "(I mean it\\N- Sure"),
+        # Doubled parentheses mark a thought in Japanese captions. It is spoken.
+        (
+            "((フィーアのこと捕まえられたら\\Nお嫁さんになってあげるよ))",
+            "((フィーアのこと捕まえられたら\\Nお嫁さんになってあげるよ))",
+        ),
+        ("（（そうだったのか））", "（（そうだったのか））"),
+        ("((ﾌｨﾘｱ:ｻｼﾞｮｳ｡\\N痛っ｡", "((ﾌｨﾘｱ:ｻｼﾞｮｳ｡\\N痛っ｡"),
+        ("(切嗣)((殺し屋だった))", "((殺し屋だった))"),
+        # Half-width and full-width partners are mixed in files typed by hand.
+        ("貴様は我（おれ）を見るに能(あた）わぬ", "貴様は我を見るに能わぬ"),
     ],
 )
 def test_remove_hearing_impaired(text, expected):

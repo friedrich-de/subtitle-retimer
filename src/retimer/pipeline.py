@@ -8,6 +8,7 @@ benchmark's measure of what the agent adds.
 
 from __future__ import annotations
 
+import math
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -37,7 +38,7 @@ from retimer.reference import (
     timeline_from_transcript,
 )
 from retimer.score import Score, score_alignment
-from retimer.speech import Correlation, correlate_speech
+from retimer.speech import SMOOTH_MS, Correlation, correlate_speech
 from retimer.transcribe import Transcript, transcribe_audio
 from retimer.views import MatchLine, Options, Views, build_views
 
@@ -594,6 +595,22 @@ def _fallback(
     return best
 
 
+def _beyond_chance(found: Correlation, window_ms: int | None = None) -> bool:
+    """Whether as many lines meet speech at the offset as chance would not give anywhere.
+
+    The search tries every offset in a window of minutes. With a handful of
+    points on one side, such as the six signs of a signs-and-songs track,
+    four of them meet a line start somewhere in it by accident. So the count
+    is held against what the best of all those offsets would reach by chance.
+    """
+    window_ms = Settings().fallback_window_ms if window_ms is None else window_ms
+    tries = 2 * window_ms / (2 * SMOOTH_MS)
+    expected = max(found.expected, 1e-9)
+    count = int(found.matches)
+    below = sum(math.exp(-expected) * expected**i / math.factorial(i) for i in range(count))
+    return (1.0 - below) * tries < 0.01
+
+
 def _merge_weakest(blocks: list[BlockReport]) -> list[BlockReport]:
     """Give the least supported block to its better supported neighbour."""
     weakest = min(range(len(blocks)), key=lambda index: blocks[index].support)
@@ -838,7 +855,7 @@ def propose(prepared: Prepared, adjustments: Adjustments | None = None) -> Propo
         warnings.append(
             "Too little text could be matched by meaning, so the timing of speech alone was used."
         )
-        if not (found and found.matches >= 4 and found.strength >= 3):
+        if not (found and found.matches >= 4 and found.strength >= 3 and _beyond_chance(found)):
             return unchanged("The timing of speech gave no clear offset either.")
         blocks = [
             BlockReport(
@@ -891,11 +908,16 @@ def propose(prepared: Prepared, adjustments: Adjustments | None = None) -> Propo
         if not options.drop_unmatched:
             keep, trim = sorted(set(keep) | set(trim)), []
         trim = sorted(set(trim) - removed)
-        # A line that would start before zero has no place in the reference at all.
+        # A line that would be over before zero has no place in the reference at
+        # all. One that only begins before it is shown from zero on.
         before_zero = sorted(
             line.id
             for line in lines
-            if new_times[line.id][0] < 0 and line.id not in removed and line.id not in trim
+            if new_times[line.id][0] < 0
+            and new_times[line.id][1] <= 0
+            and line.duration_ms > 0
+            and line.id not in removed
+            and line.id not in trim
         )
         content = list(views.content_ops)
         if trim or before_zero:
@@ -907,7 +929,7 @@ def propose(prepared: Prepared, adjustments: Adjustments | None = None) -> Propo
         limit = max(settings.max_trim_lines, int(settings.max_trim_share * len(lines)))
         if len(before_zero) > limit:
             issues.append(
-                PlanIssue(code="negative_time", message="too many lines would start before zero")
+                PlanIssue(code="negative_time", message="too many lines would end before zero")
             )
         if not issues:
             break
@@ -916,7 +938,7 @@ def propose(prepared: Prepared, adjustments: Adjustments | None = None) -> Propo
             if len(before_zero) > limit:
                 return unchanged(
                     f"No valid timing could be built ({codes}): {len(before_zero)} lines "
-                    "would start before the reference begins. The target may hold more than "
+                    "would be over before the reference begins. The target may hold more than "
                     "the reference does, such as several episodes in one file."
                 )
             return unchanged(f"No valid timing could be built ({codes}).")
@@ -949,7 +971,7 @@ def propose(prepared: Prepared, adjustments: Adjustments | None = None) -> Propo
         )
     if before_zero:
         warnings.append(
-            f"{len(before_zero)} lines would start before the reference begins and were removed."
+            f"{len(before_zero)} lines would be over before the reference begins and were removed."
         )
     report.trimmed = trim
     report.unmatched_kept = keep

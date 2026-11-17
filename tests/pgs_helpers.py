@@ -123,6 +123,8 @@ class FakeReader:
         self.requests: list[dict] = []
         self.spoil: list[str] = []
         self.cost_usd = 0.002
+        # Input and output tokens of one request, or None for a count by pictures.
+        self.tokens: tuple[int, int] | None = None
 
     def read_pictures(self, instructions, pictures, *, model, **kwargs) -> Reading:
         self.requests.append(
@@ -140,11 +142,12 @@ class FakeReader:
         for number, (_, png) in enumerate(pictures, 1):
             width = png_size(png)[0]
             answer[str(number)] = self.texts.get(width, f"{self.default} {width}")
+        tokens = self.tokens or (100 * len(pictures), 10 * len(pictures))
         return Reading(
             text=json.dumps(answer, ensure_ascii=False),
             cost_usd=self.cost_usd,
-            input_tokens=100 * len(pictures),
-            output_tokens=10 * len(pictures),
+            input_tokens=tokens[0],
+            output_tokens=tokens[1],
         )
 
     def embed(self, *args, **kwargs):

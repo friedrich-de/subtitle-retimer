@@ -69,12 +69,22 @@ class OcrModel:
     # different upstreams, so what was measured is what is pinned.
     provider: dict | None = None
     extra: dict | None = None
+    # USD per million input and output tokens, where the list price is known.
+    # A request that OpenRouter reports no cost for is priced with these, so
+    # that a budget holds whatever the account's arrangement with the upstream.
+    prices: tuple[float, float] | None = None
+
+    def list_cost(self, input_tokens: int, output_tokens: int) -> float:
+        if self.prices is None:
+            return 0.0
+        return (input_tokens * self.prices[0] + output_tokens * self.prices[1]) / 1_000_000
 
 
 _ANTHROPIC = {"only": ["anthropic"], "allow_fallbacks": False}
+# List prices of 2026-11-03, the same as the agent's.
 MODELS: dict[str, OcrModel] = {
-    "haiku": OcrModel("anthropic/claude-haiku-5.5", _ANTHROPIC),
-    "sonnet": OcrModel("anthropic/claude-sonnet-5.5", _ANTHROPIC),
+    "haiku": OcrModel("anthropic/claude-haiku-5.5", _ANTHROPIC, prices=(0.10, 0.50)),
+    "sonnet": OcrModel("anthropic/claude-sonnet-5.5", _ANTHROPIC, prices=(2.0, 10.0)),
     "gemini-flash": OcrModel("google/gemini-3.8-flash"),
     "gemini-flash-lite": OcrModel("google/gemini-3.5-flash-lite"),
     "qwen-flash": OcrModel("qwen/qwen3.7-flash"),
@@ -204,9 +214,10 @@ class _Reader:
             extra=self.model.extra,
         )
         texts = parse_answer(reading.text, len(batch))
+        cost = reading.cost_usd or self.model.list_cost(reading.input_tokens, reading.output_tokens)
         with self._lock:
             self.stats.requests += 1
-            self.stats.cost_usd += reading.cost_usd
+            self.stats.cost_usd += cost
             self.stats.input_tokens += reading.input_tokens
             self.stats.output_tokens += reading.output_tokens
             if texts is None and len(batch) == 1:

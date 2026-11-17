@@ -100,6 +100,51 @@ _SRT_MARK = re.compile(
 )
 
 
+# The start and end of an ASS event. Players read a time as hours, minutes,
+# seconds and hundredths that are added up, each one signed and as long as it
+# is written, so "0:-39:-28.91" is a time before zero and "2:129:-7187.48" one
+# after two hours. Some tools that cut a script into parts write such times.
+# The parser takes only the usual form, so the others are written in it first.
+_EVENT_TIMES = re.compile(
+    r"^((?:Dialogue|Comment)[^\S\n]*:[^,\n]*,)([^,\n]*),([^,\n]*),", re.MULTILINE | re.IGNORECASE
+)
+_USUAL_TIME = re.compile(r"\s*-?\d{1,2}:\d{1,2}:\d{1,2}[.,]\d{1,3}\s*$")
+_PLAYER_TIME = re.compile(r"\s*([+-]?\d{1,9}):([+-]?\d{1,9}):([+-]?\d{1,9})\.(\d+)\s*$")
+
+
+def _as_players_read(value: str) -> str:
+    """A time of an event in the usual form, read the way players read it.
+
+    A time before zero is shown from zero on, so it becomes zero. A line that
+    is over before zero is then a line of no length, which nobody sees, as
+    before.
+    """
+    if _USUAL_TIME.match(value):
+        return value
+    parts = _PLAYER_TIME.match(value)
+    if parts is None:
+        return value
+    hours, minutes, seconds = (int(part) for part in parts.groups()[:3])
+    # Hundredths, also where a tool wrote a fraction such as ".0900000000001".
+    hundredths = int(parts[4][:2])
+    ms = max(0, ((hours * 60 + minutes) * 60 + seconds) * 1000 + hundredths * 10)
+    seconds, hundredths = divmod(ms // 10, 100)
+    minutes, seconds = divmod(seconds, 60)
+    hours, minutes = divmod(minutes, 60)
+    return f"{hours}:{minutes:02d}:{seconds:02d}.{hundredths:02d}"
+
+
+def _usual_event_times(text: str) -> str:
+    def rewrite(event: re.Match[str]) -> str:
+        written_start, written_end = event[2], event[3]
+        start, end = _as_players_read(written_start), _as_players_read(written_end)
+        if start is written_start and end is written_end:
+            return event[0]
+        return f"{event[1]}{start},{end},"
+
+    return _EVENT_TIMES.sub(rewrite, text)
+
+
 def _sniff_format(text: str) -> str | None:
     if _ASS_MARK.search(text):
         return "ass"
@@ -110,6 +155,7 @@ def _sniff_format(text: str) -> str | None:
 
 def loads(text: str, encoding: str = "utf-8") -> Subtitle:
     """Parse subtitle text. The format is detected from the content."""
+    text = _usual_event_times(text)
     try:
         try:
             ssa = pysubs2.SSAFile.from_string(text)
@@ -121,13 +167,16 @@ def loads(text: str, encoding: str = "utf-8") -> Subtitle:
     except pysubs2.exceptions.Pysubs2Error as exc:
         raise SubtitleError("the file is not a recognizable subtitle format") from exc
     except ValueError as exc:
-        # The parser gives up on a time such as "0:-39:-28.91".
+        # The parser gives up on a time that is not a time at all, such as "0:00:xx".
         raise SubtitleError("the file has lines with times that cannot be read") from exc
     fmt = _FORMAT_ALIASES.get(ssa.format, ssa.format)
     if fmt not in SUPPORTED_FORMATS:
         raise SubtitleError(f"unsupported subtitle format: {ssa.format}")
     if not ssa.events:
         raise SubtitleError("the file contains no subtitle lines")
+    for event in ssa.events:
+        # "-0:00:01.00" is read as a time before zero. It is shown from zero on.
+        event.start, event.end = max(0, event.start), max(0, event.end)
     return Subtitle(ssa, fmt, encoding)
 
 

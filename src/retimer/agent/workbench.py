@@ -428,7 +428,7 @@ class Workbench:
         if line_id in report.trimmed:
             return "removed by the rules"
         if line_id in self.draft.removed:
-            return "removed, would start before zero"
+            return "removed, would be over before zero"
         if line_id in self.pairs:
             return "paired by you"
         if line_id in self.draft.matched:

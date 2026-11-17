@@ -204,8 +204,20 @@ class OpenRouter:
 
 
 def _cost(body: dict) -> float:
+    """What a request cost, from what OpenRouter reports about it.
+
+    Where the account holds the upstream's own key for a provider, OpenRouter
+    reports only its own fee as `cost`, often nothing, and what the upstream
+    charged on that key apart, as `cost_details.upstream_inference_cost`. Both
+    are spent.
+    """
     usage = body.get("usage") or {}
     try:
-        return float(usage.get("cost") or 0.0)
+        cost = float(usage.get("cost") or 0.0)
+        details = usage.get("cost_details")
+        upstream = details.get("upstream_inference_cost") if isinstance(details, dict) else None
+        if upstream and (usage.get("is_byok") or cost == 0.0):
+            cost += float(upstream)
+        return cost
     except (TypeError, ValueError):
         return 0.0

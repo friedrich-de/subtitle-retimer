@@ -142,12 +142,24 @@ def validate_plan(subtitle: Subtitle, plan: Plan) -> list[PlanIssue]:
     # A comment is a note for editors and is shown to nobody. One at the very
     # start of a script, where editors keep them, must not stand in the way of
     # moving the file earlier. It stops at zero instead.
-    negative = [line.id for line in kept if not line.is_comment and times[line.id][0] < 0]
+    #
+    # A line that would begin before zero and still be on screen after it is
+    # shown from zero on. Only a line that would be over before the film
+    # starts has no place.
+    # The same goes for a line without a duration, which nobody sees either.
+    negative = [
+        line.id
+        for line in kept
+        if not line.is_comment
+        and line.duration_ms > 0
+        and times[line.id][0] < 0
+        and times[line.id][1] <= 0
+    ]
     if negative:
         issues.append(
             PlanIssue(
                 code="negative_time",
-                message="lines would start before zero; remove them or change the shift",
+                message="lines would end before zero; remove them or change the shift",
                 ids=negative[:_MAX_IDS_IN_ISSUE],
             )
         )
@@ -226,7 +238,7 @@ def apply_plan(subtitle: Subtitle, plan: Plan) -> ApplyResult:
     for line_id in kept_ids:
         event = events[line_id]
         start, end = times[line_id]
-        if event.is_comment and start < 0:
+        if start < 0:
             start, end = 0, max(0, end)
         if (start, end) != (event.start, event.end):
             summary.moved += 1

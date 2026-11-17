@@ -13,6 +13,7 @@ from retimer.model import Line
 from retimer.pipeline import (
     Adjustments,
     BlockReport,
+    _beyond_chance,
     _break_start,
     _merge_weakest,
     _rest_on_synced,
@@ -22,6 +23,7 @@ from retimer.pipeline import (
     sync,
 )
 from retimer.plan import RemoveLines, Scale, Shift
+from retimer.speech import Correlation
 from retimer.views import Options
 
 from .bench_helpers import write_seeds
@@ -574,5 +576,17 @@ def test_a_file_with_most_lines_before_the_reference_says_why_it_was_left_alone(
 
     assert result.plan.outcome == "partial"
     assert result.plan.timing_ops == []
-    assert "20 lines would start before the reference begins" in result.report.warnings[-1]
+    assert "20 lines would be over before the reference begins" in result.report.warnings[-1]
     assert "Timing is unchanged" in result.report.warnings[-1]
+
+
+def test_a_few_lines_meeting_by_accident_are_no_offset():
+    # Six signs of a signs-and-songs track against 360 lines: somewhere in a
+    # window of four minutes, four of them meet a line start.
+    by_accident = Correlation(offset_ms=80_970, matches=4.2, expected=0.22, strength=19, lines=361)
+    eight_of_eight = Correlation(offset_ms=-2_500, matches=8, expected=0.04, strength=200, lines=8)
+    a_film = Correlation(offset_ms=1_200, matches=140, expected=11.0, strength=12.7, lines=600)
+
+    assert not _beyond_chance(by_accident)
+    assert _beyond_chance(eight_of_eight)
+    assert _beyond_chance(a_film)

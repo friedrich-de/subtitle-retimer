@@ -152,8 +152,18 @@ def test_invalid_structure_is_reported(srt):
     ) == ["unknown_ids"]
 
 
+def test_a_line_that_only_begins_before_zero_is_shown_from_zero(srt):
+    first = srt.lines[0]
+    shift = {"op": "shift", "ms": -(first.start_ms + 200)}
+
+    assert codes(srt, plan_of(shift)) == []
+    moved = apply_plan(srt, plan_of(shift)).subtitle.lines[0]
+
+    assert (moved.start_ms, moved.end_ms) == (0, first.duration_ms - 200)
+
+
 def test_negative_times_are_refused_until_the_lines_are_removed(srt):
-    shift = {"op": "shift", "ms": -2000}
+    shift = {"op": "shift", "ms": -(srt.lines[0].end_ms + 500)}
     issues = validate_plan(srt, plan_of(shift))
     assert [(issue.code, issue.ids) for issue in issues] == [("negative_time", [0])]
     removal = {"op": "remove_lines", "reason": "unmatched_leading", "ids": [0]}

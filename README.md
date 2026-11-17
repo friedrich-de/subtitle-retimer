@@ -12,6 +12,9 @@ deployment, and the reading of image subtitles.
 ## What the subtitle core does
 
 - Reads and writes SRT and ASS, including legacy encodings such as Shift-JIS.
+  Times are read as players read them, also the forms that tools which cut a
+  film's script into parts write, such as `0:-39:-28.91`. A time before zero
+  is shown from zero on.
 - Labels every line: dialogue, sign, song, sound description, credit, comment.
   The labels hold on fansub scripts, where karaoke effects and typesetting
   that is redrawn for every frame can be twenty times the dialogue: the styles
@@ -259,7 +262,9 @@ Pictures are shown to the model sixteen at a time, each after its number, and
 it answers with the text of each. Furigana are left out. A subtitle that
 fades in is read from the frame in which it is most visible. What reading
 one file may cost is limited (`RETIMER_OCR_MAX_COST_USD`), and it counts
-against the daily budget. DVD subtitles (VobSub) are not read.
+against the daily budget. The cost is what OpenRouter reports, including what
+an upstream charged on the account's own key for it. Where it reports nothing,
+the model's list price is used. DVD subtitles (VobSub) are not read.
 
 The result is an ordinary subtitle, and can be the target or the reference of
 a job.
@@ -461,9 +466,11 @@ Rules the engine enforces:
   the order of operations in the list does not matter.
 - `shift` keeps line durations. `scale` is the only operation that changes them,
   and at most one is allowed.
-- Ranges may not overlap, no line may start before zero, and no line may move in
+- Ranges may not overlap, no line may be over before zero, and no line may move in
   front of a line that precedes it. A plan that breaks a rule is refused with a
-  list of issues naming the lines involved.
+  list of issues naming the lines involved. A line that would begin before
+  zero and still be on screen after it is shown from zero on, and a comment
+  event stops at zero.
 
 ## Layout
 

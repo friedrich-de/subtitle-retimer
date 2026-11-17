@@ -4,7 +4,7 @@ import time
 import pytest
 
 from retimer import SubtitleError, dumps, loads
-from retimer.io import decode, load_bytes
+from retimer.io import _usual_event_times, decode, load_bytes
 
 from .conftest import DATA
 
@@ -119,3 +119,52 @@ def test_the_format_is_looked_for_in_time_proportional_to_the_text(filler):
     with contextlib.suppress(SubtitleError):
         loads(text)
     assert time.monotonic() - started < 5
+
+
+def _script(*times: tuple[str, str]) -> str:
+    events = "".join(
+        f"Dialogue: 0,{start},{end},Default,,0,0,0,,Line {index}\n"
+        for index, (start, end) in enumerate(times)
+    )
+    return (
+        "[Script Info]\nScriptType: v4.00+\n\n[V4+ Styles]\n"
+        "Format: Name, Fontname, Fontsize\nStyle: Default,Arial,20\n\n[Events]\n"
+        "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n" + events
+    )
+
+
+def test_times_are_read_as_players_read_them():
+    # A tool that cut a film's script into parts wrote these. Players add the
+    # parts up, each with its sign: the first line is over long before zero,
+    # the last one comes after two hours.
+    subtitle = loads(
+        _script(
+            ("0:-39:-28.91", "0:-39:-28.61"),
+            ("-1:-81:3578.09", "-1:-81:3581.18"),
+            ("0:0:57.09", "0:1:0.18"),
+            ("-0:00:01.00", "0:00:02.50"),
+            ("2:129:-7187.48", "2:129:-7182.13"),
+            ("0:-35:-1.0900000000001", "0:0:3.0900000000001"),
+        )
+    )
+
+    assert [(line.start_ms, line.end_ms) for line in subtitle.lines] == [
+        (0, 0),
+        (0, 0),
+        (57_090, 60_180),
+        (0, 2_500),
+        (7_753_480, 7_758_130),
+        (0, 3_090),
+    ]
+    assert "0:00:57.09,0:01:00.18" in dumps(subtitle)
+
+
+def test_a_time_that_is_no_time_is_still_refused():
+    with pytest.raises(SubtitleError, match="times that cannot be read"):
+        loads(_script(("0:00:xx.00", "0:00:02.00")))
+
+
+def test_usual_times_are_left_exactly_as_they_are():
+    text = _script(("0:00:01.00", "0:00:02.00"), ("1:02:03.45", "1:02:04.5"))
+
+    assert _usual_event_times(text) == text

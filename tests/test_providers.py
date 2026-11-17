@@ -138,3 +138,28 @@ def test_an_answer_in_parts_is_joined_and_one_without_text_is_an_error():
 
     with pytest.raises(ProviderError, match="without text"):
         client_for(empty, retries=0).read_pictures("x", [("[1]", b"p")], model="m")
+
+
+@pytest.mark.parametrize(
+    ("usage", "cost"),
+    [
+        ({"cost": 0.0004}, 0.0004),
+        # The upstream's own key: OpenRouter's fee, and what the upstream charged.
+        ({"cost": 0.0, "is_byok": True, "cost_details": {"upstream_inference_cost": 0.02}}, 0.02),
+        (
+            {"cost": 0.001, "is_byok": True, "cost_details": {"upstream_inference_cost": 0.02}},
+            0.021,
+        ),
+        ({"cost": 0.0004, "cost_details": {"upstream_inference_cost": None}}, 0.0004),
+        ({}, 0.0),
+    ],
+)
+def test_the_cost_of_a_request_includes_what_the_upstream_charged(usage, cost):
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200, json={"choices": [{"message": {"content": "{}"}}], "usage": usage}
+        )
+
+    reading = client_for(handler).read_pictures("Read.", [("[1]", b"png")], model="m")
+
+    assert reading.cost_usd == pytest.approx(cost)

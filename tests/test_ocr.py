@@ -181,3 +181,16 @@ def test_answers_are_read_whatever_is_written_around_them():
 
 def test_text_is_tidied_to_lines():
     assert tidy("  one \\n two \r\n\n three\\Nfour ") == "one\ntwo\nthree\nfour"
+
+
+def test_a_reading_without_a_reported_cost_is_priced_from_its_tokens(tmp_path):
+    # OpenRouter reports nothing for some arrangements with an upstream. The
+    # pictures were still paid for, and a budget has to see that.
+    events = read_pgs(simple_stream(3))
+    reader = FakeReader()
+    reader.cost_usd = 0.0
+    reader.tokens = (1_000_000, 100_000)
+
+    _, stats = read_image_subtitle(events, client=reader, cache=Cache(tmp_path))
+
+    assert stats.cost_usd == pytest.approx(0.10 + 0.05)

@@ -61,6 +61,13 @@ RATE_PENALTY_SHARE = 0.1
 # How much further the pairs may scatter under a rate than without one for the
 # rate to be considered at all.
 RATE_TOLERANCE_SLACK = 1.25
+# An island is a few lines with an offset of their own between two stretches
+# that share one. A cut or an insert moves everything after it, so an island
+# is seldom a fact about the file. Mostly it is two languages cutting a
+# sentence differently, or a pair that is wrong. Lines as few and as weakly
+# supported as this are left with their surroundings.
+ISLAND_MAX_LINES = 10
+ISLAND_MAX_SUPPORT = 6.0
 # A break has to be paid for by the lines after it. Where the pairs agree to a
 # fraction of a second, as two subtitles do, a chance agreement is unlikely and
 # two lines are enough. Against speech timestamps it takes more.
@@ -267,17 +274,30 @@ def _tolerance(offsets: np.ndarray) -> int:
     return int(min(MAX_TOLERANCE_MS, max(MIN_TOLERANCE_MS, 3 * 1.4826 * spread)))
 
 
-def _candidates(offsets: np.ndarray, weights: np.ndarray, tolerance: int) -> list[float]:
+def _candidates(
+    offsets: np.ndarray,
+    weights: np.ndarray,
+    tolerance: int,
+    owners: np.ndarray | None = None,
+) -> list[float]:
     """Offsets that many pairs agree on, the best supported first.
 
     Wrong pairs spread their offsets over the whole length of the file, so a
     candidate has to gather clearly more weight than such pairs would by chance.
+
+    `owners` says which line each pair belongs to. A line has one counterpart.
+    Once a candidate has it, the other pairs of the line are set aside: a line
+    also resembles the neighbours of its counterpart a little, and those pairs
+    gather a few seconds to either side of every large block. Left in, they
+    take the places of the candidates, and a short block, such as the scene
+    before an opening, never becomes one.
     """
     if len(offsets) == 0:
         return []
     order = np.argsort(offsets, kind="stable")
     values = offsets[order]
     left = weights[order].astype(np.float64)
+    lines = owners[order] if owners is not None else None
     width = 2 * tolerance
     span = max(float(values[-1] - values[0]), float(width))
     ends = np.searchsorted(values, values + width, side="right")
@@ -292,6 +312,9 @@ def _candidates(offsets: np.ndarray, weights: np.ndarray, tolerance: int) -> lis
             break
         members = slice(start, int(ends[start]))
         centers.append(_weighted_median(values[members], left[members]))
+        if lines is not None:
+            placed = lines[members][left[members] >= MATCHED_STRENGTH]
+            left[np.isin(lines, placed)] = 0.0
         left[members] = 0.0
     return centers
 
@@ -434,6 +457,48 @@ def _merge_alike(blocks: list[Block], tolerance: int) -> list[Block]:
     return merged
 
 
+def _dissolve_islands(
+    labels: np.ndarray, centers: list[float], value: np.ndarray, tolerance: int
+) -> np.ndarray:
+    """Give small runs of lines between two stretches of one offset that offset too.
+
+    A small run at the start or the end of the file is no island: it has a
+    neighbour on one side only, as the scene before an opening has.
+    """
+    count = len(labels)
+    runs: list[tuple[int, int, int]] = []
+    start = 0
+    for index in range(1, count + 1):
+        if index == count or labels[index] != labels[start]:
+            runs.append((int(labels[start]), start, index))
+            start = index
+    if len(runs) < 3:
+        return labels
+
+    def small(run: tuple[int, int, int]) -> bool:
+        state, first, end = run
+        return (
+            end - first < ISLAND_MAX_LINES
+            and float(value[first:end, state].sum()) < ISLAND_MAX_SUPPORT
+        )
+
+    labels = labels.copy()
+    position = 1
+    while position < len(runs) - 1:
+        if not small(runs[position]):
+            position += 1
+            continue
+        last = position
+        while last + 1 < len(runs) - 1 and small(runs[last + 1]):
+            last += 1
+        before, after = runs[position - 1], runs[last + 1]
+        if abs(centers[before[0]] - centers[after[0]]) <= tolerance // 2:
+            longer = before if before[2] - before[1] >= after[2] - after[1] else after
+            labels[runs[position][1] : runs[last][2]] = longer[0]
+        position = last + 1
+    return labels
+
+
 def _fit(
     evidence: Evidence,
     rate: float,
@@ -468,6 +533,9 @@ def _fit(
     centers = _refined(centers, labels, text, residual, loose)
     value, text, residual = _table(evidence, rate, centers, tolerance)
     labels = assign(value, centers)
+    if with_blocks and not evidence.pinned:
+        # Where a reader asserted pairs, a line or two of their own is the point.
+        labels = _dissolve_islands(labels, centers, value, tolerance)
 
     blocks = []
     errors: list[float] = []
@@ -564,7 +632,10 @@ def fit_offsets(evidence: Evidence) -> list[Fit]:
         if rate != 1.0 and tolerance > RATE_TOLERANCE_SLACK * unscaled:
             continue
         centers = _candidates(
-            evidence.ref_starts[events] - evidence.line_starts[lines] * rate, weights, tolerance
+            evidence.ref_starts[events] - evidence.line_starts[lines] * rate,
+            weights,
+            tolerance,
+            lines,
         )
         # An asserted pair that no candidate explains is a candidate of its own,
         # however little else speaks for its offset.

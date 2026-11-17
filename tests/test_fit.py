@@ -253,3 +253,78 @@ def test_a_rate_is_still_found_where_the_pairs_agree_less_closely_under_it():
 
     assert fit.kind == "rate"
     assert fit.rate_name == "24 fps to 23.976 fps"
+
+
+def with_neighbours(starts, refs, alike: float = 0.35, reach: int = 2) -> Evidence:
+    """Every line also resembles the neighbours of its counterpart a little.
+
+    That is how lines of one scene are: the embedding of a line with its
+    context is close to the lines around the one that says the same.
+    """
+    found = evidence(starts, refs)
+    order = np.argsort(np.argsort(np.asarray(refs, dtype=np.float64), kind="stable"))
+    for line in range(len(starts)):
+        for step in range(-reach, reach + 1):
+            column = order[line] + step
+            if step and 0 <= column < len(refs):
+                found.strength[line, column] = max(found.strength[line, column], alike)
+    return found
+
+
+def test_a_short_scene_before_the_opening_gets_its_own_block():
+    # Seven lines before the opening are in place, everything after it is ten
+    # seconds late. Pairs with the neighbours of a counterpart gather a few
+    # seconds to either side of the large block, and used to take every place
+    # among the candidates, so the short block was never tried.
+    rng = np.random.default_rng(5)
+    gaps = rng.uniform(2_000, 8_000, 320)
+    truth = 20_000 + np.cumsum(gaps)
+    truth[7:] += 90_000
+    starts = truth.copy()
+    starts[7:] += 10_000
+    found = with_neighbours(starts, truth)
+
+    fit = choose_fit(fit_offsets(found))
+
+    assert fit.kind == "blocks"
+    assert [(block.lines, round(block.offset_ms, -2)) for block in fit.blocks] == [
+        (7, 0),
+        (313, -10_000),
+    ]
+
+
+def test_a_few_late_lines_in_the_middle_are_no_block_of_their_own():
+    # Three lines whose counterparts start a little later, between stretches
+    # that agree: two languages cut a sentence differently there.
+    starts = spaced(120)
+    refs = starts.copy()
+    refs[60:63] += 450
+
+    fit = choose_fit(fit_offsets(evidence(starts, refs)))
+
+    assert fit.kind == "constant"
+    assert [block.offset_ms for block in fit.blocks] == [0]
+
+
+def test_an_island_with_many_lines_behind_it_stays():
+    starts = spaced(120)
+    refs = starts.copy()
+    refs[60:75] += 2_000
+
+    fit = choose_fit(fit_offsets(evidence(starts, refs)))
+
+    assert [(block.lines, block.offset_ms) for block in fit.blocks] == [
+        (60, 0),
+        (15, 2_000),
+        (45, 0),
+    ]
+
+
+def test_a_few_lines_at_the_end_with_their_own_offset_are_a_block():
+    starts = spaced(120)
+    refs = starts.copy()
+    refs[115:] += 3_000
+
+    fit = choose_fit(fit_offsets(evidence(starts, refs)))
+
+    assert [(block.lines, block.offset_ms) for block in fit.blocks] == [(115, 0), (5, 3_000)]
