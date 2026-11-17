@@ -1,5 +1,6 @@
-from retimer import Options, build_views, loads
+from retimer import Options, build_views, classify_lines, loads
 from retimer.plan import RemoveLines, StripText
+from retimer.views import build_match_view
 
 
 def ops_of(subtitle, **options):
@@ -68,3 +69,41 @@ def test_match_view_does_not_depend_on_the_options(ass):
     plain = build_views(ass, Options()).match_view
     cleaned = build_views(ass, Options(remove_karaoke=True, strip_formatting=True)).match_view
     assert plain == cleaned
+
+
+def _events(rows):
+    lines = "\n".join(
+        f"Dialogue: {layer},0:00:{start / 1000:05.2f},0:00:{end / 1000:05.2f},"
+        f"Default,,0,0,0,,{text}"
+        for layer, start, end, text in rows
+    )
+    return loads(
+        "[Script Info]\nScriptType: v4.00+\n\n[V4+ Styles]\n"
+        "Format: Name, Fontname, Fontsize\nStyle: Default,Arial,40\n\n[Events]\n"
+        "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
+        f"{lines}\n"
+    )
+
+
+def test_layers_and_frames_of_one_line_are_one_line_in_the_match_view():
+    subtitle = _events(
+        [
+            (0, 1_000, 3_000, "{\\blur4}Where are you going?"),
+            (1, 1_000, 3_000, "{\\bord0}Where are you going?"),
+            (0, 4_000, 4_040, "Why do I fight?"),
+            (0, 4_040, 4_080, "{\\i1}Why do I fight?"),
+            (0, 4_080, 6_000, "Why do I fight?"),
+            (0, 7_000, 8_000, "No!"),
+            (0, 9_000, 10_000, "No!"),
+        ]
+    )
+
+    view = build_match_view(subtitle, classify_lines(subtitle))
+
+    assert [(line.id, line.start_ms, line.end_ms, line.text) for line in view.lines] == [
+        (0, 1_000, 3_000, "Where are you going?"),
+        (2, 4_000, 6_000, "Why do I fight?"),
+        (5, 7_000, 8_000, "No!"),
+        (6, 9_000, 10_000, "No!"),
+    ]
+    assert view.excluded == {"repeat": 3}

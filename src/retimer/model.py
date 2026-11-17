@@ -23,6 +23,9 @@ class Line:
     text: str
     style: str
     is_comment: bool
+    # The effect field of an ASS event. Karaoke templates mark the lines they
+    # generate with "fx".
+    effect: str = ""
 
     @property
     def duration_ms(self) -> int:
@@ -61,6 +64,7 @@ class Subtitle:
                 text=event.text,
                 style=event.style,
                 is_comment=event.is_comment,
+                effect=event.effect or "",
             )
             for line_id, event in zip(self.ids, self.ssa.events, strict=True)
         ]

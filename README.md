@@ -4,19 +4,24 @@ An API that synchronizes a subtitle file to a reference (audio, an in-sync
 subtitle, or both). An AI agent diagnoses the file and chooses the operations;
 deterministic tools do all the timing math.
 
-The project is built in milestones. This repository holds the first five: the
-subtitle core, the benchmark harness, the fixed pipeline that syncs a file
-without an agent, the agent that settles what the pipeline leaves open, and
-the HTTP API. Deployment comes next.
+The project is built in milestones. This repository holds the subtitle core,
+the benchmark harness, the fixed pipeline that syncs a file without an agent,
+the agent that settles what the pipeline leaves open, the HTTP API with its
+deployment, and the reading of image subtitles.
 
 ## What the subtitle core does
 
 - Reads and writes SRT and ASS, including legacy encodings such as Shift-JIS.
 - Labels every line: dialogue, sign, song, sound description, credit, comment.
+  The labels hold on fansub scripts, where karaoke effects and typesetting
+  that is redrawn for every frame can be twenty times the dialogue: the styles
+  of a song are known by name, by family and by their timing tags, and a
+  positioned line that is gone within a quarter second is a sign.
 - Produces an inspection report that summarizes a file without quoting all of it.
 - Turns request options (remove hearing-impaired text, karaoke, symbols,
   formatting) into content operations.
-- Builds the match view: dialogue only, reduced to the spoken words.
+- Builds the match view: dialogue only, reduced to the spoken words. The
+  layers of one line, and a line an effect draws frame by frame, are one line.
 - Validates and applies an operation plan. The plan is the only thing that
   changes a file.
 
@@ -124,6 +129,7 @@ plan describes. That run is in
 | `GET /v1/jobs/{id}/report` | Diagnosis, decisions, scores and warnings. |
 | `GET /v1/jobs` | The jobs of the key, newest first. |
 | `DELETE /v1/jobs/{id}` | Delete a job and its files before they expire. |
+| `POST /v1/ocr` | Submit an image subtitle to be read into text. Answers with the job. |
 | `GET /healthz` | Whether the service is up. The only call that needs no key. |
 
 ```bash
@@ -153,7 +159,7 @@ Matroska or WebM, MP3, MP4 or M4A, FLAC, WAV and AAC.
 | `remove_hearing_impaired` | `false` | Drop sound descriptions and speaker labels from the output. |
 | `remove_karaoke` | `false` | Drop karaoke and song lines from the output. |
 | `strip_formatting` | `false` | Remove styling tags, keep the text. |
-| `remove_symbols` | `false` | Remove music notes and similar symbols. |
+| `remove_symbols` | `false` | Remove music notes and similar symbols, among them the arrows and device icons of Japanese broadcast captions (`➡`, `📱`, `☎`). |
 | `drop_unmatched` | `true` | Trim leading or trailing lines when the reference confirms the content is absent. |
 | `audio_language`, `reference_language` | detected | Hints such as `"ja"`. |
 | `output_format` | as the target | `"srt"` or `"ass"`. |
@@ -200,6 +206,7 @@ The answer to every job call is the job:
 | `already_in_sync` | The timing was fine. Only the content options were applied. | File, plan, report |
 | `partial` | Some blocks could not be placed with confidence. The summary names them. | File, plan, report |
 | `rejected_no_match` | Reference and target are different content. | Plan and report, no file |
+| `transcribed` | An image subtitle was read into text. | File and report |
 | `failed` | A technical error. `error` holds a code and a sentence. | Nothing |
 
 A refusal is JSON as well, `{"error": {"code": "…", "message": "…"}}`, with
@@ -208,6 +215,54 @@ yet, 413 for an upload over the limit, 422 for a file or an option that cannot
 be used, and 429 with `Retry-After` when a limit is reached. A file that is no
 subtitle, or audio that cannot be read, is refused when it is submitted and
 not when the job runs.
+
+### Image subtitles
+
+Blu-ray subtitles are pictures (PGS, a `.sup` file), and the Japanese
+subtitles of a disc are often shared in that form. `POST /v1/ocr` reads one
+into a subtitle with text. The times are taken from the stream and are exact.
+The text is read by a model that can see, through the same OpenRouter key as
+everything else.
+
+```bash
+curl https://retimer.example/v1/ocr \
+  -H "Authorization: Bearer $RETIMER_API_KEY" \
+  -F subtitle=@"Show 01 BDSUP.7z" \
+  -F 'options={"language": "ja"}'
+```
+
+| Part | Content |
+| --- | --- |
+| `subtitle` | The image subtitle: a `.sup` file, or a gzip, zip or 7z archive that holds one. Required. |
+| `options` | A JSON object, see below. |
+
+A `.sup` file is large, around 100 MB for an episode, and packs to a few
+megabytes. Sites serve them packed, and the service takes them as they come.
+A request stays under the limit of every request, so a bare stream of a whole
+episode has to be packed first.
+
+| Option | Default | Meaning |
+| --- | --- | --- |
+| `language` | seen by the model | The language of the subtitles, such as `"ja"`. |
+| `model` | the server's | `"haiku"`, `"sonnet"`, `"gemini-flash"`, `"gemini-flash-lite"` or `"qwen-flash"`. |
+| `output_format` | `"srt"` | `"srt"` or `"ass"`. |
+
+The answer is a job like any other, asked about under `/v1/jobs/{id}` and
+fetched from `/v1/jobs/{id}/result`. Its stages are `decoding`, `reading` and
+`writing`, and its outcome is `transcribed`. The summary says how many lines
+were read, from how many pictures, by which model and at what cost, and the
+report holds the same in full. A picture that was read once is remembered by
+its content for as long as transcripts are, so the same file costs nothing a
+second time.
+
+Pictures are shown to the model sixteen at a time, each after its number, and
+it answers with the text of each. Furigana are left out. A subtitle that
+fades in is read from the frame in which it is most visible. What reading
+one file may cost is limited (`RETIMER_OCR_MAX_COST_USD`), and it counts
+against the daily budget. DVD subtitles (VobSub) are not read.
+
+The result is an ordinary subtitle, and can be the target or the reference of
+a job.
 
 ### Running the service
 
@@ -290,7 +345,10 @@ stranger.
 | `RETIMER_MAX_REQUEST_MB` | 95 | Largest request as a whole: the files and the form around them. Cloudflare turns a request over 100 MB away with an answer of its own. |
 | `RETIMER_MAX_AUDIO_MB` | 90 | Largest audio upload. Not larger than a request. |
 | `RETIMER_MAX_AUDIO_MINUTES` | 240 | Longest audio. |
-| `RETIMER_MAX_SUBTITLE_MB` | 10 | Largest subtitle upload. |
+| `RETIMER_MAX_SUBTITLE_MB` | 64 | Largest subtitle upload. A fansub script with typesetting reaches 50 MB. Not larger than a request. |
+| `RETIMER_MAX_IMAGE_SUBTITLE_MB` | 90 | Largest image subtitle upload, bare or packed. |
+| `RETIMER_MAX_IMAGE_STREAM_MB` | 1024 | Largest image subtitle once it is unpacked. |
+| `RETIMER_MAX_SUBTITLE_LINES` | 400000 | Most lines in a subtitle, signs and effects included. A script with typesetting has up to 140,000. |
 | `RETIMER_MAX_DIALOGUE_LINES` | 4000 | Most lines of dialogue in a subtitle. Matching needs about 320 MB of memory at 3000 lines and 1 GB at 6000. |
 | `RETIMER_REQUESTS_PER_MINUTE` | 120 | Per key. |
 | `RETIMER_JOBS_PER_HOUR` | 60 | Per key. |
@@ -301,6 +359,8 @@ stranger.
 | `RETIMER_AGENT` | `haiku` | The model when a job names none, or `off`. |
 | `RETIMER_AGENT_MAX_COST_USD` | 0.25 | What the agent may spend on one job. |
 | `RETIMER_AGENT_PROVIDER` | `openrouter` | Where the agent calls its model: `openrouter`, with the key the service has anyway, or `anthropic`, with `ANTHROPIC_RETIMER_API_KEY`. |
+| `RETIMER_OCR_MODEL` | `haiku` | The model that reads image subtitles when a request names none. |
+| `RETIMER_OCR_MAX_COST_USD` | 0.5 | What reading one image subtitle may cost. |
 | `RETIMER_WORKERS` | 1 | Jobs that run side by side. |
 
 Jobs that are queued or running when the budget runs out still finish, so a
@@ -417,7 +477,10 @@ Rules the engine enforces:
 | `retimer.views` | Content operations from options, and the match view |
 | `retimer.plan` | The plan schema |
 | `retimer.engine` | Plan validation and application |
-| `retimer.providers` | The OpenRouter client for speech-to-text and embeddings |
+| `retimer.providers` | The OpenRouter client for speech-to-text, embeddings and reading pictures |
+| `retimer.pgs` | Blu-ray image subtitles: the pictures of a stream and when each is shown |
+| `retimer.ocr` | Reading the pictures of an image subtitle into a subtitle with text |
+| `retimer.unpack` | Getting an image subtitle out of the archive it came in |
 | `retimer.cache` | Cache by content hash for transcripts and embeddings |
 | `retimer.audio` | Probing audio and cutting long files at quiet stretches |
 | `retimer.transcribe` | Transcripts with word timestamps, chunked and cached |

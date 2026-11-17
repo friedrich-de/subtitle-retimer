@@ -58,6 +58,9 @@ MATCHED_STRENGTH = 0.3
 # and scattered timestamps look alike, and then no rate is the safer reading.
 RATE_PENALTY = 1.5
 RATE_PENALTY_SHARE = 0.1
+# How much further the pairs may scatter under a rate than without one for the
+# rate to be considered at all.
+RATE_TOLERANCE_SLACK = 1.25
 # A break has to be paid for by the lines after it. Where the pairs agree to a
 # fraction of a second, as two subtitles do, a chance agreement is unlikely and
 # two lines are enough. Against speech timestamps it takes more.
@@ -550,8 +553,16 @@ def fit_offsets(evidence: Evidence) -> list[Fit]:
 
     found: dict[str, list[Fit]] = {}
     rates: list[tuple[float, str | None]] = [(1.0, None), *((r, n) for n, r in KNOWN_RATES.items())]
+    unscaled = _tolerance(anchor_refs - anchor_starts)
     for rate, name in rates:
         tolerance = _tolerance(anchor_refs - anchor_starts * rate)
+        # The right rate makes the pairs agree more closely, never less. A rate
+        # under which they scatter further than without it is the wrong one,
+        # and the wider tolerance it would be given lets it gather lines that
+        # only land near something. With blocks that follow the drift it then
+        # outscores the truth and leaves every line up to half a second off.
+        if rate != 1.0 and tolerance > RATE_TOLERANCE_SLACK * unscaled:
+            continue
         centers = _candidates(
             evidence.ref_starts[events] - evidence.line_starts[lines] * rate, weights, tolerance
         )

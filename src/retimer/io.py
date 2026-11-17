@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import codecs
+import re
 from pathlib import Path
 
 import charset_normalizer
@@ -87,12 +88,36 @@ def decode(data: bytes) -> tuple[str, str]:
     return _decode_latin(data)
 
 
+# The parser tells the format from the first few thousand characters. A file
+# that begins with something long, such as fonts a muxer wrote into the header,
+# has its first line of dialogue far behind that, so the whole text is looked at.
+_ASS_MARK = re.compile(r"^\[Events\]\s*$|^Dialogue:\s*\d", re.MULTILINE | re.IGNORECASE)
+_SRT_MARK = re.compile(r"^\s*\d+:\d+:\d+[,.]\d+\s*-->\s*\d+:\d+:\d+[,.]\d+", re.MULTILINE)
+
+
+def _sniff_format(text: str) -> str | None:
+    if _ASS_MARK.search(text):
+        return "ass"
+    if _SRT_MARK.search(text):
+        return "srt"
+    return None
+
+
 def loads(text: str, encoding: str = "utf-8") -> Subtitle:
     """Parse subtitle text. The format is detected from the content."""
     try:
-        ssa = pysubs2.SSAFile.from_string(text)
+        try:
+            ssa = pysubs2.SSAFile.from_string(text)
+        except pysubs2.exceptions.FormatAutodetectionError:
+            fmt = _sniff_format(text)
+            if fmt is None:
+                raise
+            ssa = pysubs2.SSAFile.from_string(text, format_=fmt)
     except pysubs2.exceptions.Pysubs2Error as exc:
         raise SubtitleError("the file is not a recognizable subtitle format") from exc
+    except ValueError as exc:
+        # The parser gives up on a time such as "0:-39:-28.91".
+        raise SubtitleError("the file has lines with times that cannot be read") from exc
     fmt = _FORMAT_ALIASES.get(ssa.format, ssa.format)
     if fmt not in SUPPORTED_FORMATS:
         raise SubtitleError(f"unsupported subtitle format: {ssa.format}")

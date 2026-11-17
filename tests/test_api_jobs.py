@@ -941,3 +941,61 @@ def test_the_benchmark_waits_when_the_service_says_so(tmp_path):
     assert asked == ["POST", "POST"]
     assert record["outcome"] == "failed"
     assert "503" in record["error"]
+
+
+def test_a_script_full_of_typesetting_is_taken_for_its_dialogue(tmp_path):
+    # Fansub scripts redraw a sign for every frame, also in the style of the
+    # dialogue, and give the styles of a song names of their own. Such a file
+    # has a few hundred spoken lines among many thousand.
+    service = make_service(tmp_path, max_dialogue_lines=40)
+    target, reference = shifted(30)
+    script = dumps(loads(reference.decode("utf-8")), "ass")
+
+    def stamp(ms: int) -> str:
+        return f"0:{ms // 60000:02d}:{ms % 60000 / 1000:05.2f}"
+
+    frames = "".join(
+        f"Dialogue: 0,{stamp(10_000 + 40 * index)},{stamp(10_040 + 40 * index)},Default,,0,0,0,"
+        f"fx,{{\\pos(960,1024)\\clip(0,{index},1920,{index + 1})}}Why do I fight?\n"
+        for index in range(500)
+    )
+    song = "".join(
+        f"Dialogue: 0,{stamp(60_000 + 100 * index)},{stamp(60_500 + 100 * index)},"
+        f"Wonder Stella {script_name},,0,0,0,fx,{{\\pos({index},40)}}a\n"
+        for index in range(300)
+        for script_name in ("Romaji", "English")
+    )
+
+    job = service.finished(
+        {"target": target, "reference_subtitle": (script + frames + song).encode("utf-8")}
+    )
+
+    assert job["request"]["reference_subtitle"]["lines"] == 30 + 500 + 600
+    assert job["request"]["reference_subtitle"]["dialogue_lines"] == 30
+    assert job["outcome"] == "synced"
+    assert [block["shift_ms"] for block in job["summary"]["blocks"]] == [-3_500]
+
+
+def test_a_reference_without_dialogue_is_named_as_the_reason(tmp_path):
+    service = make_service(tmp_path)
+    target, _ = shifted(20)
+    signs = "".join(
+        f"Dialogue: 0,0:00:{index:02d}.00,0:00:{index:02d}.90,Signs,,0,0,0,,"
+        f"{{\\pos(100,{index})}}Bakery {index}\n"
+        for index in range(1, 30)
+    )
+    script = (
+        "[Script Info]\nScriptType: v4.00+\n\n[V4+ Styles]\n"
+        "Format: Name, Fontname, Fontsize\nStyle: Signs,Arial,40\n\n[Events]\n"
+        "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
+    )
+
+    job = service.finished(
+        {"target": target, "reference_subtitle": (script + signs).encode("utf-8")},
+        '{"agent": "off"}',
+    )
+
+    assert job["outcome"] == "partial"
+    assert job["request"]["reference_subtitle"]["dialogue_lines"] == 0
+    assert "The reference subtitle has no dialogue" in job["summary"]["warnings"][0]
+    assert "Timing is unchanged" in job["summary"]["warnings"][-1]

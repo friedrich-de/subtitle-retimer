@@ -23,6 +23,8 @@ from typing import Any
 TARGET = "target"
 REFERENCE_SUBTITLE = "reference_subtitle"
 REFERENCE_AUDIO = "reference_audio"
+# The PGS stream of a job that reads an image subtitle.
+IMAGE_SUBTITLE = "image_subtitle"
 RESULT = "result"
 PLAN = "plan.json"
 REPORT = "report.json"
@@ -240,7 +242,7 @@ class JobStore:
         error: dict[str, str] | None = None,
         cost_usd: float = 0.0,
     ) -> None:
-        """Close the job. Its audio is deleted now, everything else when it expires."""
+        """Close the job. Its audio or image subtitle is deleted now, the rest when it expires."""
         now = self._clock()
         with closing(self._connect()) as connection:
             connection.execute("BEGIN IMMEDIATE")
@@ -273,7 +275,8 @@ class JobStore:
                 connection.execute("ROLLBACK")
                 raise
         if is_job_id(job_id):
-            (self.directory(job_id) / REFERENCE_AUDIO).unlink(missing_ok=True)
+            for name in (REFERENCE_AUDIO, IMAGE_SUBTITLE):
+                (self.directory(job_id) / name).unlink(missing_ok=True)
 
     def delete(self, job_id: str, owner: str) -> str | None:
         """Delete a job and its files. Returns "deleted", "running", or None when unknown.

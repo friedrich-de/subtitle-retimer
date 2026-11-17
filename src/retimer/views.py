@@ -99,6 +99,33 @@ def build_content_ops(
     return ops
 
 
+# Lines with the same words that follow each other this closely are one line
+# on screen: the layers of a line with a border or a glow, or a line that an
+# effect draws again for every frame.
+_SAME_LINE_GAP_MS = 150
+
+
+def _join_repeats(lines: list[MatchLine]) -> tuple[list[MatchLine], int]:
+    """One line for every run of lines that show the same words at the same time.
+
+    The first line of a run stands for it, with the time span of the whole
+    run. Returns the lines in the order they came in, and how many were joined
+    into another.
+    """
+    joined: dict[int, MatchLine] = {}
+    latest: dict[str, int] = {}
+    for line in sorted(lines, key=lambda line: (line.start_ms, line.id)):
+        first = joined.get(latest.get(line.text, -1))
+        if first is not None and line.start_ms <= first.end_ms + _SAME_LINE_GAP_MS:
+            if line.end_ms > first.end_ms:
+                joined[first.id] = first.model_copy(update={"end_ms": line.end_ms})
+            continue
+        joined[line.id] = line
+        latest[line.text] = line.id
+    kept = [joined[line.id] for line in lines if line.id in joined]
+    return kept, len(lines) - len(kept)
+
+
 def build_match_view(subtitle: Subtitle, labels: list[LineLabel]) -> MatchView:
     """Dialogue lines reduced to their spoken words. Each keeps the id of its original line."""
     label_by_id = {label.id: label.label for label in labels}
@@ -114,6 +141,9 @@ def build_match_view(subtitle: Subtitle, labels: list[LineLabel]) -> MatchView:
             excluded["empty"] += 1
             continue
         lines.append(MatchLine(id=line.id, start_ms=line.start_ms, end_ms=line.end_ms, text=text))
+    lines, repeats = _join_repeats(lines)
+    if repeats:
+        excluded["repeat"] += repeats
     return MatchView(lines=lines, excluded=dict(excluded))
 
 

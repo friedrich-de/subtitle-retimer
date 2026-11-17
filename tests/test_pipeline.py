@@ -528,3 +528,51 @@ def test_sync_command_needs_a_reference(tmp_path, capsys):
     code = main(["sync", str(tmp_path / "target.srt"), "-o", str(tmp_path / "out.srt")])
     assert code == 1
     assert "--audio" in capsys.readouterr().err
+
+
+def test_a_target_that_holds_far_more_than_the_reference_is_not_called_synced(run):
+    # Several episodes in one file, against the subtitle of the first one.
+    truth = spread(20)
+    later = [f"{sentence} again in part {part}" for part in (2, 3) for sentence in SENTENCES[:20]]
+    target = make_subtitle(
+        [start + 4_000 for start in truth]
+        + [start + 4_000 + part * 1_500_000 for part in (1, 2) for start in truth],
+        SENTENCES[:20] + later,
+    )
+
+    result = run(target, reference=make_subtitle(truth))
+
+    assert result.plan.outcome == "partial"
+    assert result.plan.timing_ops == [Shift(ms=-4_000)]
+    assert "40 lines land more than 5 minutes outside" in result.report.warnings[-1]
+    assert len(result.subtitle.lines) == 60
+
+
+def test_a_preview_the_reference_lacks_is_no_reason_to_doubt_the_rest(run):
+    truth = spread(40)
+    preview = [truth[-1] + 100_000 + 3_000 * index for index in range(8)]
+    target = make_subtitle(
+        [start + 4_000 for start in truth + preview],
+        [f"{sentence} {index}" for index, sentence in enumerate((SENTENCES * 4)[:48])],
+    )
+    reference = make_subtitle(
+        truth, [f"{sentence} {index}" for index, sentence in enumerate((SENTENCES * 4)[:40])]
+    )
+
+    result = run(target, reference=reference)
+
+    assert result.plan.outcome == "synced"
+    assert result.report.warnings == []
+
+
+def test_a_file_with_most_lines_before_the_reference_says_why_it_was_left_alone(run):
+    truth = spread(20)
+    earlier = [f"{sentence} in the part before" for sentence in SENTENCES[:20]]
+    target = make_subtitle(truth + [start + 1_500_000 for start in truth], earlier + SENTENCES[:20])
+
+    result = run(target, reference=make_subtitle(truth))
+
+    assert result.plan.outcome == "partial"
+    assert result.plan.timing_ops == []
+    assert "20 lines would start before the reference begins" in result.report.warnings[-1]
+    assert "Timing is unchanged" in result.report.warnings[-1]

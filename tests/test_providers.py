@@ -86,3 +86,55 @@ def test_no_key_is_reported_by_the_name_of_the_variable(monkeypatch):
     monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
     with pytest.raises(ProviderError, match="OPENROUTER_API_KEY is not set"):
         OpenRouter().embed(["a"], model="m")
+
+
+def test_pictures_are_shown_to_the_model_each_after_its_label():
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["path"] = request.url.path
+        seen["body"] = json.loads(request.read())
+        return httpx.Response(
+            200,
+            json={
+                "choices": [{"message": {"content": '{"1": "a", "2": "b"}'}}],
+                "usage": {"cost": 0.0004, "prompt_tokens": 300, "completion_tokens": 12},
+            },
+        )
+
+    reading = client_for(handler).read_pictures(
+        "Read them.",
+        [("[1]", b"\x89PNG one"), ("[2]", b"\x89PNG two")],
+        model="anthropic/claude-haiku-5.5",
+        provider={"only": ["anthropic"], "allow_fallbacks": False},
+        extra={"reasoning": {"effort": "low"}},
+    )
+
+    assert seen["path"].endswith("/chat/completions")
+    body = seen["body"]
+    assert body["model"] == "anthropic/claude-haiku-5.5"
+    assert body["temperature"] == 0
+    assert body["provider"] == {"only": ["anthropic"], "allow_fallbacks": False}
+    assert body["reasoning"] == {"effort": "low"}
+    assert body["messages"][0] == {"role": "system", "content": "Read them."}
+    content = body["messages"][1]["content"]
+    assert [part["type"] for part in content] == ["text", "image_url", "text", "image_url"]
+    assert content[0]["text"] == "[1]"
+    assert content[1]["image_url"]["url"] == "data:image/png;base64,iVBORyBvbmU="
+    assert reading.text == '{"1": "a", "2": "b"}'
+    assert reading.cost_usd == pytest.approx(0.0004)
+    assert (reading.input_tokens, reading.output_tokens) == (300, 12)
+
+
+def test_an_answer_in_parts_is_joined_and_one_without_text_is_an_error():
+    def in_parts(request: httpx.Request) -> httpx.Response:
+        content = [{"type": "text", "text": '{"1": '}, {"type": "text", "text": '"a"}'}]
+        return httpx.Response(200, json={"choices": [{"message": {"content": content}}]})
+
+    assert client_for(in_parts).read_pictures("x", [("[1]", b"p")], model="m").text == '{"1": "a"}'
+
+    def empty(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"choices": []})
+
+    with pytest.raises(ProviderError, match="without text"):
+        client_for(empty, retries=0).read_pictures("x", [("[1]", b"p")], model="m")

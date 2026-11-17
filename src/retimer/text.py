@@ -6,7 +6,7 @@ import re
 
 OVERRIDE_BLOCK = re.compile(r"\{[^{}]*\}")
 LINE_BREAK = re.compile(r"\\[Nn]")
-MUSIC_SYMBOLS = "♪♫♬♩"
+MUSIC_SYMBOLS = "♪♫♬♩\U0001f3b5\U0001f3b6\U0001f3bc"
 
 _KARAOKE_TAG = re.compile(r"\\(?:kf|ko|k|K)\d+")
 _POSITION_TAG = re.compile(r"\\(?:pos|move|org|i?clip)\s*\(")

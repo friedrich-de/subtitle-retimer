@@ -36,6 +36,21 @@ class JobOptions(BaseModel):
     agent: Literal["haiku", "sonnet", "opus", "off"] | None = None
 
 
+class OcrOptions(BaseModel):
+    """The `options` of a request to read an image subtitle."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    # The language the subtitles are written in, such as "ja". It is a hint
+    # for the model that reads the pictures; without it the model sees for itself.
+    language: Language | None = None
+    # The model that reads the pictures. Defaults to what the server is set to.
+    model: Literal["haiku", "sonnet", "gemini-flash", "gemini-flash-lite", "qwen-flash"] | None = (
+        None
+    )
+    output_format: Literal["srt", "ass"] = "srt"
+
+
 def _time(value: float | None) -> str | None:
     if value is None:
         return None

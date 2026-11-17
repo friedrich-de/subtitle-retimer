@@ -35,9 +35,10 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 from retimer.api.auth import bearer_key, verify
 from retimer.api.config import ApiSettings
 from retimer.api.limits import SlidingWindow, Slots, address_name
-from retimer.api.schemas import JobOptions, job_view
+from retimer.api.schemas import JobOptions, OcrOptions, job_view
 from retimer.api.store import (
     FINISHED,
+    IMAGE_SUBTITLE,
     PLAN,
     REFERENCE_AUDIO,
     REFERENCE_SUBTITLE,
@@ -54,12 +55,16 @@ from retimer.cache import CACHE_DIR_ENV, Cache
 from retimer.classify import classify_lines
 from retimer.io import SubtitleError, load
 from retimer.text import is_drawing, strip_tags
+from retimer.unpack import TooLarge, UnpackError, unpack_image_subtitle
 from retimer.views import build_match_view
 
 log = logging.getLogger("retimer.api")
 
 HEALTH_PATH = "/healthz"
 JOBS_PATH = "/v1/jobs"
+OCR_PATH = "/v1/ocr"
+# The part of an OCR request that holds the image subtitle.
+OCR_FILE = "subtitle"
 # A request that is not an upload has no use for a body.
 _SMALL_BODY = 4 * 1024
 _MEDIA_TYPES = {"srt": "application/x-subrip", "ass": "text/x-ssa"}
@@ -170,14 +175,17 @@ class Gate:
                 429, "rate_limited", "Too many requests. Try again shortly.", retry_after_s=wait
             )
 
-        upload = method == "POST" and path == JOBS_PATH
-        limit = self.settings.max_body_bytes if upload else _SMALL_BODY
+        limit = _SMALL_BODY
+        if method == "POST" and path == JOBS_PATH:
+            limit = self.settings.max_body_bytes
+        elif method == "POST" and path == OCR_PATH:
+            limit = self.settings.max_ocr_body_bytes
         length = headers.get("content-length")
         if length is not None:
             if not length.isdigit():
                 return error_response(400, "bad_request", "Content-Length is not a number.")
             if int(length) > limit:
-                return error_response(413, "body_too_large", _too_large(limit))
+                return error_response(413, "body_too_large", _too_large(limit, path))
         scope["retimer.body_limit"] = limit
         scope.setdefault("state", {})["owner"] = key.label
         return None
@@ -242,9 +250,14 @@ class Gate:
         return with_headers
 
 
-def _too_large(limit: int) -> str:
+def _too_large(limit: int, path: str = JOBS_PATH) -> str:
     if limit < 1024 * 1024:
         return "The request is larger than this service takes."
+    if path == OCR_PATH:
+        return (
+            f"The request is larger than the {_megabytes(limit)} this service takes. "
+            "An image subtitle packs to a few megabytes as gzip, zip or 7z."
+        )
     return (
         f"The request is larger than the {_megabytes(limit)} this service takes. "
         "Audio as mono Opus at 24 kbps comes to about 11 MB an hour."
@@ -260,6 +273,14 @@ def _safe_name(filename: str | None, fallback: str) -> str:
     name = (filename or "").replace("\\", "/").rsplit("/", 1)[-1]
     name = "".join(char for char in name if char.isprintable()).strip().strip(".")
     return name[:120] or fallback
+
+
+def _stem(filename: str) -> str:
+    """A file name without its extension, and without ".sup" in front of an archive's."""
+    stem = filename.rsplit(".", 1)[0]
+    if stem.lower().endswith(".sup"):
+        stem = stem[:-4]
+    return stem or "subtitle"
 
 
 def _disposition(filename: str) -> str:
@@ -307,23 +328,52 @@ def _read_form(form: FormData) -> _Parts:
             "missing_reference",
             "A job needs a reference: reference_audio, reference_subtitle, or both.",
         )
-    raw = form.get("options")
-    if isinstance(raw, UploadFile):
-        raise ApiError(422, "invalid_options", "options has to be a JSON object in a text field.")
-    try:
-        options = JobOptions.model_validate_json(raw) if raw else JobOptions()
-    except ValidationError as error:
-        problems = "; ".join(
-            f"{'.'.join(str(part) for part in issue['loc']) or 'options'}: {issue['msg']}"
-            for issue in error.errors(include_input=False, include_url=False)[:5]
-        )
-        raise ApiError(422, "invalid_options", f"options is not valid. {problems}") from error
+    options = _options(form.get("options"), JobOptions)
     return _Parts(
         target=target,
         reference_subtitle=files[REFERENCE_SUBTITLE],
         reference_audio=files[REFERENCE_AUDIO],
         options=options,
     )
+
+
+def _options(raw: Any, model: type[JobOptions] | type[OcrOptions]) -> Any:
+    if isinstance(raw, UploadFile):
+        raise ApiError(422, "invalid_options", "options has to be a JSON object in a text field.")
+    try:
+        return model.model_validate_json(raw) if raw else model()
+    except ValidationError as error:
+        problems = "; ".join(
+            f"{'.'.join(str(part) for part in issue['loc']) or 'options'}: {issue['msg']}"
+            for issue in error.errors(include_input=False, include_url=False)[:5]
+        )
+        raise ApiError(422, "invalid_options", f"options is not valid. {problems}") from error
+
+
+def _read_ocr_form(form: FormData) -> tuple[UploadFile, OcrOptions]:
+    """Check the shape of a request to read an image subtitle."""
+    known = {OCR_FILE, "options"}
+    for name in form:
+        if name not in known:
+            raise ApiError(
+                422,
+                "unknown_field",
+                f"The form has a part this service does not know: {name[:40]!r}. "
+                f"It takes {', '.join(sorted(known))}.",
+            )
+        if len(form.getlist(name)) > 1:
+            raise ApiError(422, "repeated_field", f"The form has more than one part named {name}.")
+    upload = form.get(OCR_FILE)
+    if upload is None:
+        raise ApiError(
+            422,
+            f"missing_{OCR_FILE}",
+            f"The form has no {OCR_FILE}: the image subtitle to read, a .sup file or an "
+            "archive of one.",
+        )
+    if not isinstance(upload, UploadFile):
+        raise ApiError(422, "not_a_file", f"{OCR_FILE} has to be sent as a file.")
+    return upload, _options(form.get("options"), OcrOptions)
 
 
 class _Intake:
@@ -476,6 +526,59 @@ class _Intake:
         )
         return job
 
+    def accept_ocr(self, owner: str, upload: UploadFile, options: OcrOptions) -> Job:
+        """Take an image subtitle in: store it, unpack it, and queue the job that reads it."""
+        job_id, directory = self.store.new_directory()
+        try:
+            packed = directory / "upload"
+            size = self._save(upload, packed, self.settings.image_subtitle_limit, OCR_FILE)
+            stream = directory / IMAGE_SUBTITLE
+            try:
+                packing = unpack_image_subtitle(
+                    packed, stream, self.settings.max_image_stream_bytes
+                )
+            except TooLarge as error:
+                raise ApiError(
+                    413,
+                    "file_too_large",
+                    f"{OCR_FILE}: {error}. The limit is "
+                    f"{_megabytes(self.settings.max_image_stream_bytes)}.",
+                ) from error
+            except UnpackError as error:
+                raise ApiError(422, f"invalid_{OCR_FILE}", f"{OCR_FILE}: {error}.") from error
+            except OSError as error:
+                log.error("an image subtitle could not be unpacked: %r", error)
+                raise ApiError(
+                    507, "storage_full", "The server cannot take uploads right now."
+                ) from error
+            finally:
+                packed.unlink(missing_ok=True)
+            request: dict[str, Any] = {
+                "kind": "ocr",
+                OCR_FILE: {
+                    "filename": _safe_name(upload.filename, OCR_FILE),
+                    "bytes": size,
+                    "packing": packing,
+                    "stream_bytes": stream.stat().st_size,
+                },
+                "options": {"language": options.language},
+                "model": options.model or self.settings.ocr_model,
+                "output_format": options.output_format,
+            }
+            job = self.store.add(job_id, owner, request)
+        except BaseException:
+            self.store.discard_directory(job_id)
+            raise
+        log.info(
+            "job %s accepted from %s: image subtitle of %s (%s), model %s",
+            job.id,
+            owner,
+            _megabytes(request[OCR_FILE]["stream_bytes"]),
+            packing,
+            request["model"],
+        )
+        return job
+
 
 def _until_midnight_utc() -> float:
     now = datetime.now(UTC)
@@ -510,6 +613,33 @@ _SUBMIT_SCHEMA = {
                         "options": {
                             "type": "string",
                             "description": "A JSON object, see JobOptions.",
+                        },
+                    },
+                }
+            }
+        },
+    }
+}
+
+
+_OCR_SCHEMA = {
+    "requestBody": {
+        "required": True,
+        "content": {
+            "multipart/form-data": {
+                "schema": {
+                    "type": "object",
+                    "required": [OCR_FILE],
+                    "properties": {
+                        OCR_FILE: {
+                            "type": "string",
+                            "format": "binary",
+                            "description": "A Blu-ray image subtitle (PGS, .sup), bare or "
+                            "packed as gzip, zip or 7z.",
+                        },
+                        "options": {
+                            "type": "string",
+                            "description": "A JSON object, see OcrOptions.",
                         },
                     },
                 }
@@ -595,7 +725,7 @@ def create_app(
 
     @app.exception_handler(BodyTooLarge)
     async def body_too_large(request: Request, error: BodyTooLarge) -> JSONResponse:
-        return error_response(413, "body_too_large", _too_large(error.args[0]))
+        return error_response(413, "body_too_large", _too_large(error.args[0], request.url.path))
 
     @app.exception_handler(UploadTooSlow)
     async def upload_too_slow(request: Request, error: UploadTooSlow) -> JSONResponse:
@@ -670,6 +800,27 @@ def create_app(
                 retry_after_s=30,
             )
 
+    def submissions_left(owner: str) -> None:
+        wait = submissions.hit(owner)
+        if wait:
+            raise ApiError(
+                429,
+                "rate_limited",
+                f"This key has submitted {settings.jobs_per_hour} jobs within an hour.",
+                retry_after_s=wait,
+            )
+
+    def multipart(request: Request) -> None:
+        content_type = request.headers.get("content-type", "")
+        if content_type.split(";", 1)[0].strip().lower() != "multipart/form-data":
+            raise ApiError(415, "unsupported_media_type", "Send the job as multipart/form-data.")
+
+    def accepted(job: Job) -> JSONResponse:
+        worker.notify()
+        return JSONResponse(
+            job_view(job, set()), status_code=202, headers={"Location": f"{JOBS_PATH}/{job.id}"}
+        )
+
     @app.post(
         JOBS_PATH,
         status_code=202,
@@ -678,28 +829,39 @@ def create_app(
     )
     async def submit_job(request: Request) -> JSONResponse:
         owner = owner_of(request)
-        content_type = request.headers.get("content-type", "")
-        if content_type.split(";", 1)[0].strip().lower() != "multipart/form-data":
-            raise ApiError(415, "unsupported_media_type", "Send the job as multipart/form-data.")
+        multipart(request)
         await run_in_threadpool(admit, owner)
         try:
-            wait = submissions.hit(owner)
-            if wait:
-                raise ApiError(
-                    429,
-                    "rate_limited",
-                    f"This key has submitted {settings.jobs_per_hour} jobs within an hour.",
-                    retry_after_s=wait,
-                )
+            submissions_left(owner)
             async with request.form(max_files=3, max_fields=4, max_part_size=64 * 1024) as form:
                 parts = _read_form(form)
                 job = await run_in_threadpool(intake.accept, owner, parts)
         finally:
             uploads.release(owner)
-        worker.notify()
-        return JSONResponse(
-            job_view(job, set()), status_code=202, headers={"Location": f"{JOBS_PATH}/{job.id}"}
-        )
+        return accepted(job)
+
+    @app.post(
+        OCR_PATH,
+        status_code=202,
+        summary="Read an image subtitle into text",
+        openapi_extra=_OCR_SCHEMA,
+    )
+    async def submit_ocr(request: Request) -> JSONResponse:
+        """Queue a job that turns a Blu-ray image subtitle (PGS) into a subtitle with text.
+
+        The job is asked about and fetched like any other, under `/v1/jobs/{id}`.
+        """
+        owner = owner_of(request)
+        multipart(request)
+        await run_in_threadpool(admit, owner)
+        try:
+            submissions_left(owner)
+            async with request.form(max_files=1, max_fields=2, max_part_size=64 * 1024) as form:
+                upload, options = _read_ocr_form(form)
+                job = await run_in_threadpool(intake.accept_ocr, owner, upload, options)
+        finally:
+            uploads.release(owner)
+        return accepted(job)
 
     @app.get(JOBS_PATH, summary="The jobs of this key, newest first")
     def list_jobs(request: Request, limit: int = 50) -> dict[str, Any]:
@@ -720,7 +882,8 @@ def create_app(
         if path is None:
             raise ApiError(404, "no_result", f"The job ended as {job.outcome} and has no file.")
         fmt = job.request["output_format"]
-        stem = job.request["target"]["filename"].rsplit(".", 1)[0] or "subtitle"
+        source = job.request.get(OCR_FILE) or job.request["target"]
+        stem = _stem(source["filename"])
         return Response(
             path.read_bytes(),
             media_type=f"{_MEDIA_TYPES[fmt]}; charset=utf-8",

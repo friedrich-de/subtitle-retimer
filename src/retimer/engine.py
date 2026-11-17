@@ -139,7 +139,10 @@ def validate_plan(subtitle: Subtitle, plan: Plan) -> list[PlanIssue]:
     times = _new_times(subtitle, plan)
     kept = [line for line in subtitle.lines if line.id not in removed]
 
-    negative = [line.id for line in kept if times[line.id][0] < 0]
+    # A comment is a note for editors and is shown to nobody. One at the very
+    # start of a script, where editors keep them, must not stand in the way of
+    # moving the file earlier. It stops at zero instead.
+    negative = [line.id for line in kept if not line.is_comment and times[line.id][0] < 0]
     if negative:
         issues.append(
             PlanIssue(
@@ -223,6 +226,8 @@ def apply_plan(subtitle: Subtitle, plan: Plan) -> ApplyResult:
     for line_id in kept_ids:
         event = events[line_id]
         start, end = times[line_id]
+        if event.is_comment and start < 0:
+            start, end = 0, max(0, end)
         if (start, end) != (event.start, event.end):
             summary.moved += 1
         event.start, event.end = start, end

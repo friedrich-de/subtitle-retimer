@@ -38,6 +38,19 @@ def test_remove_hearing_impaired(text, expected):
         ("Call #5 now.", "Call #5 now."),
         ("{\\an8}♫ La la", "{\\an8}La la"),
         ("No symbols here.", "No symbols here."),
+        # Japanese broadcast captions: a sentence runs on, a voice comes from a device.
+        ("＜彼らは 誰よりも深く→", "＜彼らは 誰よりも深く"),
+        ("四方の門は閉じ　王冠より出で➡️", "四方の門は閉じ　王冠より出で"),
+        ("📺昨晩　衝撃は➨", "昨晩　衝撃は"),
+        ("📱おかけになった電話は", "おかけになった電話は"),
+        ("⚟少女よ　聞こえているかい？", "少女よ　聞こえているかい？"),
+        ("☎️", ""),
+        ("🎵～", ""),
+        ("キラッ☆\\N好き♡", "キラッ\\N好き"),
+        # What is part of the text stays.
+        ("藤丸～！ 久利須＝矜治", "藤丸～！ 久利須＝矜治"),
+        ("≪芸術だなぁ｡≫ ＜きっと＞ 3×4", "≪芸術だなぁ｡≫ ＜きっと＞ 3×4"),
+        ("Time alter ── double accel", "Time alter ── double accel"),
     ],
 )
 def test_remove_symbols(text, expected):
@@ -59,6 +72,7 @@ def test_strip_formatting():
         ("- Yes.\\N- No.", "Yes. No."),
         ("{\\p1}m 0 0 l 10 0{\\p0}", ""),
         ("[sobbing]", ""),
+        ("（狡噛）📱もしもし➡", "もしもし"),
     ],
 )
 def test_normalize_for_match(text, expected):

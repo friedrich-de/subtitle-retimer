@@ -1,12 +1,14 @@
 """The hosted AI services, behind one small client.
 
-Speech-to-text and embeddings both go through OpenRouter, so one key covers
-them. Nothing here knows about subtitles: the functions take bytes and text and
-return what the provider said, plus what it cost.
+Speech-to-text, embeddings and the reading of pictures all go through
+OpenRouter, so one key covers them. Nothing here knows about subtitles: the
+functions take bytes and text and return what the provider said, plus what it
+cost.
 """
 
 from __future__ import annotations
 
+import base64
 import json
 import os
 import time
@@ -44,6 +46,16 @@ class Transcription:
 class Embeddings:
     vectors: list[list[float]]
     cost_usd: float
+
+
+@dataclass
+class Reading:
+    """What a model that can see wrote about the pictures it was shown."""
+
+    text: str
+    cost_usd: float
+    input_tokens: int = 0
+    output_tokens: int = 0
 
 
 class OpenRouter:
@@ -136,6 +148,59 @@ class OpenRouter:
         if len(rows) != len(texts):
             raise ProviderError(f"asked for {len(texts)} embeddings and got {len(rows)}")
         return Embeddings(vectors=[row["embedding"] for row in rows], cost_usd=_cost(body))
+
+    def read_pictures(
+        self,
+        instructions: str,
+        pictures: list[tuple[str, bytes]],
+        *,
+        model: str,
+        max_tokens: int = 4000,
+        provider: dict | None = None,
+        extra: dict | None = None,
+    ) -> Reading:
+        """Show PNG pictures to a model that can see, each after its label, and return its answer.
+
+        `provider` is OpenRouter's routing object, to pin the upstream that
+        serves the model. `extra` is merged into the request, for what only
+        some models take.
+        """
+        content: list[dict] = []
+        for label, png in pictures:
+            content.append({"type": "text", "text": label})
+            data = base64.b64encode(png).decode("ascii")
+            content.append(
+                {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{data}"}}
+            )
+        request: dict = {
+            "model": model,
+            "messages": [
+                {"role": "system", "content": instructions},
+                {"role": "user", "content": content},
+            ],
+            "temperature": 0,
+            "max_tokens": max_tokens,
+            "usage": {"include": True},
+        }
+        if provider:
+            request["provider"] = provider
+        if extra:
+            request.update(extra)
+        body = self._post("/chat/completions", json=request)
+        try:
+            text = body["choices"][0]["message"]["content"]
+        except (KeyError, IndexError, TypeError) as error:
+            raise ProviderError("the model's answer came back without text") from error
+        if isinstance(text, list):
+            # Some models answer in parts.
+            text = "".join(part.get("text", "") for part in text if isinstance(part, dict))
+        usage = body.get("usage") or {}
+        return Reading(
+            text=text or "",
+            cost_usd=_cost(body),
+            input_tokens=int(usage.get("prompt_tokens") or 0),
+            output_tokens=int(usage.get("completion_tokens") or 0),
+        )
 
 
 def _cost(body: dict) -> float:

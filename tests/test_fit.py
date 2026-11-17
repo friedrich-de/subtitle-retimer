@@ -217,3 +217,39 @@ def test_matched_ids_stay_out_of_the_report():
     fit = choose_fit(fit_offsets(evidence(starts, starts + 1_000)))
     assert "matched_ids" not in fit.model_dump()
     assert isinstance(Fit.model_validate(fit.model_dump()), Fit)
+
+
+@pytest.mark.parametrize("seed", [0, 1, 2])
+def test_a_file_in_sync_is_not_explained_by_a_frame_rate_it_does_not_have(seed):
+    # Fifty-five minutes, in sync. Three lines in ten have a counterpart that
+    # starts a little later, as happens where two languages cut a sentence
+    # differently. Under a rate a tenth of a percent off, the pairs drift apart
+    # by three seconds. That made the tolerance for the rate wide, the wide
+    # tolerance let it gather the late lines too, and with blocks that follow
+    # the drift it outscored the truth.
+    rng = np.random.default_rng(seed)
+    starts = spaced(700, step=4_700)
+    late = rng.random(700) < 0.3
+    refs = starts + rng.normal(0, 25, 700) + np.where(late, rng.uniform(300, 650, 700), 0)
+
+    fits = fit_offsets(evidence(starts, refs))
+    fit = choose_fit(fits)
+
+    assert {found.rate for found in fits} == {1.0}
+    assert fit.rate_name is None
+    at_rest = sum(block.lines for block in fit.blocks if abs(block.offset_ms) <= 60)
+    assert at_rest >= 0.6 * 700
+
+
+def test_a_rate_is_still_found_where_the_pairs_agree_less_closely_under_it():
+    # Speech timestamps scatter by a few hundred milliseconds. The right rate
+    # still pulls the pairs together, though not to a point.
+    rng = np.random.default_rng(3)
+    rate = KNOWN_RATES["24 fps to 23.976 fps"]
+    starts = spaced(300)
+    refs = starts * rate + 2_000 + rng.normal(0, 120, 300)
+
+    fit = choose_fit(fit_offsets(evidence(starts, refs)))
+
+    assert fit.kind == "rate"
+    assert fit.rate_name == "24 fps to 23.976 fps"

@@ -76,3 +76,27 @@ def test_rejects_unsupported_and_empty_input():
         loads("this is not a subtitle file")
     with pytest.raises(SubtitleError):
         dumps(loads("1\n00:00:01,000 --> 00:00:02,000\nhi\n"), "vtt")
+
+
+def test_a_file_with_a_long_header_is_still_recognized():
+    # A muxer can write the fonts of a release into the header, which puts the
+    # first line of dialogue far behind where a format is usually looked for.
+    font = "fontname: FANCY_0.ttf\n" + "\n".join("M" + "!" * 79 for _ in range(4_000))
+    text = (
+        "[Script Info]\nTitle: Episode\nScriptType: v4.00+\n"
+        + font
+        + "\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize\nStyle: Default,Arial,20\n\n"
+        "[Events]\n"
+        "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
+        "Dialogue: 0,0:00:01.00,0:00:03.00,Default,,0,0,0,,Good morning.\n"
+    )
+
+    subtitle = loads(text)
+
+    assert subtitle.format == "ass"
+    assert [line.text for line in subtitle.lines] == ["Good morning."]
+
+    late = "\n" * 20_000 + "1\n00:00:01,000 --> 00:00:02,000\nGood morning.\n"
+    assert loads(late).format == "srt"
+    with pytest.raises(SubtitleError):
+        loads("x" * 30_000)

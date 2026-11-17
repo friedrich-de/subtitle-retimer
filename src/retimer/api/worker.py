@@ -8,7 +8,9 @@ The worker also cleans up: expired jobs, stray uploads, and old cache entries.
 
 from __future__ import annotations
 
+import json
 import logging
+import mmap
 import threading
 import time
 from dataclasses import dataclass
@@ -17,6 +19,7 @@ from typing import Any
 
 from retimer.api.config import ApiSettings
 from retimer.api.store import (
+    IMAGE_SUBTITLE,
     PLAN,
     REFERENCE_AUDIO,
     REFERENCE_SUBTITLE,
@@ -43,6 +46,9 @@ _TRANSCRIPTION_USD_PER_S = 0.0000111
 FAILURES = {
     "invalid_subtitle": "A subtitle of this job could not be read.",
     "invalid_audio": "The audio of this job could not be read.",
+    "invalid_image_subtitle": "The image subtitle of this job could not be read.",
+    "no_text": "No text could be read from the pictures of this image subtitle.",
+    "ocr_budget_exceeded": "Reading this image subtitle cost more than one job may spend.",
     "provider_error": "A hosted service the job depends on failed. A new job may succeed later.",
     "internal_error": "The job failed for a reason on the server's side.",
 }
@@ -99,11 +105,108 @@ def _summary(result, seconds: float) -> dict[str, Any]:
     return summary
 
 
+def run_ocr_job(job: Job, store: JobStore, settings: ApiSettings, services: Services) -> str:
+    """Read the image subtitle of a job into a subtitle with text. Nothing is raised."""
+    started = time.monotonic()
+    directory = store.directory(job.id)
+    request = job.request
+    # Imported here, so that a server which runs no jobs itself starts without numpy.
+    from retimer.ocr import OcrBudgetExceeded, OcrError, read_image_subtitle
+    from retimer.pgs import PgsError, read_pgs
+
+    try:
+        store.set_stage(job.id, "decoding")
+        with (
+            (directory / IMAGE_SUBTITLE).open("rb") as handle,
+            mmap.mmap(handle.fileno(), 0, access=mmap.ACCESS_READ) as data,
+        ):
+            events = read_pgs(data)
+        if not events:
+            raise PgsError("the stream shows no subtitle")
+        store.set_stage(job.id, "reading")
+        subtitle, stats = read_image_subtitle(
+            events,
+            model=request["model"],
+            language=request["options"].get("language"),
+            client=services.openrouter,
+            cache=services.cache,
+            max_cost_usd=settings.ocr_max_cost_usd,
+        )
+        store.set_stage(job.id, "writing")
+        text = dumps(subtitle, request["output_format"])
+        (directory / RESULT).write_text(text, encoding="utf-8")
+        warnings = []
+        if stats.unread_pictures:
+            warnings.append(
+                f"{stats.unread_pictures} pictures could not be read and were left out."
+            )
+        empty = len(events) - len(subtitle)
+        if empty:
+            warnings.append(f"{empty} subtitles showed no text and were left out.")
+        report = {
+            "outcome": "transcribed",
+            "screen": list(events[0].screen),
+            "first_ms": events[0].start_ms,
+            "last_ms": events[-1].end_ms,
+            "lines": len(subtitle),
+            "reading": stats.model_dump(),
+            "warnings": warnings,
+        }
+        (directory / REPORT).write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    except Exception as error:
+        code = (
+            "invalid_image_subtitle"
+            if isinstance(error, PgsError)
+            else "ocr_budget_exceeded"
+            if isinstance(error, OcrBudgetExceeded)
+            else "no_text"
+            if isinstance(error, OcrError)
+            else "provider_error"
+            if isinstance(error, ProviderError)
+            else "internal_error"
+        )
+        log.exception("job %s failed (%s)", job.id, code)
+        for name in (RESULT, REPORT):
+            (directory / name).unlink(missing_ok=True)
+        store.finish(
+            job.id,
+            "failed",
+            error={"code": code, "message": FAILURES[code]},
+            cost_usd=float(getattr(error, "cost_usd", 0.0) or 0.0),
+        )
+        return "failed"
+
+    seconds = time.monotonic() - started
+    summary = {
+        "lines": len(subtitle),
+        "events": stats.events,
+        "pictures": stats.pictures,
+        "distinct_pictures": stats.distinct_pictures,
+        "from_cache": stats.from_cache,
+        "unread_pictures": stats.unread_pictures,
+        "model": stats.model,
+        "warnings": warnings,
+        "cost_usd": round(stats.cost_usd, 6),
+        "seconds": round(seconds, 2),
+    }
+    store.finish(job.id, "transcribed", summary=summary, cost_usd=stats.cost_usd)
+    log.info(
+        "job %s finished: transcribed %d lines in %.1f s, %.4f USD",
+        job.id,
+        len(subtitle),
+        seconds,
+        stats.cost_usd,
+    )
+    return "transcribed"
+
+
 def run_job(job: Job, store: JobStore, settings: ApiSettings, services: Services) -> str:
     """Run one claimed job to its end and record the outcome, which is returned.
 
     Nothing is raised: whatever goes wrong closes the job as failed.
     """
+    if job.request.get("kind") == "ocr":
+        return run_ocr_job(job, store, settings, services)
     started = time.monotonic()
     directory = store.directory(job.id)
     request = job.request

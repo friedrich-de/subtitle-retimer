@@ -1,7 +1,7 @@
 import pytest
 
 from retimer import Options, Plan, PlanError, apply_plan, build_views, dumps, loads, validate_plan
-from retimer.plan import parse_timestamp
+from retimer.plan import Shift, parse_timestamp
 
 
 def times(subtitle):
@@ -180,3 +180,15 @@ def test_strip_leaves_comment_events_alone(ass):
     assert result.subtitle.lines[0].text == "Translation notes go here"
     # The drawing has nothing left once its tags are gone, so it is dropped.
     assert 8 not in [line.id for line in result.subtitle.lines]
+
+
+def test_a_comment_at_the_start_does_not_stand_in_the_way_of_moving_earlier(ass):
+    # Editors keep notes in comment events at time zero. Nobody sees them.
+    assert ass.lines[0].is_comment and ass.lines[0].start_ms == 0
+    plan = Plan(timing_ops=[Shift(ms=-500)])
+
+    assert validate_plan(ass, plan) == []
+    result = apply_plan(ass, plan).subtitle
+
+    assert (result.lines[0].start_ms, result.lines[0].end_ms) == (0, 0)
+    assert result.lines[1].start_ms == 500

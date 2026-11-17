@@ -22,6 +22,8 @@ API_KEYS_ENV = "RETIMER_API_KEYS"
 DEV_ENV = "RETIMER_DEV"
 
 AGENT_CHOICES = ("haiku", "sonnet", "opus", "off")
+# The models that read image subtitles. The names are those of `retimer.ocr.MODELS`.
+OCR_MODEL_CHOICES = ("haiku", "sonnet", "gemini-flash", "gemini-flash-lite", "qwen-flash")
 
 
 class ConfigError(ValueError):
@@ -36,11 +38,18 @@ class ApiSettings(BaseModel):
     # documentation. Never for a server that others can reach.
     dev: bool = False
 
-    # Uploads. A subtitle of a film is well under a megabyte, and a film's
-    # audio as the client should send it (mono Opus, 24 kbps) about 22 MB.
-    max_subtitle_bytes: int = 10 * MB
+    # Uploads. A subtitle of a film is well under a megabyte as plain text, and
+    # a film's audio as the client should send it (mono Opus, 24 kbps) about
+    # 22 MB. A fansub script with typesetting is another matter: drawings and
+    # effects that are redrawn for every frame bring one to 50 MB.
+    max_subtitle_bytes: int = 64 * MB
     max_audio_bytes: int = 90 * MB
     max_audio_minutes: int = 240
+    # An image subtitle (PGS) as it is uploaded, bare or packed, and the most
+    # the stream may measure once it is unpacked. An episode is around 100 MB
+    # and packs to 3, a film to 6.
+    max_image_subtitle_bytes: int = 90 * MB
+    max_image_stream_bytes: int = 1024 * MB
     # One request as a whole: the files and the form around them. The proxy in
     # front has a limit of its own, and what it turns away gets its answer, not
     # this service's. Cloudflare stops at 100 MB on its free plan, so the
@@ -48,8 +57,10 @@ class ApiSettings(BaseModel):
     max_request_bytes: int = 95 * MB
     # Lines of a subtitle, comments and signs included, and the lines of it
     # that are compared with the reference. Matching holds a table of every
-    # line against every event in memory.
-    max_subtitle_lines: int = 50_000
+    # line against every event in memory. The first limit is far above the
+    # second, because a script with typesetting has a few hundred lines of
+    # dialogue among as many as 140,000 that redraw a sign frame by frame.
+    max_subtitle_lines: int = 400_000
     max_dialogue_lines: int = 4_000
     # The text of one line, tags and drawings aside. Nothing a viewer could
     # read is this long, and a file that is cut wrong can be.
@@ -80,6 +91,10 @@ class ApiSettings(BaseModel):
     # names none. "off" runs the fixed pipeline.
     agent: str = "haiku"
     agent_max_cost_usd: float = 0.25
+    # The model that reads image subtitles when a request names none, and what
+    # reading one file may cost.
+    ocr_model: str = "haiku"
+    ocr_max_cost_usd: float = 0.5
 
     @property
     def jobs_dir(self) -> Path:
@@ -97,6 +112,16 @@ class ApiSettings(BaseModel):
         """
         files = self.max_audio_bytes + 2 * self.max_subtitle_bytes + 64 * 1024
         return min(files, self.max_request_bytes)
+
+    @property
+    def image_subtitle_limit(self) -> int:
+        """The largest image subtitle upload: its own limit, and never more than a request."""
+        return min(self.max_image_subtitle_bytes, self.max_request_bytes)
+
+    @property
+    def max_ocr_body_bytes(self) -> int:
+        """The most a request to read an image subtitle may carry."""
+        return min(self.max_image_subtitle_bytes + 64 * 1024, self.max_request_bytes)
 
     @classmethod
     def from_env(
@@ -130,13 +155,21 @@ class ApiSettings(BaseModel):
                 raise ValueError(f"expected one of {', '.join(AGENT_CHOICES)}")
             return raw.lower()
 
+        def ocr_model(raw: str) -> str:
+            if raw.lower() not in OCR_MODEL_CHOICES:
+                raise ValueError(f"expected one of {', '.join(OCR_MODEL_CHOICES)}")
+            return raw.lower()
+
         take(DATA_DIR_ENV, "data_dir", Path)
         take(API_KEYS_ENV, "api_keys", parse_keys)
         take(DEV_ENV, "dev", flag)
         take("RETIMER_MAX_SUBTITLE_MB", "max_subtitle_bytes", megabytes)
         take("RETIMER_MAX_AUDIO_MB", "max_audio_bytes", megabytes)
         take("RETIMER_MAX_REQUEST_MB", "max_request_bytes", megabytes)
+        take("RETIMER_MAX_IMAGE_SUBTITLE_MB", "max_image_subtitle_bytes", megabytes)
+        take("RETIMER_MAX_IMAGE_STREAM_MB", "max_image_stream_bytes", megabytes)
         take("RETIMER_MAX_AUDIO_MINUTES", "max_audio_minutes", int)
+        take("RETIMER_MAX_SUBTITLE_LINES", "max_subtitle_lines", int)
         take("RETIMER_MAX_DIALOGUE_LINES", "max_dialogue_lines", int)
         take("RETIMER_REQUESTS_PER_MINUTE", "requests_per_minute", int)
         take("RETIMER_JOBS_PER_HOUR", "jobs_per_hour", int)
@@ -147,6 +180,14 @@ class ApiSettings(BaseModel):
         take("RETIMER_WORKERS", "workers", int)
         take("RETIMER_AGENT", "agent", agent)
         take("RETIMER_AGENT_MAX_COST_USD", "agent_max_cost_usd", float)
+        take("RETIMER_OCR_MODEL", "ocr_model", ocr_model)
+        take("RETIMER_OCR_MAX_COST_USD", "ocr_max_cost_usd", float)
+        # A subtitle may be as large as the default allows, but a server that
+        # set a smaller request limit and said nothing about subtitles means
+        # that limit for them too.
+        if "max_subtitle_bytes" not in values and "max_request_bytes" in values:
+            default = cls.model_fields["max_subtitle_bytes"].default
+            values["max_subtitle_bytes"] = min(default, values["max_request_bytes"])
         settings = cls(**values)
         settings.check(need_keys=need_keys)
         return settings
@@ -162,6 +203,8 @@ class ApiSettings(BaseModel):
             "max_subtitle_bytes",
             "max_audio_bytes",
             "max_request_bytes",
+            "max_image_subtitle_bytes",
+            "max_image_stream_bytes",
             "max_audio_minutes",
             "max_subtitle_lines",
             "max_dialogue_lines",
@@ -183,7 +226,9 @@ class ApiSettings(BaseModel):
                     f"{name} is larger than max_request_bytes, so no request could carry such "
                     "a file. Raise RETIMER_MAX_REQUEST_MB, or lower the limit of the file."
                 )
-        if self.daily_budget_usd < 0 or self.agent_max_cost_usd < 0:
+        if self.daily_budget_usd < 0 or self.agent_max_cost_usd < 0 or self.ocr_max_cost_usd < 0:
             raise ConfigError("a budget cannot be negative")
         if self.agent not in AGENT_CHOICES:
             raise ConfigError(f"agent must be one of {', '.join(AGENT_CHOICES)}")
+        if self.ocr_model not in OCR_MODEL_CHOICES:
+            raise ConfigError(f"ocr_model must be one of {', '.join(OCR_MODEL_CHOICES)}")

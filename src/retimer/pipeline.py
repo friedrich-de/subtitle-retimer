@@ -75,6 +75,9 @@ class Settings(BaseModel):
     max_trim_share: float = 0.05
     # A block needs this confidence, or the outcome is partial.
     min_block_confidence: float = 0.4
+    # Dialogue that lands further than this outside everything a reference
+    # subtitle covers is more than an intro or an outro the reference lacks.
+    uncovered_margin_ms: int = 300_000
 
 
 class ReferenceSummary(BaseModel):
@@ -418,6 +421,32 @@ def _edge_lines(
         trim += [line.id for line in gone]
         keep += [line.id for line in run if line not in gone]
     return sorted(trim), sorted(keep), too_many
+
+
+def _uncovered(
+    lines: list[Line],
+    labels: dict[int, str],
+    new_times: dict[int, tuple[int, int]],
+    timeline: ReferenceTimeline,
+    settings: Settings,
+) -> int:
+    """How many lines of dialogue land far outside what a reference subtitle covers.
+
+    Audio has a length, and a line past its end is known to be absent. A
+    reference subtitle only says where its own lines are. A few lines before
+    its first or after its last are an intro or a preview it does not have. A
+    stretch of many minutes is content the reference does not hold at all.
+    """
+    if timeline.kind != "subtitle" or not timeline.events:
+        return 0
+    first = timeline.events[0].start_ms - settings.uncovered_margin_ms
+    last = max(event.end_ms for event in timeline.events) + settings.uncovered_margin_ms
+    return sum(
+        1
+        for line in lines
+        if labels.get(line.id, "dialogue") == "dialogue"
+        and (new_times[line.id][1] < first or new_times[line.id][0] > last)
+    )
 
 
 def _new_times(
@@ -794,6 +823,18 @@ def propose(prepared: Prepared, adjustments: Adjustments | None = None) -> Propo
     if verdict == "too_little_text" or alignment.chosen is None:
         found, rate, rate_name = _fallback(lines, dialogue_ids, timeline, settings)
         report.fallback = found
+        # Why there was too little: a side without dialogue says more than the rest.
+        if timeline.kind == "subtitle" and not timeline.events:
+            left_out = sum(timeline.dropped.values())
+            warnings.append(
+                f"The reference subtitle has no dialogue: its {left_out} lines are signs, "
+                "songs or sound descriptions. A track of signs and songs cannot serve as a "
+                "reference."
+            )
+        if not prepared.dialogue_ids:
+            warnings.append(
+                "The target has no dialogue: its lines are signs, songs or sound descriptions."
+            )
         warnings.append(
             "Too little text could be matched by meaning, so the timing of speech alone was used."
         )
@@ -872,6 +913,12 @@ def propose(prepared: Prepared, adjustments: Adjustments | None = None) -> Propo
             break
         if len(blocks) <= 1:
             codes = "; ".join(issue.code for issue in issues)
+            if len(before_zero) > limit:
+                return unchanged(
+                    f"No valid timing could be built ({codes}): {len(before_zero)} lines "
+                    "would start before the reference begins. The target may hold more than "
+                    "the reference does, such as several episodes in one file."
+                )
             return unchanged(f"No valid timing could be built ({codes}).")
         # Blocks that run into each other cannot all be right. The least
         # supported one goes to its neighbour, until what is left fits together.
@@ -879,6 +926,17 @@ def propose(prepared: Prepared, adjustments: Adjustments | None = None) -> Propo
         merged = True
 
     too_many = too_many and not adjust.edges_reviewed
+    uncovered = _uncovered(lines, label_of, new_times, timeline, settings)
+    if uncovered > max(settings.max_trim_lines, int(settings.max_trim_share * len(lines))):
+        warnings.append(
+            f"{uncovered} lines land more than "
+            f"{settings.uncovered_margin_ms // 60_000} minutes outside everything the "
+            "reference covers. They moved along with the rest, but nothing says where they "
+            "belong. The target may hold more than the reference does, such as several "
+            "episodes in one file."
+        )
+    else:
+        uncovered = 0
     if merged:
         warnings.append(
             "Some blocks ran into each other. The least supported were joined with "
@@ -928,7 +986,7 @@ def propose(prepared: Prepared, adjustments: Adjustments | None = None) -> Propo
     weak = [block for block in blocks if block.confidence < settings.min_block_confidence]
     if weak and verdict == "aligned":
         warnings.append(f"{len(weak)} of {len(blocks)} blocks could not be placed with confidence.")
-    if weak or merged or too_many or verdict != "aligned":
+    if weak or merged or too_many or uncovered or verdict != "aligned":
         outcome: Outcome = "partial"
     elif in_sync or not timing:
         outcome = "already_in_sync"

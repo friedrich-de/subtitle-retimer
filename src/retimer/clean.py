@@ -9,7 +9,7 @@ from __future__ import annotations
 import re
 from collections.abc import Callable
 
-from retimer.text import LINE_BREAK, MUSIC_SYMBOLS, OVERRIDE_BLOCK, is_drawing, strip_tags
+from retimer.text import LINE_BREAK, OVERRIDE_BLOCK, is_drawing, strip_tags
 
 # Every pattern here runs on text a stranger wrote, so each one is written to
 # take time in proportion to the length of a line, whatever the line holds. A
@@ -20,6 +20,20 @@ _BRACKETS = {"[": "]", "(": ")", "（": "）", "［": "］"}
 # Speaker labels in capitals at the start of a line: "JOHN:", "- MAN 2:"
 _SPEAKER_LABEL = re.compile(r"^(\s*(?:[-–—]\s*)?)[A-Z][A-Z0-9 .'’-]{1,24}:(?=\s|$)")
 _LEADING_HASHES = re.compile(r"^(\s*(?:[-–—]\s*)?)#+\s*")
+# Marks that captions carry and nobody says: music notes, the arrows with which
+# Japanese broadcast captions run a sentence on into the next line, and the
+# little pictures that say a voice comes from a telephone, a television or a
+# loudspeaker. Stars and hearts are among them. A variation selector or a
+# joiner only shapes the symbol before it.
+_SYMBOLS = re.compile(
+    "["
+    "\u2190-\u21ff"  # arrows
+    "\u2600-\u27bf"  # miscellaneous symbols and dingbats
+    "\u2b00-\u2bff"  # more arrows
+    "\U0001f000-\U0001faff"  # pictographs
+    "\ufe00-\ufe0f\u200d"
+    "]+"
+)
 _NO_BREAK_SPACE = chr(0xA0)
 _SPACES = re.compile(f"[ \t{_NO_BREAK_SPACE}]{{2,}}")
 _LEADING_DASH = re.compile(r"^\s*[-–—]\s*")
@@ -125,12 +139,10 @@ def remove_hearing_impaired(text: str) -> str:
 
 
 def remove_symbols(text: str) -> str:
-    """Remove music notes, and hash signs used as music markers around a line."""
+    """Remove music notes, caption symbols, and hash signs used as music markers around a line."""
 
     def edit(subline: str) -> str:
-        for symbol in MUSIC_SYMBOLS:
-            subline = subline.replace(symbol, "")
-        return _remove_hash_markers(subline)
+        return _remove_hash_markers(_SYMBOLS.sub("", subline))
 
     return _edit_sublines(text, edit)
 
