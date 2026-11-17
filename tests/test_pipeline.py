@@ -18,6 +18,7 @@ from retimer.pipeline import (
     _merge_weakest,
     _rest_on_synced,
     _settle,
+    _widen_breaks,
     prepare,
     propose,
     sync,
@@ -303,6 +304,36 @@ def test_a_break_goes_to_the_longest_pause_that_leaves_room():
     assert _break_start(lines, dialogue, 52_000, room_ms=30_000, rate=1.0) == 50_000
     assert _break_start(lines, dialogue, 52_000, room_ms=-5_000, rate=1.0) == 50_000
     assert _break_start(lines, {3}, 52_000, room_ms=0, rate=1.0) == 52_000
+
+
+def test_where_blocks_collide_the_break_moves_back_to_the_last_matched_line():
+    # A scene before the opening (matched), the opening (no counterparts), a
+    # line nobody matched, a sponsor card the disc does not have, then the
+    # episode (matched). The fit gave the unmatched lines to the first block.
+    opening = [line(2 + k, 44_000 + 5_000 * k, 48_000 + 5_000 * k) for k in range(20)]
+    lines = [
+        line(0, 10_000, 12_000),
+        line(1, 40_000, 42_000),
+        *opening,
+        line(22, 158_000, 160_000),
+        line(23, 170_000, 172_000),
+        line(24, 175_000, 177_000),
+    ]
+    matched = {0, 1, 23, 24}
+    blocks = [block(None, 170_000, 400, 9.0), block(170_000, None, -9_800, 20.0)]
+
+    widened = _widen_breaks(blocks, lines, matched, 1.0)
+
+    # The longest pause, and one that leaves room: after the opening, before
+    # the line nobody matched.
+    assert [(b.from_ms, b.to_ms) for b in widened] == [(None, 158_000), (158_000, None)]
+    assert [b.lines for b in widened] == [22, 3]
+    # A break that only moves a block later needs no room and stays.
+    later = [block(None, 170_000, -9_800, 9.0), block(170_000, None, 400, 20.0)]
+    assert [(b.from_ms, b.to_ms) for b in _widen_breaks(later, lines, matched, 1.0)] == [
+        (None, 170_000),
+        (170_000, None),
+    ]
 
 
 def test_blocks_that_cross_by_a_hair_are_straightened_out():

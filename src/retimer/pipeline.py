@@ -611,6 +611,69 @@ def _beyond_chance(found: Correlation, window_ms: int | None = None) -> bool:
     return (1.0 - below) * tries < 0.01
 
 
+def _widen_breaks(
+    blocks: list[BlockReport], lines: list[Line], matched: set[int], rate: float
+) -> list[BlockReport]:
+    """Breaks set again, each anywhere between the matched lines around it.
+
+    The fit gives a line without a counterpart to the block before it until
+    one turns up. Where the block after a break has to move closer to the one
+    before it, those lines can end up behind the lines that follow them: a
+    scene before the opening, then the opening, then a sponsor card a disc
+    does not have. Every line between the last matched line before the break
+    and the first one after it could belong to either side, so the break goes
+    to the longest pause among them that leaves room.
+    """
+    ordered = sorted(lines, key=lambda line: (line.start_ms, line.id))
+    bounds: list[int | None] = [None]
+    for left, right in zip(blocks, blocks[1:], strict=False):
+        bound = right.from_ms
+        room = (left.shift_ms - right.shift_ms) / rate
+        before = [
+            line.start_ms
+            for line in ordered
+            if line.id in matched
+            and (left.from_ms is None or line.start_ms >= left.from_ms)
+            and bound is not None
+            and line.start_ms < bound
+        ]
+        after = [
+            line.start_ms
+            for line in ordered
+            if line.id in matched
+            and bound is not None
+            and line.start_ms >= bound
+            and (right.to_ms is None or line.start_ms < right.to_ms)
+        ]
+        if room <= 0 or not before or not after:
+            bounds.append(bound)
+            continue
+        last, first = max(before), min(after)
+        best = None
+        latest_end = max(line.end_ms for line in ordered if line.start_ms <= last)
+        previous = last
+        for line in ordered:
+            if line.start_ms <= last or line.start_ms > first:
+                continue
+            key = (line.start_ms - previous >= room, line.start_ms - latest_end)
+            if best is None or key > best[0]:
+                best = (key, line.start_ms)
+            latest_end = max(latest_end, line.end_ms)
+            previous = line.start_ms
+        bounds.append(best[1] if best is not None else bound)
+    bounds.append(None)
+    widened = []
+    for index, block in enumerate(blocks):
+        start, end = bounds[index], bounds[index + 1]
+        count = sum(
+            1
+            for line in lines
+            if (start is None or line.start_ms >= start) and (end is None or line.start_ms < end)
+        )
+        widened.append(block.model_copy(update={"from_ms": start, "to_ms": end, "lines": count}))
+    return widened
+
+
 def _merge_weakest(blocks: list[BlockReport]) -> list[BlockReport]:
     """Give the least supported block to its better supported neighbour."""
     weakest = min(range(len(blocks)), key=lambda index: blocks[index].support)
@@ -897,6 +960,7 @@ def propose(prepared: Prepared, adjustments: Adjustments | None = None) -> Propo
         if best >= FOUND_STRENGTH
     }
     merged = False
+    widened = False
     while True:
         new_times = _new_times(lines, rate, blocks)
         trim, keep, too_many = _edge_lines(
@@ -933,6 +997,13 @@ def propose(prepared: Prepared, adjustments: Adjustments | None = None) -> Propo
             )
         if not issues:
             break
+        if len(blocks) > 1 and not widened:
+            # Before a block is given up, its breaks may move.
+            widened = True
+            moved = _widen_breaks(blocks, lines, matched, rate)
+            if [(b.from_ms, b.to_ms) for b in moved] != [(b.from_ms, b.to_ms) for b in blocks]:
+                blocks = moved
+                continue
         if len(blocks) <= 1:
             codes = "; ".join(issue.code for issue in issues)
             if len(before_zero) > limit:
