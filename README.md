@@ -217,6 +217,11 @@ retimer serve --dev            # on this machine: plain HTTP, and /docs with the
 retimer serve                  # production: on 127.0.0.1:8000, behind a proxy that does HTTPS
 ```
 
+[deploy/README.md](deploy/README.md) is how the service runs on its server:
+as a system service behind a Cloudflare Tunnel, with the keys typed on the
+server, releases that are tested before they go live, and a smoke test
+against the public address.
+
 The server needs `ffmpeg`, `OPENROUTER_API_KEY`, and for the agent
 `ANTHROPIC_RETIMER_API_KEY`. Without the last one jobs run the fixed pipeline.
 One process serves requests and runs the jobs, one at a time. Jobs are rows in
@@ -248,10 +253,12 @@ stranger.
   machine.
 - **Limits before the body is read.** A request without a key is refused
   before its upload is taken. The size of an upload is checked from its header
-  and counted while it arrives. Each file has a size limit of its own, audio a
-  length limit and subtitles a line limit. An upload that has not arrived
-  after 15 minutes is dropped. Connections that send no request at all are
-  for the proxy to close.
+  and counted while it arrives. A request as a whole has a limit, and it is
+  below the one of the proxy in front, so that a client is told by the service
+  and in JSON. Each file has a size limit of its own, audio a length limit and
+  subtitles a line limit. An upload that has not arrived after 15 minutes is
+  dropped. Connections that send no request at all are for the proxy to
+  close.
 - **Rate limits.** Requests per key and minute, jobs per key and hour, jobs
   under way per key, and wrong keys per address. A limit answers 429 and says
   how long to wait.
@@ -275,7 +282,8 @@ stranger.
 | `RETIMER_API_KEYS` | none, required | Entries `label:sha256`, separated by commas. |
 | `RETIMER_DATA_DIR` | `data` | Jobs, their files, the cache. |
 | `RETIMER_TRUSTED_PROXIES` | `127.0.0.1` | Whose word on HTTPS and the client's address is taken. |
-| `RETIMER_MAX_AUDIO_MB` | 100 | Largest audio upload. |
+| `RETIMER_MAX_REQUEST_MB` | 95 | Largest request as a whole: the files and the form around them. Cloudflare turns a request over 100 MB away with an answer of its own. |
+| `RETIMER_MAX_AUDIO_MB` | 90 | Largest audio upload. Not larger than a request. |
 | `RETIMER_MAX_AUDIO_MINUTES` | 240 | Longest audio. |
 | `RETIMER_MAX_SUBTITLE_MB` | 10 | Largest subtitle upload. |
 | `RETIMER_MAX_DIALOGUE_LINES` | 4000 | Most lines of dialogue in a subtitle. Matching needs about 320 MB of memory at 3000 lines and 1 GB at 6000. |
@@ -429,3 +437,4 @@ Rules the engine enforces:
 | `retimer.bench.harness` | Runs systems over cases and stores the results |
 | `retimer.bench.report` | Summary tables |
 | `bench/seeds` | Seed material: two open films with English and Japanese subtitles |
+| `deploy` | The system service, the keys tool, releases and the smoke test for the server |

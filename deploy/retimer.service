@@ -1,0 +1,75 @@
+# The Subtitle Retimer API as a system service.
+#
+# It listens on this machine only. A Cloudflare Tunnel (cloudflared) in front
+# is what the outside reaches. Installed by deploy/server-setup.sh.
+
+[Unit]
+Description=Subtitle Retimer API
+Documentation=https://github.com/friedrich-de/retimer-api
+After=network-online.target
+Wants=network-online.target
+# The code and the secrets arrive separately. Until both are there, there is
+# nothing to start.
+ConditionPathExists=/opt/retimer/current/.venv/bin/retimer
+ConditionPathExists=/etc/retimer/secrets.env
+# Never give up on restarting after a crash.
+StartLimitIntervalSec=0
+
+[Service]
+Type=exec
+User=retimer
+Group=retimer
+StateDirectory=retimer
+StateDirectoryMode=0700
+WorkingDirectory=/var/lib/retimer
+# Settings anyone may read, then the keys, which only root may read. The
+# service manager reads both before it drops to the service account.
+EnvironmentFile=/etc/retimer/retimer.env
+EnvironmentFile=/etc/retimer/secrets.env
+ExecStart=/opt/retimer/current/.venv/bin/retimer serve --host 127.0.0.1 --port 8712
+
+# Back after a crash or a kill. Exit status 2 is a setup the service refuses to
+# start with, such as a missing key: trying again changes nothing there.
+Restart=on-failure
+RestartSec=10
+RestartPreventExitStatus=2
+# A running job gets 30 seconds to finish, and is started over if it does not.
+TimeoutStopSec=45
+
+# The other services on this machine come first.
+Nice=5
+CPUWeight=50
+MemoryHigh=3G
+MemoryMax=4G
+TasksMax=512
+
+# The service reads uploads from strangers with ffmpeg. It gets its data
+# directory and the network, and nothing else of the machine.
+UMask=0077
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectProc=invisible
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+RemoveIPC=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources
+SystemCallErrorNumber=EPERM
+
+[Install]
+WantedBy=multi-user.target

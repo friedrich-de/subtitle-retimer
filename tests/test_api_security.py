@@ -221,6 +221,42 @@ def test_a_declared_body_over_the_limit_is_refused_unread(tmp_path):
     assert read == []
 
 
+def test_a_request_as_a_whole_has_a_limit_below_what_the_proxy_takes(tmp_path):
+    # Cloudflare turns a request over 100 MB away with a page of its own.
+    defaults = ApiSettings(data_dir=tmp_path)
+    assert defaults.max_body_bytes == defaults.max_request_bytes < 100_000_000
+    assert defaults.max_audio_bytes < defaults.max_request_bytes
+
+    # The limit holds even where the files on their own would be allowed more.
+    service = make_service(
+        tmp_path, max_audio_bytes=4_096, max_subtitle_bytes=2_048, max_request_bytes=5_000
+    )
+    assert service.settings.max_body_bytes == 5_000
+    response = service.client.post(
+        "/v1/jobs",
+        content=b"x",
+        headers={"Content-Type": "multipart/form-data; boundary=x", "Content-Length": "5001"},
+    )
+    assert refused(response, 413, "body_too_large")
+
+
+def test_the_refusal_of_a_large_upload_names_the_limit(tmp_path):
+    service = make_service(tmp_path)
+    limit = service.settings.max_request_bytes
+
+    response = service.client.post(
+        "/v1/jobs",
+        content=b"x",
+        headers={
+            "Content-Type": "multipart/form-data; boundary=x",
+            "Content-Length": str(limit + 1),
+        },
+    )
+
+    assert refused(response, 413, "body_too_large")
+    assert "95 MB" in response.json()["error"]["message"]
+
+
 def test_a_body_that_declares_no_length_is_cut_off_at_the_limit(tmp_path):
     service = make_service(tmp_path, max_audio_bytes=4_096, max_subtitle_bytes=2_048)
 
@@ -418,6 +454,7 @@ def test_settings_come_from_the_environment(tmp_path):
             "RETIMER_API_KEYS": format_entry(entry),
             "RETIMER_DATA_DIR": str(tmp_path),
             "RETIMER_MAX_AUDIO_MB": "50",
+            "RETIMER_MAX_REQUEST_MB": "60",
             "RETIMER_DAILY_BUDGET_USD": "1.5",
             "RETIMER_RETENTION_HOURS": "6",
             "RETIMER_AGENT": "off",
@@ -427,6 +464,7 @@ def test_settings_come_from_the_environment(tmp_path):
     assert settings.api_keys == [entry]
     assert settings.data_dir == tmp_path
     assert settings.max_audio_bytes == 50 * 1024 * 1024
+    assert settings.max_body_bytes == settings.max_request_bytes == 60 * 1024 * 1024
     assert (settings.daily_budget_usd, settings.retention_hours, settings.agent) == (1.5, 6, "off")
     assert settings.dev is False
 
@@ -437,6 +475,9 @@ def test_a_setting_that_makes_no_sense_stops_the_start(tmp_path):
 
     for name, value in (
         ("RETIMER_MAX_AUDIO_MB", "lots"),
+        # A file that no request could carry.
+        ("RETIMER_MAX_AUDIO_MB", "200"),
+        ("RETIMER_MAX_REQUEST_MB", "5"),
         ("RETIMER_REQUESTS_PER_MINUTE", "0"),
         ("RETIMER_DAILY_BUDGET_USD", "-1"),
         ("RETIMER_AGENT", "gpt"),

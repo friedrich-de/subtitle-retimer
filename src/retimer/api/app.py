@@ -243,7 +243,12 @@ class Gate:
 
 
 def _too_large(limit: int) -> str:
-    return f"The request is larger than the {limit / (1024 * 1024):.0f} MB this service takes."
+    if limit < 1024 * 1024:
+        return "The request is larger than this service takes."
+    return (
+        f"The request is larger than the {_megabytes(limit)} this service takes. "
+        "Audio as mono Opus at 24 kbps comes to about 11 MB an hour."
+    )
 
 
 def _megabytes(size: int) -> str:

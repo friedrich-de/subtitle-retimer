@@ -39,5 +39,9 @@ testpaths = ["tests"]
 line-length = 100
 target-version = "py311"
 
+# Runs as root with the Python of the server's system, which may be older.
+[tool.ruff.per-file-target-version]
+"deploy/retimer_secrets.py" = "py310"
+
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "SIM"]

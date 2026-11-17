@@ -39,8 +39,13 @@ class ApiSettings(BaseModel):
     # Uploads. A subtitle of a film is well under a megabyte, and a film's
     # audio as the client should send it (mono Opus, 24 kbps) about 22 MB.
     max_subtitle_bytes: int = 10 * MB
-    max_audio_bytes: int = 100 * MB
+    max_audio_bytes: int = 90 * MB
     max_audio_minutes: int = 240
+    # One request as a whole: the files and the form around them. The proxy in
+    # front has a limit of its own, and what it turns away gets its answer, not
+    # this service's. Cloudflare stops at 100 MB on its free plan, so the
+    # service stops a little earlier and the client gets an error it can read.
+    max_request_bytes: int = 95 * MB
     # Lines of a subtitle, comments and signs included, and the lines of it
     # that are compared with the reference. Matching holds a table of every
     # line against every event in memory.
@@ -86,8 +91,12 @@ class ApiSettings(BaseModel):
 
     @property
     def max_body_bytes(self) -> int:
-        """The most a request may carry: one audio file, two subtitles and the form around them."""
-        return self.max_audio_bytes + 2 * self.max_subtitle_bytes + 64 * 1024
+        """The most a request may carry: one audio file, two subtitles and the form around them.
+
+        Never more than `max_request_bytes`, whatever the files may be on their own.
+        """
+        files = self.max_audio_bytes + 2 * self.max_subtitle_bytes + 64 * 1024
+        return min(files, self.max_request_bytes)
 
     @classmethod
     def from_env(
@@ -126,6 +135,7 @@ class ApiSettings(BaseModel):
         take(DEV_ENV, "dev", flag)
         take("RETIMER_MAX_SUBTITLE_MB", "max_subtitle_bytes", megabytes)
         take("RETIMER_MAX_AUDIO_MB", "max_audio_bytes", megabytes)
+        take("RETIMER_MAX_REQUEST_MB", "max_request_bytes", megabytes)
         take("RETIMER_MAX_AUDIO_MINUTES", "max_audio_minutes", int)
         take("RETIMER_MAX_DIALOGUE_LINES", "max_dialogue_lines", int)
         take("RETIMER_REQUESTS_PER_MINUTE", "requests_per_minute", int)
@@ -151,6 +161,7 @@ class ApiSettings(BaseModel):
         positive = (
             "max_subtitle_bytes",
             "max_audio_bytes",
+            "max_request_bytes",
             "max_audio_minutes",
             "max_subtitle_lines",
             "max_dialogue_lines",
@@ -166,6 +177,12 @@ class ApiSettings(BaseModel):
         for name in positive:
             if getattr(self, name) <= 0:
                 raise ConfigError(f"{name} must be greater than zero")
+        for name in ("max_audio_bytes", "max_subtitle_bytes"):
+            if getattr(self, name) > self.max_request_bytes:
+                raise ConfigError(
+                    f"{name} is larger than max_request_bytes, so no request could carry such "
+                    "a file. Raise RETIMER_MAX_REQUEST_MB, or lower the limit of the file."
+                )
         if self.daily_budget_usd < 0 or self.agent_max_cost_usd < 0:
             raise ConfigError("a budget cannot be negative")
         if self.agent not in AGENT_CHOICES:
