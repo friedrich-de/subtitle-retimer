@@ -91,8 +91,13 @@ def decode(data: bytes) -> tuple[str, str]:
 # The parser tells the format from the first few thousand characters. A file
 # that begins with something long, such as fonts a muxer wrote into the header,
 # has its first line of dialogue far behind that, so the whole text is looked at.
+# The text is a stranger's and can be megabytes of anything, so a mark is looked
+# for within one line: space that ran on over line breaks would be gone through
+# again from every blank line of a file that has thousands of them.
 _ASS_MARK = re.compile(r"^\[Events\]\s*$|^Dialogue:\s*\d", re.MULTILINE | re.IGNORECASE)
-_SRT_MARK = re.compile(r"^\s*\d+:\d+:\d+[,.]\d+\s*-->\s*\d+:\d+:\d+[,.]\d+", re.MULTILINE)
+_SRT_MARK = re.compile(
+    r"^[^\S\n]*\d+:\d+:\d+[,.]\d+[^\S\n]*-->[^\S\n]*\d+:\d+:\d+[,.]\d+", re.MULTILINE
+)
 
 
 def _sniff_format(text: str) -> str | None:

@@ -1,3 +1,6 @@
+import contextlib
+import time
+
 import pytest
 
 from retimer import SubtitleError, dumps, loads
@@ -100,3 +103,19 @@ def test_a_file_with_a_long_header_is_still_recognized():
     assert loads(late).format == "srt"
     with pytest.raises(SubtitleError):
         loads("x" * 30_000)
+
+
+@pytest.mark.parametrize(
+    "filler",
+    ["\n", "\r\n", " \n", "\t\n\n", "1\n", "00:00:01,000\n\n", "Dialogue:\n\n", "[Events] \n"],
+)
+def test_the_format_is_looked_for_in_time_proportional_to_the_text(filler):
+    # No format is found at the start of such a file, so all of it is looked
+    # at. A hundred thousand blank lines once took most of a minute, and a
+    # megabyte of them an hour, with the whole server waiting.
+    text = "x\n" + filler * 100_000 + "x"
+
+    started = time.monotonic()
+    with contextlib.suppress(SubtitleError):
+        loads(text)
+    assert time.monotonic() - started < 5
