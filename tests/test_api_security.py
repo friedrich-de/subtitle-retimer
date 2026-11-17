@@ -511,6 +511,11 @@ def test_the_server_does_not_start_without_what_jobs_need(tmp_path, monkeypatch)
 
     assert any("ffmpeg" in problem for problem in found)
     assert any("OPENROUTER_API_KEY" in problem for problem in found)
+    assert not any("RETIMER_AGENT_PROVIDER" in problem for problem in found)
+
+    # Where the agent calls its model is one of two places, and a typing error is not one.
+    monkeypatch.setenv("RETIMER_AGENT_PROVIDER", "openroutr")
+    assert any("RETIMER_AGENT_PROVIDER" in problem for problem in problems(settings, "127.0.0.1"))
 
 
 def test_secrets_are_blanked_in_the_log(tmp_path):

@@ -24,9 +24,19 @@ from retimer.cache import Cache
 from retimer.classify import LineLabel
 from retimer.model import Subtitle
 from retimer.pipeline import Proposal, Settings, SyncResult, prepare
-from retimer.providers import OpenRouter
+from retimer.providers import OPENROUTER_KEY_ENV, OpenRouter
 from retimer.views import Options
 
+# Where the model is called. OpenRouter is the default, so that one key covers
+# the transcripts, the embeddings and the agent. It speaks the Messages API of
+# Anthropic at an address of its own, which is why one client serves both.
+PROVIDER_ENV = "RETIMER_AGENT_PROVIDER"
+Provider = Literal["openrouter", "anthropic"]
+DEFAULT_PROVIDER: Provider = "openrouter"
+OPENROUTER_MESSAGES_URL = "https://openrouter.ai/api"
+# OpenRouter has several upstreams for a Claude model. The benchmark ran on
+# Anthropic's own, so that is the only one a request may go to.
+OPENROUTER_UPSTREAM = {"only": ["anthropic"], "allow_fallbacks": False}
 ANTHROPIC_KEY_ENV = "ANTHROPIC_RETIMER_API_KEY"
 ANTHROPIC_URL_ENV = "RETIMER_ANTHROPIC_URL"
 ANTHROPIC_URL = "https://api.anthropic.com"
@@ -39,6 +49,12 @@ MODELS = {
 # The smallest model is the default: the questions are narrow, and on the
 # benchmark it settles nearly all that the true answers would.
 DEFAULT_MODEL = MODELS["haiku"]
+# What OpenRouter calls them. A name that is not here is sent as it is.
+OPENROUTER_MODELS = {
+    "claude-opus-5-5": "anthropic/claude-opus-5.5",
+    "claude-sonnet-5-5": "anthropic/claude-sonnet-5.5",
+    "claude-haiku-5-5": "anthropic/claude-haiku-5.5",
+}
 # USD per million tokens: input, output, cache write, cache read. List prices of
 # 2026-11-03; the cost in a report is computed from these and the token counts.
 PRICES: dict[str, tuple[float, float, float, float]] = {
@@ -46,6 +62,7 @@ PRICES: dict[str, tuple[float, float, float, float]] = {
     "claude-sonnet-5-5": (2.0, 10.0, 2.5, 0.10),
     "claude-haiku-5-5": (0.10, 0.50, 0.125, 0.01),
 }
+_OWN_NAMES = {theirs: ours for ours, theirs in OPENROUTER_MODELS.items()}
 # Models for which the provider can rerun a declined request on another model.
 _SERVER_FALLBACK = {"claude-opus-5-5", "claude-sonnet-5-5"}
 _FALLBACK_BETA = "server-side-fallback-2026-07-01"
@@ -54,10 +71,33 @@ Effort = Literal["low", "medium", "high", "xhigh", "max"]
 Finished = Literal["not_needed", "submitted", "no_submit", "budget", "declined", "error"]
 
 
+def agent_provider() -> Provider:
+    """Where the model is called, from the environment. An unknown name is an error."""
+    name = (os.environ.get(PROVIDER_ENV) or DEFAULT_PROVIDER).strip().lower()
+    if name not in ("openrouter", "anthropic"):
+        raise ValueError(f"{PROVIDER_ENV} is {name!r}. It takes openrouter or anthropic.")
+    return name  # type: ignore[return-value]
+
+
+def agent_key_env(provider: Provider | None = None) -> str:
+    """The name of the key the agent needs, for the provider or the one in the environment."""
+    provider = provider or agent_provider()
+    return OPENROUTER_KEY_ENV if provider == "openrouter" else ANTHROPIC_KEY_ENV
+
+
+def agent_available() -> bool:
+    """Whether the key for the model is there. Without it jobs run the routine steps alone."""
+    try:
+        return bool(os.environ.get(agent_key_env()))
+    except ValueError:
+        return False
+
+
 class AgentSettings(BaseModel):
     """How the agent runs. The defaults are what the benchmark ran with."""
 
     model: str = DEFAULT_MODEL
+    provider: Provider = Field(default_factory=agent_provider)
     effort: Effort = "medium"
     # auto asks the model only when the draft leaves something open.
     consult: Literal["auto", "always"] = "auto"
@@ -79,6 +119,7 @@ class AgentTrace(BaseModel):
 
     model: str
     effort: str
+    provider: str = DEFAULT_PROVIDER
     consulted: bool = False
     questions: list[str] = Field(default_factory=list)
     finished: Finished = "not_needed"
@@ -104,21 +145,22 @@ def resolve_model(name: str) -> str:
     return MODELS.get(name, name)
 
 
-def make_client() -> anthropic.Anthropic:
+def make_client(provider: Provider | None = None) -> anthropic.Anthropic:
     """A client for the project's own key. The address is fixed on purpose.
 
-    The SDK would otherwise take the address from the environment, which on a
-    development machine can point at something else than the API.
+    The SDK would otherwise take the address and the key from the environment,
+    which on a development machine can point at something else than the API.
     """
-    key = os.environ.get(ANTHROPIC_KEY_ENV)
+    provider = provider or agent_provider()
+    name = agent_key_env(provider)
+    key = os.environ.get(name)
     if not key:
-        raise RuntimeError(f"{ANTHROPIC_KEY_ENV} is not set")
-    return anthropic.Anthropic(
-        api_key=key,
-        base_url=os.environ.get(ANTHROPIC_URL_ENV) or ANTHROPIC_URL,
-        max_retries=4,
-        timeout=180.0,
-    )
+        raise RuntimeError(f"{name} is not set")
+    if provider == "openrouter":
+        address = OPENROUTER_MESSAGES_URL
+    else:
+        address = os.environ.get(ANTHROPIC_URL_ENV) or ANTHROPIC_URL
+    return anthropic.Anthropic(api_key=key, base_url=address, max_retries=4, timeout=180.0)
 
 
 def _cost(model: str, usage: dict[str, int]) -> float:
@@ -146,6 +188,11 @@ def _ask(client: Any, settings: AgentSettings, messages: list[dict]) -> Any:
         "cache_control": {"type": "ephemeral"},
         "output_config": {"effort": settings.effort},
     }
+    if settings.provider == "openrouter":
+        params["model"] = OPENROUTER_MODELS.get(settings.model, settings.model)
+        params["extra_body"] = {"provider": OPENROUTER_UPSTREAM}
+        # OpenRouter does not pass the rerun of a declined request on.
+        return client.messages.create(**params)
     if settings.model in _SERVER_FALLBACK:
         # A request the provider's safety filters decline is rerun on the model
         # it recommends, so a false alarm does not fail the job.
@@ -196,6 +243,7 @@ def _converse(bench: Workbench, settings: AgentSettings, client: Any, trace: Age
         trace.tokens = dict(usage)
         trace.cost_usd = round(_cost(settings.model, usage), 6)
         served = getattr(response, "model", None) or settings.model
+        served = _OWN_NAMES.get(served, served)
         if served not in trace.served_by:
             trace.served_by.append(served)
 
@@ -310,7 +358,7 @@ def run_agent(
     """Decide a prepared job: with the model where something is open, without it otherwise."""
     settings = settings or AgentSettings()
     settings = settings.model_copy(update={"model": resolve_model(settings.model)})
-    trace = AgentTrace(model=settings.model, effort=settings.effort)
+    trace = AgentTrace(model=settings.model, effort=settings.effort, provider=settings.provider)
     trace.questions = bench.open_questions()
     if not trace.questions and settings.consult == "auto":
         return _conclude(bench, trace)
@@ -318,7 +366,7 @@ def run_agent(
     trace.consulted = True
     started = time.monotonic()
     try:
-        _converse(bench, settings, client or make_client(), trace)
+        _converse(bench, settings, client or make_client(settings.provider), trace)
     except anthropic.APIStatusError as error:
         trace.finished = "error"
         trace.error = f"{error.status_code}: {error.message}"[:300]

@@ -30,8 +30,9 @@ from retimer.providers import OPENROUTER_KEY_ENV, OpenRouter, ProviderError
 if TYPE_CHECKING:
     from retimer.pipeline import SyncResult
 
-# The name of the variable is repeated here so that listing the systems does
-# not load the agent, and with it the provider's library.
+# The names are repeated here so that listing the systems does not load the
+# agent, and with it the provider's library.
+AGENT_PROVIDER_ENV = "RETIMER_AGENT_PROVIDER"
 ANTHROPIC_KEY_ENV = "ANTHROPIC_RETIMER_API_KEY"
 
 # Where a running service is, and the key to it, for the system that goes through HTTP.
@@ -339,7 +340,8 @@ class AgentRunner(PipelineRunner):
         reason = super().unavailable()
         if reason:
             return reason
-        if self.model_client is None and not os.environ.get(ANTHROPIC_KEY_ENV):
+        direct = (os.environ.get(AGENT_PROVIDER_ENV) or "").strip().lower() == "anthropic"
+        if self.model_client is None and direct and not os.environ.get(ANTHROPIC_KEY_ENV):
             return f"{ANTHROPIC_KEY_ENV} is not set"
         return None
 

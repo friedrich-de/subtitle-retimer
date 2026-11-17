@@ -4,7 +4,7 @@
 Installed as /usr/local/sbin/retimer-secrets and run as root, by a person at a
 terminal:
 
-    sudo retimer-secrets                 enter the provider keys, make the first API key
+    sudo retimer-secrets                 enter the OpenRouter key, make the first API key
     sudo retimer-secrets status          what is set, without showing any of it
     sudo retimer-secrets new-key LABEL   one more API key, for another client
     sudo retimer-secrets revoke LABEL    stop accepting a key
@@ -32,6 +32,7 @@ import urllib.error
 import urllib.request
 
 CONFIG_DIR = "/etc/retimer"
+SETTINGS_FILE = "retimer.env"
 SECRETS_FILE = "secrets.env"
 SELFCHECK_FILE = "selfcheck.key"
 CODE_DIR = "/opt/retimer"
@@ -41,6 +42,9 @@ HEALTH_URL = "http://127.0.0.1:8712/healthz"
 
 OPENROUTER = "OPENROUTER_API_KEY"
 ANTHROPIC = "ANTHROPIC_RETIMER_API_KEY"
+# The setting that says where the agent calls its model: openrouter unless it
+# says anthropic. Only then is there a second provider key to ask for.
+AGENT_PROVIDER = "RETIMER_AGENT_PROVIDER"
 API_KEYS = "RETIMER_API_KEYS"
 
 # The same shapes as retimer.api.auth, which is what reads the entries.
@@ -235,6 +239,15 @@ class Secrets:
         self.code_dir = code_dir
         self.values = read_env(self.path)
         self.entries = parse_entries(self.values.get(API_KEYS, ""))
+        settings = read_env(os.path.join(config_dir, SETTINGS_FILE))
+        self.direct = settings.get(AGENT_PROVIDER, "").strip().lower() == "anthropic"
+
+    def provider_keys(self):
+        """The provider keys this server uses, as (name, title) pairs."""
+        keys = [(OPENROUTER, "OpenRouter API key")]
+        if self.direct or self.values.get(ANTHROPIC):
+            keys.append((ANTHROPIC, "Anthropic API key"))
+        return keys
 
     def save(self):
         self.values[API_KEYS] = format_entries(self.entries)
@@ -277,7 +290,7 @@ def command_setup(secrets_, ask=getpass.getpass, check=check_provider, out=print
     out("Keys for the Subtitle Retimer service on this server.")
     out("What you type or paste is hidden. Finish each with Enter.")
     out("")
-    for name, title in ((OPENROUTER, "OpenRouter API key"), (ANTHROPIC, "Anthropic API key")):
+    for name, title in secrets_.provider_keys():
         value = ask_provider_key(name, title, secrets_.values.get(name), ask, check, out)
         if value:
             secrets_.values[name] = value
@@ -285,7 +298,7 @@ def command_setup(secrets_, ask=getpass.getpass, check=check_provider, out=print
         out("")
         out("Without an OpenRouter key the service does not start. Run this again when you")
         out("have it.")
-    if not secrets_.values.get(ANTHROPIC):
+    if secrets_.direct and not secrets_.values.get(ANTHROPIC):
         out("")
         out("Without an Anthropic key jobs run the fixed pipeline, without the agent.")
     clients = [label for label in secrets_.entries if label != SELFCHECK_LABEL]
@@ -301,7 +314,7 @@ def command_setup(secrets_, ask=getpass.getpass, check=check_provider, out=print
 
 
 def command_status(secrets_, out=print):
-    for name, title in ((OPENROUTER, "OpenRouter API key"), (ANTHROPIC, "Anthropic API key")):
+    for name, title in secrets_.provider_keys():
         out(title + ": " + ("set" if secrets_.values.get(name) else "not set"))
     labels = [label for label in secrets_.entries if label != SELFCHECK_LABEL]
     out("API keys: " + (", ".join(labels) if labels else "none"))

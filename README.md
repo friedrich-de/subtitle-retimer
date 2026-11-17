@@ -102,6 +102,8 @@ on those. Haiku 5.5 is the default. What is left are block cases against audio
 alone, where the limit is the transcript and not the model. The figures and
 what is behind them are in
 [bench/baselines/2026-11-16-agent.md](bench/baselines/2026-11-16-agent.md).
+The model is called through OpenRouter, pinned to Anthropic's servers, and
+[comes out the same that way](bench/baselines/2026-11-17-agent-openrouter.md).
 
 ## The HTTP API
 
@@ -222,8 +224,11 @@ as a system service behind a Cloudflare Tunnel, with the keys typed on the
 server, releases that are tested before they go live, and a smoke test
 against the public address.
 
-The server needs `ffmpeg`, `OPENROUTER_API_KEY`, and for the agent
-`ANTHROPIC_RETIMER_API_KEY`. Without the last one jobs run the fixed pipeline.
+The server needs `ffmpeg` and `OPENROUTER_API_KEY`. That one key pays for the
+transcripts, the embeddings and the agent's model, which is called through
+OpenRouter and served by Anthropic. With `RETIMER_AGENT_PROVIDER=anthropic`
+the model is called at Anthropic itself and needs `ANTHROPIC_RETIMER_API_KEY`;
+without that key jobs then run the fixed pipeline.
 One process serves requests and runs the jobs, one at a time. Jobs are rows in
 a SQLite file and their files a directory each under `RETIMER_DATA_DIR`. A job
 that was running when the server stopped is started over once at the next
@@ -295,6 +300,7 @@ stranger.
 | `RETIMER_CACHE_DAYS` | 30 | How long transcripts and embeddings are kept. |
 | `RETIMER_AGENT` | `haiku` | The model when a job names none, or `off`. |
 | `RETIMER_AGENT_MAX_COST_USD` | 0.25 | What the agent may spend on one job. |
+| `RETIMER_AGENT_PROVIDER` | `openrouter` | Where the agent calls its model: `openrouter`, with the key the service has anyway, or `anthropic`, with `ANTHROPIC_RETIMER_API_KEY`. |
 | `RETIMER_WORKERS` | 1 | Jobs that run side by side. |
 
 Jobs that are queued or running when the budget runs out still finish, so a
@@ -338,8 +344,10 @@ quarter hour of audio costs about one cent to transcribe and takes about 20
 seconds; the embeddings cost a small fraction of a cent.
 
 `--agent` lets a model settle what the routine steps leave open. It takes
-`haiku` (the default), `sonnet`, `opus` or a full model id, and needs
-`ANTHROPIC_RETIMER_API_KEY` in the environment. `--agent-effort` sets how much
+`haiku` (the default), `sonnet`, `opus` or a full model id. The model is
+called through OpenRouter with the same `OPENROUTER_API_KEY`, or at Anthropic
+itself with `RETIMER_AGENT_PROVIDER=anthropic` and
+`ANTHROPIC_RETIMER_API_KEY`. `--agent-effort` sets how much
 the model may think (default `medium`), and `--agent-always` asks it about
 every file. The summary then says whether the model was asked, about what, how
 it finished and what it cost, and the report holds every call it made.
@@ -362,8 +370,9 @@ retimer bench systems         # which systems can run on this machine
 `ffsubsync` and `alass-cli` are the baselines. Install them to include them
 (`pipx install ffsubsync`, `cargo install alass-cli`). `pipeline` is this
 project's fixed pipeline and needs `OPENROUTER_API_KEY`. `agent-haiku`,
-`agent-sonnet` and `agent-opus` are the agent on each model. They also need
-`ANTHROPIC_RETIMER_API_KEY` and run only when named, because every run costs
+`agent-sonnet` and `agent-opus` are the agent on each model. They call the
+model the way the service does (`RETIMER_AGENT_PROVIDER`) and run only when
+named, because every run costs
 money: `retimer bench run --systems pipeline,agent-haiku --repeats 3`. A system
 that cannot run is skipped and named in the summary.
 

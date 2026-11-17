@@ -24,7 +24,7 @@ about whether a request came over HTTPS and from which address.
 | `/opt/retimer/smoke` | `deploy` | The film the smoke test uploads. |
 | `/var/lib/retimer` | `retimer` | Jobs, uploads while they arrive, the cache of transcripts. |
 | `/etc/retimer/retimer.env` | `root` | Settings that are not secret. |
-| `/etc/retimer/secrets.env` | `root`, mode 600 | The provider keys and the hashes of the API keys. |
+| `/etc/retimer/secrets.env` | `root`, mode 600 | The OpenRouter key and the hashes of the API keys. |
 | `/etc/retimer/selfcheck.key` | `root`, group `deploy` | An API key of its own for the smoke test. |
 | `/etc/systemd/system/retimer.service` | `root` | The unit. |
 | `/usr/local/sbin/retimer-secrets` | `root` | The tool that takes the keys. |
@@ -57,7 +57,7 @@ No key is ever in the repository, in a chat or on a command line. A person
 types them on the server:
 
 ```bash
-sudo retimer-secrets                  # the provider keys, and the first API key
+sudo retimer-secrets                  # the OpenRouter key, and the first API key
 sudo retimer-secrets status           # what is set, without showing any of it
 sudo retimer-secrets new-key LABEL    # one more API key, for another client
 sudo retimer-secrets revoke LABEL     # stop accepting a key
@@ -66,6 +66,12 @@ sudo retimer-secrets revoke LABEL     # stop accepting a key
 Input is hidden. A provider key is checked with its provider before it is
 saved. An API key is shown once, to the person at the terminal, and the server
 keeps its hash. The tool restarts the service when something changed.
+
+One provider key is all the service needs. OpenRouter serves the transcripts
+and the embeddings, and the agent calls its model through it as well, pinned
+to Anthropic's own servers. To call the model at Anthropic directly instead,
+put `RETIMER_AGENT_PROVIDER=anthropic` into `/etc/retimer/retimer.env`; the
+tool then asks for an Anthropic key too.
 
 ## The tunnel
 

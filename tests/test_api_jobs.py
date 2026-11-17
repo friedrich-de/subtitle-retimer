@@ -215,8 +215,8 @@ def test_a_job_can_name_its_model_or_do_without(tmp_path):
     assert without["request"]["agent"] == "off"
     assert without["summary"]["agent"] is None
     assert with_opus["summary"]["agent"]["model"] == "claude-opus-5-5"
-    # Opus goes through the interface that can rerun a declined request.
-    assert len(model.beta_requests) == 2
+    # The job named the model, and OpenRouter was asked for it under its name there.
+    assert [request["model"] for request in model.requests] == ["anthropic/claude-opus-5.5"] * 2
 
 
 def test_the_agent_gets_a_tighter_budget_than_the_command_line_gives_it(tmp_path):

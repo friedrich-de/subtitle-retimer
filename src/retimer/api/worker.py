@@ -9,7 +9,6 @@ The worker also cleans up: expired jobs, stray uploads, and old cache entries.
 from __future__ import annotations
 
 import logging
-import os
 import threading
 import time
 from dataclasses import dataclass
@@ -63,9 +62,9 @@ class Services:
 
 
 def agent_available() -> bool:
-    from retimer.agent import ANTHROPIC_KEY_ENV
+    from retimer import agent
 
-    return bool(os.environ.get(ANTHROPIC_KEY_ENV))
+    return agent.agent_available()
 
 
 def _summary(result, seconds: float) -> dict[str, Any]:

@@ -178,11 +178,13 @@ def run_job(
     reference: tuple[str, str, Path],
     wait_s: float,
     needs_agent: bool = False,
+    extra_lines: bool = False,
 ) -> None:
     """Send a target with one reference, wait for the job and judge what comes back.
 
     `target` is the subtitle and where its lines belong. `reference` is the
-    form field, the file name to send, and the file.
+    form field, the file name to send, and the file. `extra_lines` is for a
+    target with lines after the end that nobody removes.
     """
     subtitle, truth = target
     field, name, file = reference
@@ -238,8 +240,9 @@ def run_job(
             result = pysubs2.SSAFile.from_string(response.text)
             starts = [line.start for line in result]
             near = sum(abs(a - b) <= TOLERANCE_MS for a, b in zip(starts, truth, strict=False))
+            complete = len(starts) >= len(truth) if extra_lines else len(starts) == len(truth)
             checks.check(
-                len(starts) == len(truth) and near >= 0.9 * len(truth),
+                complete and near >= 0.9 * len(truth),
                 "the lines are back where they belong",
                 f"{near} of {len(truth)} within {TOLERANCE_MS} ms",
             )
@@ -364,6 +367,8 @@ def main() -> int:
                 ("reference_subtitle", "tears-of-steel.ja.srt", japanese),
                 args.wait,
                 needs_agent=not args.no_agent,
+                # The lines after the end are for the agent to remove.
+                extra_lines=args.no_agent,
             )
             if args.large:
                 check_limits(checks, url, key, client, audio, args.media, args.wait)

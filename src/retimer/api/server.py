@@ -71,6 +71,8 @@ def load_settings(*, dev: bool = False, need_keys: bool = True) -> ApiSettings:
 
 def problems(settings: ApiSettings, host: str | None) -> list[str]:
     """What keeps the service from starting on this machine."""
+    from retimer.agent import agent_provider
+
     found = []
     if host is not None and settings.dev and host not in _LOOPBACK:
         found.append(
@@ -82,6 +84,10 @@ def problems(settings: ApiSettings, host: str | None) -> list[str]:
             found.append(f"{tool} is not installed")
     if not os.environ.get(OPENROUTER_KEY_ENV):
         found.append(f"{OPENROUTER_KEY_ENV} is not set, so no job could run")
+    try:
+        agent_provider()
+    except ValueError as error:
+        found.append(str(error))
     return found
 
 
@@ -99,7 +105,7 @@ def serve(host: str, port: int, *, dev: bool = False, run_worker: bool = True) -
     """Run the HTTP service until it is stopped. Returns the exit code."""
     import uvicorn
 
-    from retimer.agent import ANTHROPIC_KEY_ENV
+    from retimer.agent import agent_available, agent_key_env
     from retimer.api.app import create_app
 
     configure_logging()
@@ -113,9 +119,9 @@ def serve(host: str, port: int, *, dev: bool = False, run_worker: bool = True) -
         for problem in found:
             print(f"error: {problem}", file=sys.stderr)
         return 2
-    if settings.agent != "off" and not os.environ.get(ANTHROPIC_KEY_ENV):
+    if settings.agent != "off" and not agent_available():
         log.warning(
-            "%s is not set: jobs run the fixed pipeline, without the agent", ANTHROPIC_KEY_ENV
+            "%s is not set: jobs run the fixed pipeline, without the agent", agent_key_env()
         )
     if settings.dev:
         log.warning("development server: plain HTTP is accepted and /docs is open")

@@ -5,8 +5,16 @@ import httpx
 import pytest
 
 from retimer import dumps, load
-from retimer.agent import AgentSettings, Workbench, resolve_model, run_agent, sync_with_agent
-from retimer.agent.loop import ANTHROPIC_URL, make_client
+from retimer.agent import (
+    AgentSettings,
+    Workbench,
+    agent_available,
+    agent_provider,
+    resolve_model,
+    run_agent,
+    sync_with_agent,
+)
+from retimer.agent.loop import ANTHROPIC_URL, OPENROUTER_MESSAGES_URL, make_client
 from retimer.agent.prompt import LAST_STEP, REMIND_SUBMIT, SYSTEM, TOOLS
 from retimer.bench.cases import generate_cases, load_cases
 from retimer.bench.harness import run_one
@@ -19,7 +27,9 @@ from .agent_helpers import FakeModel, Reply, call, pair, say, submit, three_part
 from .bench_helpers import write_seeds
 from .sync_helpers import SENTENCES, FakeClient, make_subtitle, spread
 
-HAIKU = AgentSettings(model="haiku")
+HAIKU = AgentSettings(model="haiku", provider="openrouter")
+# The model called at its maker, as before OpenRouter became the default.
+DIRECT = {"provider": "anthropic"}
 # What one answer of the stand-in model costs on each model, from its token counts.
 HAIKU_TURN_USD = (1_000 * 0.10 + 200 * 0.50 + 3_000 * 0.125 + 4_000 * 0.01) / 1_000_000
 OPUS_TURN_USD = (1_000 * 4.0 + 200 * 20.0 + 3_000 * 5.0 + 4_000 * 0.20) / 1_000_000
@@ -116,7 +126,9 @@ def test_a_request_carries_the_fixed_instructions_and_the_dossier(open_job):
 
     first, second = model.requests
     assert model.beta_requests == []
-    assert first["model"] == "claude-haiku-5-5"
+    # Through OpenRouter by default, under its name for the model and on Anthropic's servers.
+    assert first["model"] == "anthropic/claude-haiku-5.5"
+    assert first["extra_body"] == {"provider": {"only": ["anthropic"], "allow_fallbacks": False}}
     assert first["system"] == [
         {"type": "text", "text": SYSTEM, "cache_control": {"type": "ephemeral"}}
     ]
@@ -140,10 +152,45 @@ def test_a_request_carries_the_fixed_instructions_and_the_dossier(open_job):
     assert "is_error" not in returned
 
 
+def test_a_request_to_anthropic_itself_carries_its_names(open_job):
+    model = FakeModel(PAIR_THE_MIDDLE, [submit()])
+
+    result = run_agent(open_job, AgentSettings(model="haiku", **DIRECT), model)
+
+    first, _ = model.requests
+    assert first["model"] == "claude-haiku-5-5"
+    assert "extra_body" not in first
+    agent = result.report.agent
+    assert (agent["provider"], agent["served_by"]) == ("anthropic", ["claude-haiku-5-5"])
+
+
+def test_the_report_names_the_model_the_same_through_either_provider(open_job):
+    model = FakeModel(PAIR_THE_MIDDLE, [submit()])
+
+    result = run_agent(open_job, HAIKU, model)
+
+    agent = result.report.agent
+    assert (agent["provider"], agent["model"]) == ("openrouter", "claude-haiku-5-5")
+    assert agent["served_by"] == ["claude-haiku-5-5"]
+    assert agent["cost_usd"] == pytest.approx(2 * HAIKU_TURN_USD)
+
+
+def test_the_larger_models_are_asked_without_a_fallback_through_openrouter(open_job):
+    model = FakeModel(PAIR_THE_MIDDLE, [submit()])
+
+    result = run_agent(open_job, AgentSettings(model="opus", provider="openrouter"), model)
+
+    # OpenRouter does not take the request for a rerun on another model.
+    assert model.beta_requests == []
+    assert model.requests[0]["model"] == "anthropic/claude-opus-5.5"
+    assert result.report.agent["served_by"] == ["claude-opus-5-5"]
+    assert result.report.agent["cost_usd"] == pytest.approx(2 * OPUS_TURN_USD)
+
+
 def test_the_larger_models_are_asked_with_a_fallback(open_job):
     model = FakeModel(PAIR_THE_MIDDLE, Reply(submit(), model="claude-sonnet-5-5"))
 
-    result = run_agent(open_job, AgentSettings(model="opus"), model)
+    result = run_agent(open_job, AgentSettings(model="opus", **DIRECT), model)
 
     assert len(model.beta_requests) == 2
     assert model.beta_requests[0]["betas"] == ["server-side-fallback-2026-07-01"]
@@ -393,29 +440,71 @@ def test_model_names_are_resolved():
     assert resolve_model("some-other-model") == "some-other-model"
 
 
-def test_the_client_uses_the_projects_key_and_a_fixed_address(monkeypatch):
+def test_the_client_uses_the_key_of_openrouter_and_its_address(monkeypatch):
+    monkeypatch.setenv("OPENROUTER_API_KEY", "key-for-openrouter")
+    monkeypatch.setenv("ANTHROPIC_RETIMER_API_KEY", "key-for-anthropic")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "another-key")
+    monkeypatch.setenv("ANTHROPIC_AUTH_TOKEN", "another-token")
+    monkeypatch.setenv("ANTHROPIC_BASE_URL", "https://elsewhere.example")
+    # The address of a gateway to Anthropic is not where OpenRouter is.
+    monkeypatch.setenv("RETIMER_ANTHROPIC_URL", "https://gateway.example")
+
+    client = make_client()
+
+    assert client.api_key == "key-for-openrouter"
+    assert client.auth_token is None
+    assert str(client.base_url).rstrip("/") == OPENROUTER_MESSAGES_URL
+
+
+def test_the_client_for_anthropic_uses_the_projects_key_and_a_fixed_address(monkeypatch):
+    monkeypatch.setenv("RETIMER_AGENT_PROVIDER", "anthropic")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "key-for-openrouter")
     monkeypatch.setenv("ANTHROPIC_RETIMER_API_KEY", "key-for-the-test")
     monkeypatch.setenv("ANTHROPIC_API_KEY", "another-key")
+    monkeypatch.setenv("ANTHROPIC_AUTH_TOKEN", "another-token")
     monkeypatch.setenv("ANTHROPIC_BASE_URL", "https://elsewhere.example")
     monkeypatch.delenv("RETIMER_ANTHROPIC_URL", raising=False)
 
     client = make_client()
     assert client.api_key == "key-for-the-test"
+    assert client.auth_token is None
     assert str(client.base_url).rstrip("/") == ANTHROPIC_URL
 
     monkeypatch.setenv("RETIMER_ANTHROPIC_URL", "https://gateway.example")
     assert str(make_client().base_url).rstrip("/") == "https://gateway.example"
 
 
+def test_the_provider_is_a_setting_and_decides_which_key_counts(monkeypatch):
+    assert agent_provider() == "openrouter"
+    assert not agent_available()
+    monkeypatch.setenv("ANTHROPIC_RETIMER_API_KEY", "key-for-anthropic")
+    assert not agent_available()
+    monkeypatch.setenv("OPENROUTER_API_KEY", "key-for-openrouter")
+    assert agent_available()
+    assert AgentSettings().provider == "openrouter"
+
+    monkeypatch.setenv("RETIMER_AGENT_PROVIDER", " Anthropic ")
+    monkeypatch.delenv("ANTHROPIC_RETIMER_API_KEY")
+    assert agent_provider() == "anthropic"
+    assert not agent_available()
+    assert AgentSettings().provider == "anthropic"
+
+    monkeypatch.setenv("RETIMER_AGENT_PROVIDER", "elsewhere")
+    with pytest.raises(ValueError, match="RETIMER_AGENT_PROVIDER is 'elsewhere'"):
+        agent_provider()
+    assert not agent_available()
+
+
 def test_without_a_key_the_job_falls_back_to_the_routine_steps(open_job, monkeypatch):
-    monkeypatch.delenv("ANTHROPIC_RETIMER_API_KEY", raising=False)
-    with pytest.raises(RuntimeError, match="ANTHROPIC_RETIMER_API_KEY is not set"):
+    with pytest.raises(RuntimeError, match="OPENROUTER_API_KEY is not set"):
         make_client()
+    with pytest.raises(RuntimeError, match="ANTHROPIC_RETIMER_API_KEY is not set"):
+        make_client("anthropic")
 
     result = run_agent(open_job, HAIKU)
 
     assert result.report.agent["finished"] == "error"
-    assert "ANTHROPIC_RETIMER_API_KEY" in result.report.agent["error"]
+    assert "OPENROUTER_API_KEY" in result.report.agent["error"]
     assert result.plan == open_job.baseline.result.plan
 
 
@@ -442,11 +531,14 @@ def test_the_agent_is_a_benchmark_system(tmp_path, monkeypatch):
     assert {"agent-opus", "agent-sonnet", "agent-haiku"} <= set(runners)
     assert runners["agent-haiku"].version() == "claude-haiku-5-5, effort medium, consult auto"
 
+    # One key serves the transcripts and the model, unless the model is called at its maker.
     monkeypatch.setenv("OPENROUTER_API_KEY", "key-for-the-test")
-    monkeypatch.delenv("ANTHROPIC_RETIMER_API_KEY", raising=False)
+    assert runners["agent-opus"].unavailable() is None
+    monkeypatch.setenv("RETIMER_AGENT_PROVIDER", "anthropic")
     assert runners["agent-opus"].unavailable() == "ANTHROPIC_RETIMER_API_KEY is not set"
     monkeypatch.delenv("OPENROUTER_API_KEY")
     assert runners["agent-opus"].unavailable() == "OPENROUTER_API_KEY is not set"
+    monkeypatch.delenv("RETIMER_AGENT_PROVIDER")
 
     seeds = write_seeds(tmp_path / "seeds")
     generate_cases(seeds, tmp_path / "media", tmp_path / "cases")
@@ -482,8 +574,8 @@ def files(tmp_path, monkeypatch):
 def test_sync_command_with_the_agent(files, monkeypatch, capsys):
     folder, truth = files
     model = FakeModel(PAIR_THE_MIDDLE, [submit()])
-    monkeypatch.setenv("ANTHROPIC_RETIMER_API_KEY", "key-for-the-test")
-    monkeypatch.setattr("retimer.agent.loop.make_client", lambda: model)
+    monkeypatch.setenv("OPENROUTER_API_KEY", "key-for-the-test")
+    monkeypatch.setattr("retimer.agent.loop.make_client", lambda provider: model)
 
     code = main(
         [
@@ -522,7 +614,6 @@ def test_sync_command_with_the_agent(files, monkeypatch, capsys):
 
 def test_sync_command_with_the_agent_needs_its_key(files, monkeypatch, capsys):
     folder, _ = files
-    monkeypatch.delenv("ANTHROPIC_RETIMER_API_KEY", raising=False)
 
     code = main(
         [
@@ -538,5 +629,16 @@ def test_sync_command_with_the_agent_needs_its_key(files, monkeypatch, capsys):
     )
 
     assert code == 1
+    assert "--agent needs OPENROUTER_API_KEY" in capsys.readouterr().err
+    assert not (folder / "out.srt").exists()
+
+    command = ["sync", str(folder / "target.srt"), "--reference", str(folder / "reference.srt")]
+    command += ["-o", str(folder / "out.srt"), "--agent"]
+    monkeypatch.setenv("RETIMER_AGENT_PROVIDER", "anthropic")
+    assert main(command) == 1
     assert "--agent needs ANTHROPIC_RETIMER_API_KEY" in capsys.readouterr().err
+
+    monkeypatch.setenv("RETIMER_AGENT_PROVIDER", "elsewhere")
+    assert main(command) == 1
+    assert "It takes openrouter or anthropic" in capsys.readouterr().err
     assert not (folder / "out.srt").exists()

@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import dataclasses
 import json
-import os
 import sys
 from pathlib import Path
 
@@ -75,10 +74,20 @@ def _cmd_sync(args: argparse.Namespace) -> int:
     }
     try:
         if args.agent:
-            from retimer.agent import ANTHROPIC_KEY_ENV, AgentSettings, sync_with_agent
+            from retimer.agent import (
+                AgentSettings,
+                agent_available,
+                agent_key_env,
+                sync_with_agent,
+            )
 
-            if not os.environ.get(ANTHROPIC_KEY_ENV):
-                print(f"error: --agent needs {ANTHROPIC_KEY_ENV} to be set", file=sys.stderr)
+            try:
+                needed = agent_key_env()
+            except ValueError as error:
+                print(f"error: {error}", file=sys.stderr)
+                return 1
+            if not agent_available():
+                print(f"error: --agent needs {needed} to be set", file=sys.stderr)
                 return 1
             settings = AgentSettings(
                 model=args.agent,
