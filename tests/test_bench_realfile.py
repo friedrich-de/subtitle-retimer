@@ -1,12 +1,14 @@
+import json
 import random
 from collections import defaultdict
 
 import pytest
 
 from retimer import apply_plan, dumps, load, loads
-from retimer.bench.cases import generate_cases, load_cases
+from retimer.bench.cases import generate_cases, load_cases, single_track
 from retimer.bench.distort import Break, Distortion, Extra, distort
 from retimer.bench.realfile import SONG_STYLES, loosen, real_file_recipes, signs, song
+from retimer.choice import MAX_REFERENCES
 
 from .bench_helpers import _stamp, make_base, write_seeds
 
@@ -18,6 +20,7 @@ FAMILIES = {
     "mid_scene",
     "next_episode",
     "signs_reference",
+    "several_references",
     "karaoke",
     "captions",
     "bilingual",
@@ -64,6 +67,12 @@ def test_a_case_says_what_it_asks_for(cases):
         asked[case.case.family].add(case.case.expected_outcome)
     assert asked.pop("next_episode") == {"rejected_no_match"}
     assert asked.pop("signs_reference") == {"left_alone"}
+    assert asked.pop("several_references") == {
+        "synced",
+        "already_in_sync",
+        "left_alone",
+        "rejected_no_match",
+    }
     assert asked.pop("loose_reference") == {"synced", "already_in_sync"}
     assert all(outcomes == {"synced"} for outcomes in asked.values())
 
@@ -82,7 +91,7 @@ def test_the_ideal_plan_undoes_every_case_that_has_one(cases):
         assert max(abs(starts[line.id] - line.true_start_ms) for line in timed) <= 5, case.case.id
         absent = {line.id for line in case.case.truth if line.true_start_ms is None}
         assert not absent & set(starts), case.case.id
-    assert without == {"next_episode", "signs_reference", "odd_times"}
+    assert without == {"next_episode", "signs_reference", "several_references", "odd_times"}
 
 
 def test_a_pack_holds_the_other_episode_as_lines_without_a_place(cases):
@@ -134,6 +143,134 @@ def test_a_reference_of_signs_has_no_line_of_dialogue(cases):
     target = load(case.target_path)
     seed = load(case.directory / "../../seeds/alpha/ja.srt")
     assert target.lines[0].start_ms - seed.lines[0].start_ms == 8_000
+
+
+def several(cases, seed="alpha", kind="subtitle-en"):
+    prefix = f"{seed}.ja.{kind}.several-references-"
+    return {name.removeprefix(prefix): case for name, case in cases.items() if prefix in name}
+
+
+def test_a_case_with_several_references_holds_its_tracks_beside_the_target(cases):
+    made = several(cases)
+    assert len(made) == 9
+    for name, case in made.items():
+        tracks = case.reference_tracks
+        assert 2 <= len(tracks) <= MAX_REFERENCES, name
+        assert [path.name.split(".")[1] for path, _ in tracks] == [
+            str(number) for number in range(len(tracks))
+        ]
+        assert all(path.parent == case.directory and len(load(path)) > 0 for path, _ in tracks)
+        # A system that takes one reference gets the track a player would show.
+        described = case.case.reference.subtitles
+        assert case.reference_subtitle_path == case.directory / single_track(described).file
+        roles = {track.role for track in described}
+        asked = case.case.expected_outcome
+        assert ("full" in roles) == (asked in ("synced", "already_in_sync")), name
+        if asked == "left_alone":
+            assert roles == {"signs"}
+        if "full" not in roles:
+            assert case.case.ideal_plan is None
+    # Only the other families describe one reference and no tracks.
+    assert all(
+        not case.case.reference.subtitles
+        for case in cases.values()
+        if case.case.family != "several_references"
+    )
+
+
+def test_the_tracks_of_a_release_differ_only_by_the_dialogue(cases):
+    case = several(cases)["full-and-signs"]
+    (full_path, full), (signs_path, only_signs) = case.reference_tracks
+    assert (full.role, full.title, full.default) == ("full", "Full Subtitles", True)
+    assert (only_signs.role, only_signs.title, only_signs.forced) == (
+        "signs",
+        "Signs & Songs",
+        True,
+    )
+    full_lines = [line.text for line in load(full_path).lines]
+    signs_lines = [line.text for line in load(signs_path).lines]
+    said = [line.text for line in load(case.directory / "../../seeds/alpha/en.srt").lines]
+    # What the full script has more than the other track is the dialogue.
+    assert len(signs_lines) > 500 and not set(said) & set(signs_lines)
+    assert 0 < len(full_lines) - len(signs_lines) <= len(said)
+    assert set(signs_lines) <= set(full_lines)
+
+
+def test_labels_can_point_to_the_wrong_track_or_say_nothing(cases):
+    made = several(cases)
+    misled = made["signs-marked-default"].case.reference
+    assert [(track.role, track.default, track.title) for track in misled.subtitles] == [
+        ("signs", True, None),
+        ("full", False, None),
+    ]
+    # So a client that sends one track sends the signs.
+    assert single_track(misled.subtitles).role == "signs"
+
+    bare = made["three-without-labels"].case.reference
+    assert [track.role for track in bare.subtitles] == ["signs", "other_episode", "full"]
+    for track in bare.subtitles:
+        assert (track.language, track.title, track.default, track.forced) == (
+            None,
+            None,
+            False,
+            False,
+        )
+    assert single_track(bare.subtitles).role == "signs"
+
+    most = made["six-tracks"].case.reference
+    assert len(most.subtitles) == MAX_REFERENCES
+    assert {track.role for track in most.subtitles} == {"full", "signs", "other_episode"}
+    twice = made["same-track-twice"]
+    (_, first), (_, second) = [item for item in twice.reference_tracks if item[1].role == "full"]
+    assert first.title != second.title
+    assert (twice.directory / first.file).read_bytes() == (
+        twice.directory / second.file
+    ).read_bytes()
+
+
+def test_another_episode_among_the_tracks_is_the_other_seed(cases):
+    case = several(cases)["other-episode-and-signs"]
+    (path, other), (_, only_signs) = case.reference_tracks
+    assert (other.role, other.default, only_signs.role) == ("other_episode", True, "signs")
+    assert case.case.expected_outcome == "rejected_no_match"
+    beta = {line.text for line in load(case.directory / "../../seeds/beta/en.srt").lines}
+    texts = [part for line in load(path).lines for part in line.text.split("\\N")]
+    assert sum(text in beta for text in texts) > len(texts) // 2
+
+
+def test_with_the_audio_beside_the_tracks_a_case_is_synced_on_it(tmp_path):
+    seeds = write_seeds(tmp_path / "seeds")
+    described = json.loads((seeds / "seeds.json").read_text(encoding="utf-8"))
+    for seed in described["seeds"]:
+        seed["audio"] = {"file": f"{seed['id']}.ogg", "language": "en"}
+        (tmp_path / "media").mkdir(exist_ok=True)
+        (tmp_path / "media" / f"{seed['id']}.ogg").write_bytes(b"sound")
+    (seeds / "seeds.json").write_text(json.dumps(described), encoding="utf-8")
+    recipes = [recipe for recipe in real_file_recipes() if recipe.family == "several_references"]
+    generate_cases(seeds, tmp_path / "media", tmp_path / "cases", recipes=[], real_recipes=recipes)
+    cases = {case.case.id: case for case in load_cases(tmp_path / "cases", families=FAMILIES)}
+
+    both = several(cases, kind="both-en")
+    assert set(both) == {recipe.name for recipe in recipes if recipe.both}
+    assert set(both) == {
+        "full-and-signs",
+        "three-without-labels",
+        "only-signs",
+        "other-episode-and-signs",
+    }
+    alone = several(cases)
+    for name, case in both.items():
+        reference = case.case.reference
+        assert reference.kind == "both" and case.audio_path.name == "alpha.ogg"
+        assert reference.audio_language == "en"
+        # The same tracks as without the audio, and now there is always a right timing.
+        assert [track.role for track in reference.subtitles] == [
+            track.role for track in alone[name].case.reference.subtitles
+        ]
+        assert case.case.expected_outcome == "synced" and case.case.ideal_plan is not None
+    assert alone["only-signs"].case.expected_outcome == "left_alone"
+    # No recipe of this family is built against the audio alone.
+    assert not several(cases, kind="audio")
 
 
 def test_odd_times_are_written_as_the_tool_left_them(cases):

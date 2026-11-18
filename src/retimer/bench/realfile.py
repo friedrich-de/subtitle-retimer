@@ -6,7 +6,8 @@ fraction of a second early for minutes, several episodes in one file, a cut in
 the middle of a scene, the next episode sent by mistake, a track of signs and
 songs as the reference, scripts in which a karaoke is thousands of lines,
 captions full of speaker names and sounds, two languages in one file, times
-written in ways only players read. Those files are other people's work and
+written in ways only players read, and a video that holds several subtitle
+tracks of which one is the dialogue. Those files are other people's work and
 cannot be published. So every problem is rebuilt here from the seed material,
 the two open films and the series that was written for the benchmark, with
 the same shape and with known-correct timing.
@@ -137,6 +138,8 @@ class Material:
     reference: Subtitle
     other_target: Subtitle
     case_seed: int
+    # The other seed in the language of the reference, where it has that one.
+    other_reference: Subtitle | None = None
 
     def rng(self, salt: str = "") -> random.Random:
         return random.Random(f"{self.case_seed}:{salt}")
@@ -147,12 +150,32 @@ class Material:
 
 
 @dataclass
+class Track:
+    """One of several reference subtitles of a case, and what its container says of it.
+
+    `role` says what the track is: "full" for the dialogue of this film,
+    "signs" for a track of signs and songs, "other_episode" for the dialogue
+    of another one. The labels are what a video file would say, and they may
+    be missing or misleading, as they are in real files.
+    """
+
+    subtitle: Subtitle
+    role: str
+    language: str | None = None
+    title: str | None = None
+    default: bool = False
+    forced: bool = False
+
+
+@dataclass
 class Built:
     """One case as its builder leaves it.
 
     `reference` is a reference subtitle made for this case. Without one the
-    case uses the seed's own. `target_text` is the target as it has to be
-    written where the usual writer would tidy away what the case is about.
+    case uses the seed's own. `references` are several to choose from, in the
+    order a video file would hold them. `target_text` is the target as it has
+    to be written where the usual writer would tidy away what the case is
+    about.
     """
 
     target: Subtitle
@@ -160,22 +183,30 @@ class Built:
     ideal_plan: Plan | None = None
     distortion: Distortion | None = None
     reference: Subtitle | None = None
+    references: list[Track] = field(default_factory=list)
     target_text: str | None = None
     expected_outcome: str = "synced"
     options: Options = field(default_factory=Options)
 
 
+# The second argument says whether the seed's audio comes with the case.
 Builder = Callable[[Material, bool], Built]
 
 
 @dataclass(frozen=True)
 class RealRecipe:
-    """A named case. `audio` says whether it is also built against the seed's audio."""
+    """A named case.
+
+    `audio` says whether it is also built against the seed's audio alone,
+    `both` whether it is also built with the audio beside its reference
+    subtitles.
+    """
 
     name: str
     family: str
     build: Builder
     audio: bool = False
+    both: bool = False
 
     @property
     def label(self) -> str:
@@ -728,6 +759,186 @@ def _signs_reference(plain: bool, offset_ms: int) -> Builder:
     return build
 
 
+# Several subtitle tracks in one video, of which one is the dialogue
+
+
+def _signs_track(material: Material, extras: Sequence[Extra] | None = None) -> Subtitle:
+    """A track of signs and songs, as a release for a dubbed version carries it."""
+    if extras is None:
+        extras = typesetting(
+            material.lines, material.rng("signs-track"), material.reference_language, 1
+        )
+    return _script(extras)
+
+
+def _plain_signs_track(material: Material) -> Subtitle:
+    """Sign texts in an SRT file, which no style marks as signs."""
+    lines = material.lines
+    last = max(line.end_ms for line in lines)
+    made = signs(
+        lines[0].start_ms, last, 8, material.rng("plain-signs"), material.reference_language, False
+    )
+    track = _script(made, "srt")
+    for event in track.ssa.events:
+        event.text = re.sub(r"\{[^}]*\}", "", event.text)
+    return track
+
+
+def _full_track(material: Material, extras: Sequence[Extra] = ()) -> Subtitle:
+    """The dialogue in the reference language, timed anew. With `extras` it is a
+    typeset script that carries the songs and signs as well."""
+    track = loosen(material.reference, material.rng("reference"))
+    if not extras:
+        return track
+    return distort(track, Distortion(), fmt="ass", extras=extras, styles=SONG_STYLES).subtitle
+
+
+def _several(
+    tracks: Callable[[Material], list[Track]],
+    distortion: Distortion | None = None,
+    breaks: int = 0,
+    *,
+    fits: bool = True,
+) -> Builder:
+    """The target against the subtitle tracks of one video.
+
+    With `fits`, one of the tracks is the dialogue of the film and the target
+    has to be synced against it. Without, none is. Then the file has to be
+    refused, or handed back as it was where the tracks are only signs. With
+    the audio beside them it is synced on the audio.
+    """
+
+    def build(material: Material, audio: bool) -> Built:
+        lines = material.lines
+        chosen = distortion or Distortion()
+        if breaks:
+            chosen = chosen.model_copy(
+                update={
+                    "breaks": [
+                        Break(
+                            at_ms=_before(lines, _pause_near(lines, (number + 1) / (breaks + 1))),
+                            delta_ms=(35_000, -15_000, 70_000)[number % 3],
+                        )
+                        for number in range(breaks)
+                    ]
+                }
+            )
+        # Made as a case against audio is, so that no single reference is built: the
+        # tracks are the reference.
+        built = _make(material, chosen, True)
+        built.references = tracks(material)
+        if fits or audio:
+            if chosen.is_identity():
+                built.expected_outcome = "already_in_sync"
+            return built
+        # Nothing says where a line belongs, so no plan can be the right one.
+        built.ideal_plan = None
+        roles = {track.role for track in built.references}
+        built.expected_outcome = "left_alone" if roles == {"signs"} else "rejected_no_match"
+        return built
+
+    return build
+
+
+def _release_pair(signs_first: bool, honest_labels: bool) -> Callable[[Material], list[Track]]:
+    """The two tracks of a fansub release: the full script, and its signs and songs alone.
+
+    Both carry the same songs and signs. With `honest_labels` the full track
+    is the default one. Without, the track of signs is marked default and
+    forced, as it is where the release was set up for the dubbed version, and
+    the titles say nothing.
+    """
+
+    def tracks(material: Material) -> list[Track]:
+        language = material.reference_language
+        extras = typesetting(material.lines, material.rng("signs-track"), language, 1)
+        full = Track(_full_track(material, extras), "full", language)
+        only_signs = Track(_signs_track(material, extras), "signs", language)
+        if honest_labels:
+            full.title, full.default = "Full Subtitles", True
+            only_signs.title, only_signs.forced = "Signs & Songs", True
+        else:
+            only_signs.default = only_signs.forced = True
+        return [only_signs, full] if signs_first else [full, only_signs]
+
+    return tracks
+
+
+def _other_episode_track(material: Material) -> Track:
+    """The dialogue of another episode, which a pack or a mislabelled file brings along."""
+    if material.other_reference is None:
+        track = loosen(material.other_target, material.rng("other-episode"))
+        return Track(track, "other_episode", material.language)
+    track = loosen(material.other_reference, material.rng("other-episode"))
+    return Track(track, "other_episode", material.reference_language)
+
+
+def _own_language_track(material: Material) -> Track:
+    """The dialogue of this film in the language of the target, timed by someone else."""
+    return Track(loosen(material.target, material.rng("own-language")), "full", material.language)
+
+
+def _unlabelled(material: Material) -> list[Track]:
+    """Three tracks about which the file says nothing, with the dialogue last."""
+    return [
+        Track(_plain_signs_track(material), "signs"),
+        Track(_other_episode_track(material).subtitle, "other_episode"),
+        Track(_full_track(material), "full"),
+    ]
+
+
+def _two_that_fit(material: Material) -> list[Track]:
+    """The dialogue in two languages, and a track of signs. Either dialogue track serves."""
+    language = material.reference_language
+    return [
+        Track(_full_track(material), "full", language, default=True),
+        _own_language_track(material),
+        Track(_signs_track(material), "signs", language, "Signs", forced=True),
+    ]
+
+
+def _same_track_twice(material: Material) -> list[Track]:
+    """One dialogue track that the file holds twice, under two names, and a track of signs."""
+    language = material.reference_language
+    full = _full_track(material)
+    return [
+        Track(_signs_track(material), "signs", language, "Signs & Songs"),
+        Track(full, "full", language, "Dialogue"),
+        Track(full.copy(), "full", language, "Dialogue (SDH)"),
+    ]
+
+
+def _six_tracks(material: Material) -> list[Track]:
+    """As many tracks as a job takes, of every kind, with the dialogue in the middle."""
+    language = material.reference_language
+    full = _full_track(material)
+    return [
+        Track(_signs_track(material), "signs", language, "Signs & Songs", True, True),
+        _own_language_track(material),
+        _other_episode_track(material),
+        Track(full, "full", language, "Dialogue"),
+        Track(full.copy(), "full", language, "Dialogue (copy)"),
+        Track(_plain_signs_track(material), "signs", "und"),
+    ]
+
+
+def _only_signs(material: Material) -> list[Track]:
+    """Two tracks, and neither holds a line of dialogue."""
+    language = material.reference_language
+    return [
+        Track(_signs_track(material), "signs", language, "Signs & Songs", True, True),
+        Track(_plain_signs_track(material), "signs", language, "Signs"),
+    ]
+
+
+def _wrong_episode_and_signs(material: Material) -> list[Track]:
+    """The dialogue of another episode, marked as the default track, and a track of signs."""
+    other = _other_episode_track(material)
+    other.title, other.default = "Dialogue", True
+    signs_only = Track(_signs_track(material), "signs", material.reference_language, "Signs")
+    return [other, signs_only]
+
+
 # Scripts in which the karaoke and the signs are most of the lines
 
 
@@ -1057,6 +1268,46 @@ def real_file_recipes() -> list[RealRecipe]:
         RealRecipe("signs-and-songs-late-8s", "signs_reference", _signs_reference(False, 8_000)),
         RealRecipe("signs-and-songs-in-sync", "signs_reference", _signs_reference(False, 0)),
         RealRecipe("plain-signs-late-8s", "signs_reference", _signs_reference(True, 8_000)),
+        RealRecipe(
+            "full-and-signs",
+            "several_references",
+            _several(_release_pair(False, True), Distortion(offset_ms=8_000)),
+            both=True,
+        ),
+        RealRecipe(
+            "signs-marked-default",
+            "several_references",
+            _several(_release_pair(True, False), Distortion(offset_ms=-1_500)),
+        ),
+        RealRecipe(
+            "three-without-labels", "several_references", _several(_unlabelled, breaks=2), both=True
+        ),
+        RealRecipe(
+            "two-languages-fit",
+            "several_references",
+            _several(_two_that_fit, Distortion(offset_ms=-2_700), 1),
+        ),
+        RealRecipe(
+            "same-track-twice",
+            "several_references",
+            _several(_same_track_twice, Distortion(rate=25 / film)),
+        ),
+        RealRecipe(
+            "six-tracks", "several_references", _several(_six_tracks, Distortion(offset_ms=900), 3)
+        ),
+        RealRecipe("in-sync", "several_references", _several(_release_pair(True, True))),
+        RealRecipe(
+            "only-signs",
+            "several_references",
+            _several(_only_signs, Distortion(offset_ms=8_000), fits=False),
+            both=True,
+        ),
+        RealRecipe(
+            "other-episode-and-signs",
+            "several_references",
+            _several(_wrong_episode_and_signs, Distortion(offset_ms=8_000), fits=False),
+            both=True,
+        ),
         RealRecipe("heavy-reference", "karaoke", _karaoke(False, True, -7_300)),
         RealRecipe("heavy-reference-blocks-2", "karaoke", _karaoke(False, True, 1_100, 2)),
         RealRecipe("heavy-target", "karaoke", _karaoke(True, False, 5_400, 1), audio=True),

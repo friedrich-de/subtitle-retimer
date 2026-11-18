@@ -46,6 +46,7 @@ real episode: song words, signs and speaker names are made up.
 | `mid_scene` | Two versions differ by a few seconds in the middle of a scene | A cut of 3 s or an insert of 5 s where the lines are dense, not in a pause | `synced` |
 | `next_episode` | The next episode was sent by mistake, and episodes of a series share lines | Another episode as the target. It shares its opening lines with the reference, or short phrases all over the file | `rejected_no_match` |
 | `signs_reference` | The reference track holds only signs and songs | A reference without one line of dialogue: a typeset script of signs and songs, or a plain file of sign texts | `left_alone` |
+| `several_references` | A video holds several subtitle tracks, and what the file says of them is missing or wrong | Two to six tracks to choose from: the full script and its signs and songs alone, the dialogue in two languages, the same track twice, another episode, tracks without any label, a track of signs marked as the default one. See below | `synced`, and one `already_in_sync`. `left_alone` where every track is signs, `rejected_no_match` where one is another episode and none is the dialogue |
 | `karaoke` | A typeset script is mostly karaoke and signs | The target, the reference or both carry an opening, an ending and moving signs the way a karaoke template writes them: thousands of lines around the dialogue, up to 14,000 | `synced` |
 | `captions` | Captions name the speaker and describe sounds | Speaker names, marks, sound descriptions and music notes in the target, with and without the request to clean them | `synced`, cleaned as the options say |
 | `bilingual` | Two languages in one file, or reading aids above the lines | Both languages in every line, both as lines of their own, or small kana above some of the lines | `synced` |
@@ -69,6 +70,42 @@ still the true one. It is stored in the case directory.
 `left_alone` is an outcome of its own. A track of signs says nothing about
 where a spoken line belongs. Refusing the job is right, and so is handing the
 file back unmoved. Moving the lines is wrong.
+
+### Several reference tracks
+
+A case of `several_references` comes with the tracks in the order a video file
+would hold them, each with what the file says of it: language, title, and
+whether it is marked default or forced. As in real files those labels are
+sometimes right, sometimes missing and sometimes wrong.
+
+| Case | Tracks, in their order | Target |
+| --- | --- | --- |
+| `full-and-signs` | The full script (default, "Full Subtitles") and its signs and songs alone (forced, "Signs & Songs"). Both are typeset scripts with the same songs and signs | 8 s late |
+| `signs-marked-default` | The same two the other way round, without titles, and the track of signs is the one marked default and forced | 1.5 s early |
+| `three-without-labels` | A plain file of sign texts, the dialogue of another episode, the dialogue. The file says nothing about any of them | Two breaks |
+| `two-languages-fit` | The dialogue in the reference language (default), the dialogue in the language of the target, signs. Either dialogue track is right | 2.7 s early, one break |
+| `same-track-twice` | Signs, and one dialogue track that is there twice under two titles | 25 to 23.976 fps |
+| `six-tracks` | As many as a job takes: signs (default and forced), the dialogue in the language of the target, another episode, the dialogue, the dialogue again, plain sign texts | 0.9 s late, three breaks |
+| `in-sync` | Signs and songs (forced, "Signs & Songs") and the full script (default, "Full Subtitles") | In sync |
+| `only-signs` | Two tracks of signs and songs | 8 s late |
+| `other-episode-and-signs` | The dialogue of another episode (default, "Dialogue") and signs | 8 s late |
+
+`full-and-signs`, `three-without-labels`, `only-signs` and
+`other-episode-and-signs` are also built with the audio beside the tracks, for
+the seeds that have audio. Then the last two are expected to be `synced` as
+well: no track says where a line belongs, and the audio does.
+
+A system that takes one reference gets the track a client would send that
+sends a single one: the track marked default, and the first where none is
+marked. So `alass` and `ffsubsync` are given the dialogue in `full-and-signs`,
+`two-languages-fit` and `in-sync`, another episode in
+`other-episode-and-signs`, and a track of signs in the five other cases. With
+the audio beside the tracks they get the audio, as in every case that has
+both. `pipeline`, the agent systems
+and `api` get every track with its labels and choose. Which track was chosen
+is in the record of a run, under `details.report.reference_choice` (for `api`
+under `details.job.summary.reference`), next to what was found out about each
+track.
 
 ## The made-up series
 
@@ -135,6 +172,28 @@ a line of another episode) and is expected to be trimmed. Paths are relative
 to the case directory. A case that replicates a real file has its reference
 subtitle beside the target, as `reference.srt` or `reference.ass`.
 
+A case with several reference subtitles lists them under `reference` as well,
+and has them beside the target as `reference.0.ass`, `reference.1.srt` and so
+on:
+
+```json
+"reference": {
+  "kind": "subtitle",
+  "subtitle": "reference.0.ass",
+  "subtitle_language": "en",
+  "subtitles": [
+    {"file": "reference.0.ass", "role": "signs", "language": "en", "title": null, "default": true, "forced": true},
+    {"file": "reference.1.ass", "role": "full", "language": "en", "title": null, "default": false, "forced": false}
+  ]
+}
+```
+
+`language`, `title`, `default` and `forced` are what the video file says, and
+they are passed on to a system that takes several tracks. `role` is what the
+track is, `full`, `signs` or `other_episode`, and no system gets to see it.
+`subtitle` names the one track that a system gets which takes a single
+reference.
+
 `expected_outcome` is `synced`, `already_in_sync`, `rejected_no_match` or
 `left_alone`.
 
@@ -188,7 +247,9 @@ may sort the file.
 | `api` | A running service, reached over HTTP as a client reaches it. Needs `RETIMER_API_URL` and `RETIMER_API_KEY`. |
 
 The external tools take one reference. When a case has both audio and a
-reference subtitle they get the audio. A tool is found on the `PATH`, or
+reference subtitle they get the audio. When it has several reference
+subtitles they get the one a client would send that sends a single track
+([above](#several-reference-tracks)). A tool is found on the `PATH`, or
 through `RETIMER_FFSUBSYNC` and `RETIMER_ALASS`.
 
 The pipeline caches transcripts and embeddings, so a rerun over the same audio
@@ -282,6 +343,10 @@ Each run writes a directory under `data/bench/results`:
 - `run.json`: when it ran and the tool versions.
 - `outputs/<system>/<case>/`: the file each system produced.
 
-Runs worth keeping are written up in [baselines/](baselines/). The one over all
+Runs worth keeping are written up in [baselines/](baselines/). The one over
 535 cases, with alass and ffsubsync next to the pipeline and the agent, is
 [baselines/2026-11-18-real-file-problems.md](baselines/2026-11-18-real-file-problems.md).
+It was made before the family `several_references` was added. The run over
+that family's 53 cases is
+[baselines/2026-11-18-several-references.md](baselines/2026-11-18-several-references.md).
+With the audio of the two films fetched, the set now has 588 cases.

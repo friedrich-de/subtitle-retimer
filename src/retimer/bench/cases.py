@@ -18,7 +18,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from retimer.bench.distort import Break, Distortion, DistortionError, Noise, TruthLine, distort
-from retimer.bench.realfile import Material, RealRecipe, real_file_recipes
+from retimer.bench.realfile import Material, RealRecipe, Track, real_file_recipes
 from retimer.io import dumps, load
 from retimer.model import Subtitle
 from retimer.plan import Plan
@@ -40,6 +40,7 @@ Family = Literal[
     "mid_scene",
     "next_episode",
     "signs_reference",
+    "several_references",
     "karaoke",
     "captions",
     "bilingual",
@@ -86,12 +87,38 @@ class SeedSet(BaseModel):
     seeds: list[Seed]
 
 
+class ReferenceTrack(BaseModel):
+    """One of several reference subtitles of a case, as a video file holds its tracks.
+
+    The labels are what the file says of the track. `role` is what the track
+    is, which no system under test gets to see: "full" for the dialogue of
+    the film, "signs" for signs and songs, "other_episode" for the dialogue
+    of another one.
+    """
+
+    file: str
+    role: str
+    language: str | None = None
+    title: str | None = None
+    default: bool = False
+    forced: bool = False
+
+
 class Reference(BaseModel):
+    """What a case is synced against.
+
+    A case with several reference subtitles lists them in `subtitles`.
+    `subtitle` is then the one a client that sends a single track would
+    send: the default track, and the first where none is marked. A system
+    that takes one reference gets that one.
+    """
+
     kind: ReferenceKind
     audio: str | None = None
     audio_language: str | None = None
     subtitle: str | None = None
     subtitle_language: str | None = None
+    subtitles: list[ReferenceTrack] = Field(default_factory=list)
 
 
 class Case(BaseModel):
@@ -136,6 +163,11 @@ class LoadedCase(BaseModel):
     @property
     def reference_subtitle_path(self) -> Path | None:
         return self.resolve(self.case.reference.subtitle)
+
+    @property
+    def reference_tracks(self) -> list[tuple[Path, ReferenceTrack]]:
+        """The reference subtitles of a case that has several, in their order."""
+        return [(self.directory / track.file, track) for track in self.case.reference.subtitles]
 
 
 class Recipe(BaseModel):
@@ -424,6 +456,30 @@ def generate_cases(
     return written
 
 
+def single_track(tracks: Sequence[ReferenceTrack]) -> ReferenceTrack:
+    """The track a client sends that sends only one: the default one, else the first."""
+    return next((track for track in tracks if track.default), tracks[0])
+
+
+def _write_tracks(directory: Path, tracks: Sequence[Track]) -> list[ReferenceTrack]:
+    """Write the reference subtitles of a case beside its target and describe them."""
+    described = []
+    for number, track in enumerate(tracks):
+        name = f"reference.{number}.{track.subtitle.format}"
+        (directory / name).write_text(dumps(track.subtitle), encoding="utf-8")
+        described.append(
+            ReferenceTrack(
+                file=name,
+                role=track.role,
+                language=track.language,
+                title=track.title,
+                default=track.default,
+                forced=track.forced,
+            )
+        )
+    return described
+
+
 def _generate_real_file_cases(
     seeds: list[Seed],
     seeds_dir: Path,
@@ -436,7 +492,8 @@ def _generate_real_file_cases(
 
     They are built for the pairing real files come in: a target in the
     second language of a seed, against a reference subtitle in its first
-    language or against its audio. They need a second seed, which stands in
+    language or against its audio. A case with several reference subtitles
+    can have the audio beside them. They need a second seed, which stands in
     for another episode.
     """
     recipes = recipes if recipes is not None else real_file_recipes()
@@ -453,12 +510,19 @@ def _generate_real_file_cases(
         target = load(seeds_dir / seed.subtitles[language])
         reference = load(seeds_dir / seed.subtitles[reference_language])
         other_target = load(seeds_dir / other_seed.subtitles[language])
+        other_reference = (
+            load(seeds_dir / other_seed.subtitles[reference_language])
+            if reference_language in other_seed.subtitles
+            else None
+        )
         for recipe in recipes:
             kinds: list[ReferenceKind] = ["subtitle"]
             if recipe.audio and audio is not None:
                 kinds.append("audio")
+            if recipe.both and audio is not None:
+                kinds.append("both")
             for kind in kinds:
-                tail = f"-{reference_language}" if kind == "subtitle" else ""
+                tail = "" if kind == "audio" else f"-{reference_language}"
                 case_id = f"{seed.id}.{language}.{kind}{tail}.{recipe.label}"
                 directory = out_dir / case_id
                 material = Material(
@@ -468,27 +532,28 @@ def _generate_real_file_cases(
                     target=target,
                     reference=reference,
                     other_target=other_target,
+                    other_reference=other_reference,
                     case_seed=_stable_seed(case_id),
                 )
                 try:
-                    built = recipe.build(material, kind == "audio")
+                    built = recipe.build(material, kind != "subtitle")
                 except DistortionError as error:
                     say(f"skipped {case_id}: {error}")
                     continue
-                if kind == "audio":
-                    described = Reference(
-                        kind="audio",
-                        audio=_relative(audio, directory),
-                        audio_language=seed.audio.language if seed.audio else None,
-                    )
-                else:
-                    made = built.reference if built.reference is not None else reference
-                    name = f"reference.{made.format}"
+                described = Reference(kind=kind)
+                if kind != "subtitle":
+                    described.audio = _relative(audio, directory)
+                    described.audio_language = seed.audio.language if seed.audio else None
+                if kind != "audio":
                     directory.mkdir(parents=True, exist_ok=True)
-                    (directory / name).write_text(dumps(made), encoding="utf-8")
-                    described = Reference(
-                        kind="subtitle", subtitle=name, subtitle_language=reference_language
-                    )
+                    described.subtitle_language = reference_language
+                    if built.references:
+                        described.subtitles = _write_tracks(directory, built.references)
+                        described.subtitle = single_track(described.subtitles).file
+                    else:
+                        made = built.reference if built.reference is not None else reference
+                        described.subtitle = f"reference.{made.format}"
+                        (directory / described.subtitle).write_text(dumps(made), encoding="utf-8")
                 case = Case(
                     id=case_id,
                     seed=seed.id,

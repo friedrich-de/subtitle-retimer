@@ -495,6 +495,45 @@ def test_the_pipeline_is_a_benchmark_system(tmp_path):
         assert record["details"]["plan"]["outcome"] == record["outcome"]
 
 
+def test_the_pipeline_gets_every_track_of_a_case_that_has_several(tmp_path):
+    from retimer.bench.realfile import real_file_recipes
+
+    seeds = write_seeds(tmp_path / "seeds")
+    recipes = [recipe for recipe in real_file_recipes() if recipe.family == "several_references"]
+    generate_cases(seeds, tmp_path / "media", tmp_path / "cases", recipes=[], real_recipes=recipes)
+    runner = PipelineRunner(client=FakeClient(), cache=Cache(tmp_path / "cache"))
+
+    def run(name: str) -> tuple[dict, list[str]]:
+        (case,) = load_cases(tmp_path / "cases", f"alpha.ja.subtitle-en.several-references-{name}")
+        record = run_one(case, runner, tmp_path / "work" / name)
+        assert record["error"] is None, name
+        assert record["metrics"]["success"], name
+        return record, [track.role for track in case.case.reference.subtitles]
+
+    for name in ("full-and-signs", "signs-marked-default", "same-track-twice", "in-sync"):
+        record, roles = run(name)
+        choice = record["details"]["report"]["reference_choice"]
+        # The dialogue is found wherever it stands and whatever the labels say.
+        assert roles[choice["chosen"]] == "full", name
+        assert len(choice["candidates"]) == len(roles)
+        of_signs = [item for item in choice["candidates"] if roles[item["index"]] == "signs"]
+        assert [item["verdict"] for item in of_signs] == ["too_little_dialogue"], name
+    assert record["outcome"] == "already_in_sync"
+
+    record, roles = run("signs-marked-default")
+    labelled = record["details"]["report"]["reference_choice"]["candidates"]
+    assert [(item["default"], item["forced"], item["filename"]) for item in labelled] == [
+        (True, True, "reference.0.ass"),
+        (False, False, "reference.1.ass"),
+    ]
+
+    # Two tracks of signs: no track is chosen and the file is not moved.
+    record, roles = run("only-signs")
+    assert roles == ["signs", "signs"]
+    assert record["outcome"] == "rejected_no_match"
+    assert record["details"]["report"]["reference_choice"]["chosen"] is None
+
+
 def test_without_a_key_the_pipeline_says_why_it_cannot_run(monkeypatch):
     monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
     assert "OPENROUTER_API_KEY" in PipelineRunner().unavailable()

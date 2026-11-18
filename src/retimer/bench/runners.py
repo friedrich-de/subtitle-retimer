@@ -2,7 +2,9 @@
 
 External tools are run as commands, exactly as a user would run them. They take
 one reference, so a case with both audio and a reference subtitle gives them the
-audio. The project's own pipeline is called directly.
+audio, and a case with several reference subtitles gives them the one a client
+would send that sends a single track. The project's own pipeline is called
+directly and gets every track.
 """
 
 from __future__ import annotations
@@ -237,6 +239,37 @@ class AlassRunner(CommandRunner):
         return [self._path(), *self.extra_args, str(reference), str(target), str(output)]
 
 
+def _reference_of(case: LoadedCase) -> dict[str, object]:
+    """The reference subtitle of a case as the pipeline takes it: one, or several to choose from."""
+    # Imported here for the same reason as the pipeline itself.
+    from retimer.choice import Candidate, TrackLabel
+
+    tracks = case.reference_tracks
+    if not tracks:
+        reference = case.reference_subtitle_path
+        return {
+            "reference": load(reference) if reference else None,
+            "reference_language": case.case.reference.subtitle_language,
+        }
+    # Each track comes with what the file says of it and nothing else, so
+    # none gets the language of the case as a hint.
+    return {
+        "references": [
+            Candidate(
+                subtitle=load(path),
+                label=TrackLabel(
+                    language=track.language,
+                    title=track.title,
+                    default=track.default,
+                    forced=track.forced,
+                ),
+                filename=path.name,
+            )
+            for path, track in tracks
+        ]
+    }
+
+
 class PipelineRunner:
     """This project's fixed pipeline: anchors, fits and scoring, with no agent deciding."""
 
@@ -267,16 +300,14 @@ class PipelineRunner:
         # Imported here: the other systems do not need numpy and start faster without it.
         from retimer.pipeline import Settings, sync
 
-        reference = case.reference_subtitle_path
         return sync(
             load(case.target_path),
             audio=case.audio_path,
-            reference=load(reference) if reference else None,
             options=case.case.options,
-            reference_language=case.case.reference.subtitle_language,
             settings=Settings(**self.settings),
             client=self.client,
             cache=self.cache,
+            **_reference_of(case),
         )
 
     def run(self, case: LoadedCase, work_dir: Path) -> RunOutput:
@@ -359,18 +390,16 @@ class AgentRunner(PipelineRunner):
         from retimer.agent import AgentSettings, sync_with_agent
         from retimer.pipeline import Settings
 
-        reference = case.reference_subtitle_path
         return sync_with_agent(
             load(case.target_path),
             audio=case.audio_path,
-            reference=load(reference) if reference else None,
             options=case.case.options,
-            reference_language=case.case.reference.subtitle_language,
             settings=Settings(**self.settings),
             agent=AgentSettings(model=self.model, effort=self.effort, consult=self.consult),
             client=self.client,
             cache=self.cache,
             model_client=self.model_client,
+            **_reference_of(case),
         )
 
 
@@ -442,16 +471,26 @@ class ApiRunner:
         deadline = started + self.timeout_s
         spec = case.case
         options: dict[str, object] = spec.options.model_dump()
-        if spec.reference.subtitle_language:
-            options["reference_language"] = spec.reference.subtitle_language
         if self.agent:
             options["agent"] = self.agent
-        files = {"target": (spec.target, case.target_path.read_bytes())}
+        files = [("target", (spec.target, case.target_path.read_bytes()))]
         if case.audio_path is not None:
-            files["reference_audio"] = (case.audio_path.name, case.audio_path.read_bytes())
-        if case.reference_subtitle_path is not None:
+            files.append(("reference_audio", (case.audio_path.name, case.audio_path.read_bytes())))
+        if case.reference_tracks:
+            # One part for every track, in their order, with what the file says of each.
+            options["reference_tracks"] = [
+                track.model_dump(include={"language", "title", "default", "forced"})
+                for _, track in case.reference_tracks
+            ]
+            files += [
+                ("reference_subtitle", (path.name, path.read_bytes()))
+                for path, _ in case.reference_tracks
+            ]
+        elif case.reference_subtitle_path is not None:
             reference = case.reference_subtitle_path
-            files["reference_subtitle"] = (reference.name, reference.read_bytes())
+            files.append(("reference_subtitle", (reference.name, reference.read_bytes())))
+            if spec.reference.subtitle_language:
+                options["reference_language"] = spec.reference.subtitle_language
 
         def failed(error: str, **details: object) -> RunOutput:
             return RunOutput(

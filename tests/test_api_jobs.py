@@ -918,6 +918,55 @@ def test_a_running_service_is_a_benchmark_system(tmp_path, monkeypatch):
         assert client.get("/v1/jobs").json() == {"jobs": []}
 
 
+def test_the_benchmark_sends_every_track_of_a_case_that_has_several(tmp_path):
+    from starlette.testclient import TestClient
+
+    from retimer.api import create_app
+    from retimer.api.worker import Services
+    from retimer.bench.cases import generate_cases, load_cases
+    from retimer.bench.harness import run_one
+    from retimer.bench.realfile import real_file_recipes
+    from retimer.bench.runners import ApiRunner
+
+    from .bench_helpers import write_seeds
+
+    seeds = write_seeds(tmp_path / "seeds")
+    recipes = [recipe for recipe in real_file_recipes() if recipe.family == "several_references"]
+    generate_cases(seeds, tmp_path / "media", tmp_path / "cases", recipes=[], real_recipes=recipes)
+    service = make_service(tmp_path)
+    services = Services(cache=service.cache, openrouter=FakeClient())
+    app = create_app(service.settings, services=services)
+
+    with TestClient(app, base_url="https://testserver", headers=service.auth()) as client:
+        runner = ApiRunner(client=client, poll_s=0.02, agent="off")
+        for name, outcome in (
+            ("signs-marked-default", "synced"),
+            ("six-tracks", "synced"),
+            ("only-signs", "rejected_no_match"),
+        ):
+            (case,) = load_cases(
+                tmp_path / "cases", f"alpha.ja.subtitle-en.several-references-{name}"
+            )
+            record = run_one(case, runner, tmp_path / "work" / name)
+            assert record["error"] is None, name
+            assert record["outcome"] == outcome and record["metrics"]["success"], name
+            tracks = case.case.reference.subtitles
+            found = record["details"]["job"]["summary"]["reference"]
+            # The service saw every track, in the order of the case and with its labels.
+            assert [item["filename"] for item in found["candidates"]] == [
+                track.file for track in tracks
+            ]
+            assert [
+                (item["language"], item["title"], item["default"], item["forced"])
+                for item in found["candidates"]
+            ] == [(track.language, track.title, track.default, track.forced) for track in tracks]
+            if outcome == "synced":
+                assert tracks[found["chosen"]].role == "full", name
+                assert record["details"]["file_matches_plan"] is True
+            else:
+                assert found["chosen"] is None
+
+
 def test_the_benchmark_waits_when_the_service_says_so(tmp_path):
     import httpx
 
