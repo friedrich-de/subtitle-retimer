@@ -21,9 +21,17 @@ from pydantic import BaseModel, Field
 from retimer.agent.prompt import LAST_STEP, OPENING, REMIND_SUBMIT, SYSTEM, TOOLS
 from retimer.agent.workbench import ToolError, Workbench
 from retimer.cache import Cache
+from retimer.choice import Candidate
 from retimer.classify import LineLabel
 from retimer.model import Subtitle
-from retimer.pipeline import Proposal, Settings, SyncResult, prepare, with_matched_reference
+from retimer.pipeline import (
+    Proposal,
+    Settings,
+    SyncResult,
+    prepare,
+    propose,
+    with_matched_reference,
+)
 from retimer.providers import OPENROUTER_KEY_ENV, OpenRouter
 from retimer.views import Options
 
@@ -382,6 +390,7 @@ def sync_with_agent(
     *,
     audio: Path | None = None,
     reference: Subtitle | None = None,
+    references: list[Candidate] | None = None,
     options: Options | None = None,
     audio_language: str | None = None,
     reference_language: str | None = None,
@@ -398,6 +407,7 @@ def sync_with_agent(
         target,
         audio=audio,
         reference=reference,
+        references=references,
         options=options,
         audio_language=audio_language,
         reference_language=reference_language,
@@ -406,5 +416,9 @@ def sync_with_agent(
         cache=cache,
         labels=labels,
     )
-    result = run_agent(Workbench(prepared), agent, model_client)
+    if prepared.refused:
+        # No reference can serve, so there is nothing for a model to decide.
+        result = propose(prepared).result
+    else:
+        result = run_agent(Workbench(prepared), agent, model_client)
     return with_matched_reference(prepared, result) if matched_reference else result

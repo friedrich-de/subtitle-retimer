@@ -19,6 +19,16 @@ def test_clean_writes_the_cleaned_file(tmp_path, capsys):
     assert [line.text for line in load(out).lines][0] == "- Hello?"
 
 
+def test_clean_removes_signs_and_credits(tmp_path, capsys):
+    out = tmp_path / "out.ass"
+    code = main(["clean", str(DATA / "sample.ass"), "--remove-signs-and-credits", "-o", str(out)])
+    assert code == 0
+    assert json.loads(capsys.readouterr().out)["removed"] == {"signs": 2, "credits": 1}
+    texts = [line.text for line in load(out).lines]
+    assert not any("Central Station" in text or "Subtitles by" in text for text in texts)
+    assert "Good morning." in texts
+
+
 def test_apply_runs_a_plan_file_and_converts_the_format(tmp_path, capsys):
     plan = tmp_path / "plan.json"
     plan.write_text(json.dumps({"timing_ops": [{"op": "shift", "ms": 1500}]}))

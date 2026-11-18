@@ -41,7 +41,9 @@ def refused(response, status: int, code: str) -> bool:
 
 
 def test_every_route_but_the_health_check_needs_a_key(tmp_path):
-    service = make_service(tmp_path)
+    # Every route is tried without a key, which is more wrong keys than one
+    # address gets away with in a minute.
+    service = make_service(tmp_path, auth_failures_per_minute=100)
     routes = every_route(service.app)
     stranger = service.anonymous()
 
@@ -56,7 +58,7 @@ def test_every_route_but_the_health_check_needs_a_key(tmp_path):
 
 
 def test_the_same_goes_for_a_development_server_except_its_documentation(tmp_path):
-    service = make_service(tmp_path, dev=True)
+    service = make_service(tmp_path, dev=True, auth_failures_per_minute=100)
     stranger = service.anonymous()
     open_paths = {"/healthz", "/docs", "/openapi.json"}
 

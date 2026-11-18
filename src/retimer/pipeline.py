@@ -8,6 +8,7 @@ benchmark's measure of what the agent adds.
 
 from __future__ import annotations
 
+import dataclasses
 import math
 import time
 from collections.abc import Callable
@@ -18,6 +19,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from retimer.cache import Cache
+from retimer.choice import Candidate, ReferenceChoice, choose_reference
 from retimer.classify import LineLabel, classify_lines
 from retimer.counterpart import MatchedReferenceReport, match_reference
 from retimer.embed import Embedder
@@ -35,7 +37,6 @@ from retimer.providers import (
 from retimer.reference import (
     ReferenceTimeline,
     RefEvent,
-    timeline_from_subtitle,
     timeline_from_transcript,
 )
 from retimer.score import Score, score_alignment
@@ -127,6 +128,9 @@ class SyncReport(BaseModel):
     agent: dict | None = None
     # What became of the reference subtitle's lines, when it was asked back.
     matched_reference: MatchedReferenceReport | None = None
+    # Which reference subtitle the job was synced against and what was found
+    # out about each, when the job came with any.
+    reference_choice: ReferenceChoice | None = None
     cost_usd: dict[str, float] = Field(default_factory=dict)
     seconds: dict[str, float] = Field(default_factory=dict)
 
@@ -724,9 +728,17 @@ class Prepared:
     matching: Matching
     cost_usd: dict[str, float] = field(default_factory=dict)
     seconds: dict[str, float] = field(default_factory=dict)
-    # The reference subtitle as it came in, with the labels of its lines.
+    # The reference subtitle the job is synced against, as it came in, with the
+    # labels of its lines. With several to choose from it is the chosen one.
     reference: Subtitle | None = None
     reference_labels: list[LineLabel] | None = None
+    # What the choice between the reference subtitles gave, and the position
+    # of the one the job goes on with. That one can be a track that did not
+    # pass the routine check: the only one there is, or the closest of several.
+    choice: ReferenceChoice | None = None
+    used_reference: int | None = None
+    # No reference subtitle can serve and there is no audio: nothing to sync against.
+    refused: bool = False
 
 
 @dataclass
@@ -749,11 +761,18 @@ class Proposal:
     in_place: int = 0
 
 
+def _judge(matching: Matching, settings: Settings) -> tuple[str, int, int]:
+    """What a matching amounts to: the verdict, and how many comparable lines were placed."""
+    alignment = align(matching, settings)
+    return alignment.verdict, alignment.coverage.matched_lines, alignment.coverage.eligible_lines
+
+
 def prepare(
     target: Subtitle,
     *,
     audio: Path | None = None,
     reference: Subtitle | None = None,
+    references: list[Candidate] | None = None,
     options: Options | None = None,
     audio_language: str | None = None,
     reference_language: str | None = None,
@@ -765,10 +784,29 @@ def prepare(
 ) -> Prepared:
     """Run the steps that need no decision: the reference, the labels and the matching.
 
+    `reference` is one reference subtitle. `references` are several to choose
+    from, such as the subtitle tracks of a video file: the one in which most
+    of the target's dialogue finds its counterpart is taken, and the job goes
+    on with it as if it had come alone.
+
     `progress` is told which step begins: "transcribing", then "matching".
     """
-    if audio is None and reference is None:
+    candidates = list(references or [])
+    if reference is not None:
+        candidates.insert(0, Candidate(subtitle=reference))
+    if audio is None and not candidates:
         raise ValueError("a reference is needed: audio, a subtitle, or both")
+    if reference_language is not None:
+        # The hint names the language of a track that does not say its own.
+        candidates = [
+            dataclasses.replace(
+                candidate,
+                label=candidate.label.model_copy(update={"language": reference_language}),
+            )
+            if candidate.label.language is None
+            else candidate
+            for candidate in candidates
+        ]
     say = progress or (lambda step: None)
     options = options or Options()
     settings = settings or Settings()
@@ -801,19 +839,31 @@ def prepare(
 
     say("matching")
     started = time.monotonic()
-    reference_labels = classify_lines(reference) if reference is not None else None
-    if transcript is not None and reference is not None:
+    target_lines = views.match_view.lines
+    selection = None
+    if candidates:
+        selection = choose_reference(
+            candidates,
+            lambda timeline: match_lines(target_lines, timeline, embedder),
+            lambda matching: _judge(matching, settings),
+            has_audio=transcript is not None,
+        )
+    used = selection.used if selection is not None else None
+    matching = None
+    if transcript is not None and used is not None:
         timeline = combine_references(
-            timeline_from_subtitle(reference, reference_language, reference_labels),
-            timeline_from_transcript(transcript),
-            embedder,
-            settings,
+            used.timeline, timeline_from_transcript(transcript), embedder, settings
         )
     elif transcript is not None:
         timeline = timeline_from_transcript(transcript)
+    elif used is not None:
+        timeline, matching = used.timeline, used.matching
     else:
-        timeline = timeline_from_subtitle(reference, reference_language, reference_labels)
-    matching = match_lines(views.match_view.lines, timeline, embedder)
+        # No track can serve and there is no audio. The job is refused, and an
+        # empty reference stands in so that the report can still be written.
+        timeline = ReferenceTimeline(kind="subtitle", language=reference_language)
+    if matching is None:
+        matching = match_lines(target_lines, timeline, embedder)
     seconds["matching"] = round(time.monotonic() - started, 2)
     cost["embeddings"] = embedder.cost_usd
     return Prepared(
@@ -828,8 +878,11 @@ def prepare(
         matching=matching,
         cost_usd=cost,
         seconds=seconds,
-        reference=reference,
-        reference_labels=reference_labels,
+        reference=used.candidate.subtitle if used is not None else None,
+        reference_labels=used.labels if used is not None else None,
+        choice=selection.choice if selection is not None else None,
+        used_reference=used.index if used is not None else None,
+        refused=selection.refused if selection is not None else False,
     )
 
 
@@ -893,6 +946,11 @@ def propose(prepared: Prepared, adjustments: Adjustments | None = None) -> Propo
             confidence=round(min(1.0, max(0.0, report.confidence)), 2),
         )
         report.outcome = outcome
+        if choice is not None:
+            report.reference_choice = choice.settled(
+                prepared.used_reference,
+                placed=outcome != "rejected_no_match" and verdict == "aligned",
+            )
         subtitle = None if outcome == "rejected_no_match" else apply_plan(target, plan).subtitle
         state.result = SyncResult(plan=plan, subtitle=subtitle, report=report)
         return state
@@ -908,6 +966,19 @@ def propose(prepared: Prepared, adjustments: Adjustments | None = None) -> Propo
             return finish("partial", list(views.content_ops), [])
         except PlanError:
             return finish("partial", [], [])
+
+    choice = prepared.choice
+    if choice is not None and choice.chosen is None:
+        several = len(choice.candidates) > 1
+        if prepared.refused:
+            warnings.append(
+                f"{choice.reason} There is no audio to sync against instead, so the job is refused."
+            )
+            return finish("rejected_no_match", [], [])
+        if prepared.used_reference is None:
+            warnings.append(f"{choice.reason} The target was synced against the audio alone.")
+        elif several:
+            warnings.append(choice.reason)
 
     if verdict == "no_match":
         report.confidence = 1.0 - alignment.coverage.share
@@ -1120,7 +1191,11 @@ def with_matched_reference(prepared: Prepared, result: SyncResult) -> SyncResult
     """
     report = result.report.model_copy(deep=True)
     made: Subtitle | None = None
-    if prepared.reference is None or prepared.reference_labels is None:
+    if prepared.choice is not None and prepared.reference is None:
+        found = MatchedReferenceReport(
+            note="No reference subtitle of the job fits the target, so there is none to hand back."
+        )
+    elif prepared.reference is None or prepared.reference_labels is None:
         found = MatchedReferenceReport(note="The job has no reference subtitle.")
     elif result.subtitle is None:
         found = MatchedReferenceReport(note="The reference is other content than the target.")
@@ -1169,6 +1244,7 @@ def sync(
     *,
     audio: Path | None = None,
     reference: Subtitle | None = None,
+    references: list[Candidate] | None = None,
     options: Options | None = None,
     audio_language: str | None = None,
     reference_language: str | None = None,
@@ -1180,15 +1256,18 @@ def sync(
 ) -> SyncResult:
     """Synchronize `target` to the audio, the reference subtitle, or both.
 
-    `audio_language` is a hint for the speech model; without it the language is
-    detected. `reference_language` only labels the reference subtitle. With
-    `matched_reference` the result also holds the reference subtitle, reduced
-    to the lines the target has a counterpart for.
+    `references` are several reference subtitles to choose from: the one that
+    fits the target best is taken. `audio_language` is a hint for the speech
+    model; without it the language is detected. `reference_language` only
+    labels the reference subtitle. With `matched_reference` the result also
+    holds the reference subtitle, reduced to the lines the target has a
+    counterpart for.
     """
     prepared = prepare(
         target,
         audio=audio,
         reference=reference,
+        references=references,
         options=options,
         audio_language=audio_language,
         reference_language=reference_language,

@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, StringConstraints
+from pydantic import BaseModel, BeforeValidator, ConfigDict, StringConstraints
 
 from retimer.api.store import (
     FINISHED,
@@ -24,6 +24,49 @@ Language = Annotated[
 ]
 
 
+# What the service can do beyond its first release, for a client that also
+# talks to servers of an earlier one. The health check lists them.
+FEATURES = ("matched_reference", "ocr", "reference_tracks", "remove_signs_and_credits")
+
+_TITLE_CHARS = 200
+_LANGUAGE_CHARS = 35
+
+
+def _one_line(value: object) -> object:
+    """A label as a container gives it: any text. Kept to one printable line."""
+    if not isinstance(value, str):
+        return value
+    return " ".join("".join(char if char.isprintable() else " " for char in value).split())
+
+
+def _title(value: object) -> object:
+    text = _one_line(value)
+    return (text[:_TITLE_CHARS] or None) if isinstance(text, str) else text
+
+
+def _track_language(value: object) -> object:
+    text = _one_line(value)
+    return (text[:_LANGUAGE_CHARS].lower() or None) if isinstance(text, str) else text
+
+
+class ReferenceTrack(BaseModel):
+    """What a video file says about one of its subtitle tracks. Every field is optional.
+
+    These are hints. Which track a job is synced against is decided by what
+    the tracks contain, and the labels only decide between tracks that fit
+    equally well. They come back in the report next to what was found.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    # As the container has it: "en", "eng", "pt-BR", "und". Not checked, only kept short.
+    language: Annotated[str | None, BeforeValidator(_track_language)] = None
+    # Free text, such as "Signs & Songs".
+    title: Annotated[str | None, BeforeValidator(_title)] = None
+    default: bool | None = None
+    forced: bool | None = None
+
+
 class JobOptions(BaseModel):
     """The `options` of a job. A name that is not listed here is refused, not ignored."""
 
@@ -31,6 +74,9 @@ class JobOptions(BaseModel):
 
     remove_hearing_impaired: bool = False
     remove_karaoke: bool = False
+    # Drop what is shown on screen and not spoken: signs, and the credits and
+    # advertisements of whoever made or passed on the file.
+    remove_signs_and_credits: bool = False
     strip_formatting: bool = False
     remove_symbols: bool = False
     # Trim leading or trailing lines when the reference confirms the content is absent.
@@ -38,6 +84,9 @@ class JobOptions(BaseModel):
     # Hints. The language of the audio is detected when it is not given.
     audio_language: Language | None = None
     reference_language: Language | None = None
+    # One entry for every reference_subtitle of the job, in the order they
+    # were sent: what the video file says about that track.
+    reference_tracks: list[ReferenceTrack] | None = None
     # Also hand back the reference subtitle, reduced to the dialogue lines the
     # delivered target has a counterpart for. Needs a reference subtitle.
     matched_reference: bool = False

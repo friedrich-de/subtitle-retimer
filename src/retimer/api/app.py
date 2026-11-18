@@ -35,7 +35,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 from retimer.api.auth import bearer_key, verify
 from retimer.api.config import ApiSettings
 from retimer.api.limits import SlidingWindow, Slots, address_name
-from retimer.api.schemas import JobOptions, OcrOptions, job_view
+from retimer.api.schemas import FEATURES, JobOptions, OcrOptions, job_view
 from retimer.api.store import (
     FINISHED,
     IMAGE_SUBTITLE,
@@ -49,8 +49,9 @@ from retimer.api.store import (
     TARGET,
     Job,
     JobStore,
+    reference_file,
 )
-from retimer.api.worker import Services, Worker, agent_available
+from retimer.api.worker import Services, Worker, agent_available, matched_reference_source
 from retimer.audio import ALLOWED_CONTAINERS, AudioError, AudioInfo, ToolMissing, probe_audio
 from retimer.cache import CACHE_DIR_ENV, Cache
 from retimer.classify import classify_lines
@@ -63,6 +64,7 @@ log = logging.getLogger("retimer.api")
 
 HEALTH_PATH = "/healthz"
 JOBS_PATH = "/v1/jobs"
+FEATURES_PATH = "/v1/features"
 OCR_PATH = "/v1/ocr"
 # The part of an OCR request that holds the image subtitle.
 OCR_FILE = "subtitle"
@@ -294,12 +296,13 @@ def _disposition(filename: str) -> str:
 @dataclass
 class _Parts:
     target: UploadFile
-    reference_subtitle: UploadFile | None
+    # In the order they were sent. Several are candidates to choose from.
+    reference_subtitles: list[UploadFile]
     reference_audio: UploadFile | None
     options: JobOptions
 
 
-def _read_form(form: FormData) -> _Parts:
+def _read_form(form: FormData, max_references: int) -> _Parts:
     """Check the shape of a submission: which parts are there, and of which kind."""
     known = {*_FORM_FILES, "options"}
     for name in form:
@@ -310,37 +313,52 @@ def _read_form(form: FormData) -> _Parts:
                 f"The form has a part this service does not know: {name[:40]!r}. "
                 f"It takes {', '.join(sorted(known))}.",
             )
-        if len(form.getlist(name)) > 1:
+        # Only the reference subtitle may come more than once.
+        if name != REFERENCE_SUBTITLE and len(form.getlist(name)) > 1:
             raise ApiError(422, "repeated_field", f"The form has more than one part named {name}.")
-    files: dict[str, UploadFile | None] = {}
     for name in _FORM_FILES:
-        part = form.get(name)
-        if part is not None and not isinstance(part, UploadFile):
+        if any(not isinstance(part, UploadFile) for part in form.getlist(name)):
             raise ApiError(422, "not_a_file", f"{name} has to be sent as a file.")
-        files[name] = part
-    target = files[TARGET]
+    target = form.get(TARGET)
+    references = form.getlist(REFERENCE_SUBTITLE)
+    audio = form.get(REFERENCE_AUDIO)
     if target is None:
         raise ApiError(
             422, "missing_target", "The form has no target: the subtitle to synchronize."
         )
-    if files[REFERENCE_SUBTITLE] is None and files[REFERENCE_AUDIO] is None:
+    if not references and audio is None:
         raise ApiError(
             422,
             "missing_reference",
             "A job needs a reference: reference_audio, reference_subtitle, or both.",
         )
+    if len(references) > max_references:
+        raise ApiError(
+            422,
+            "too_many_reference_subtitles",
+            f"The form has {len(references)} parts named {REFERENCE_SUBTITLE}. A job takes "
+            f"up to {max_references} to choose from.",
+        )
     options = _options(form.get("options"), JobOptions)
-    if options.matched_reference and files[REFERENCE_SUBTITLE] is None:
+    if options.matched_reference and not references:
         raise ApiError(
             422,
             "missing_reference_subtitle",
             "matched_reference hands back the reference subtitle, so the job needs a "
             "reference_subtitle. Audio alone has no lines to hand back.",
         )
+    tracks = options.reference_tracks
+    if tracks is not None and len(tracks) != len(references):
+        raise ApiError(
+            422,
+            "reference_tracks_mismatch",
+            f"reference_tracks has {len(tracks)} entries and the form has {len(references)} "
+            f"parts named {REFERENCE_SUBTITLE}. It takes one entry for each, in the same order.",
+        )
     return _Parts(
         target=target,
-        reference_subtitle=files[REFERENCE_SUBTITLE],
-        reference_audio=files[REFERENCE_AUDIO],
+        reference_subtitles=references,
+        reference_audio=audio,
         options=options,
     )
 
@@ -393,7 +411,10 @@ class _Intake:
         self.probe = probe
         self.agent_ready = agent_ready
 
-    def _save(self, upload: UploadFile, path: Path, limit: int, field: str) -> int:
+    def _save(
+        self, upload: UploadFile, path: Path, limit: int, field: str, part: str | None = None
+    ) -> int:
+        part = part or field
         if upload.size is not None and upload.size > limit:
             raise ApiError(
                 413, "file_too_large", f"{field} is larger than the {_megabytes(limit)} allowed."
@@ -408,20 +429,24 @@ class _Intake:
                 413, "file_too_large", f"{field} is larger than the {_megabytes(limit)} allowed."
             )
         if size == 0:
-            raise ApiError(422, f"invalid_{field}", f"{field} is empty.")
+            raise ApiError(422, f"invalid_{part}", f"{field} is empty.")
         return size
 
-    def _subtitle(self, upload: UploadFile, path: Path, field: str) -> dict[str, Any]:
-        size = self._save(upload, path, self.settings.max_subtitle_bytes, field)
+    def _subtitle(
+        self, upload: UploadFile, path: Path, part: str, field: str | None = None
+    ) -> dict[str, Any]:
+        """Store a subtitle and check it. `field` is what a message calls it."""
+        field = field or part
+        size = self._save(upload, path, self.settings.max_subtitle_bytes, field, part)
         try:
             subtitle = load(path)
         except SubtitleError as error:
-            raise ApiError(422, f"invalid_{field}", f"{field}: {error}.") from error
+            raise ApiError(422, f"invalid_{part}", f"{field}: {error}.") from error
         except Exception as error:
             # A file that trips the parser is a file that cannot be read.
             log.info("%s could not be parsed: %r", field, error)
             raise ApiError(
-                422, f"invalid_{field}", f"{field}: the file could not be read as a subtitle."
+                422, f"invalid_{part}", f"{field}: the file could not be read as a subtitle."
             ) from error
         if len(subtitle) > self.settings.max_subtitle_lines:
             raise ApiError(
@@ -437,7 +462,7 @@ class _Intake:
             if length > self.settings.max_line_chars:
                 raise ApiError(
                     422,
-                    f"invalid_{field}",
+                    f"invalid_{part}",
                     f"{field}: the line at {line.start_ms / 1000:.0f} s has {length} characters "
                     f"of text. The limit is {self.settings.max_line_chars}. Is the file cut "
                     "into lines correctly?",
@@ -451,12 +476,51 @@ class _Intake:
                 f"The limit is {self.settings.max_dialogue_lines}.",
             )
         return {
-            "filename": _safe_name(upload.filename, field),
+            "filename": _safe_name(upload.filename, part),
             "format": subtitle.format,
             "bytes": size,
             "lines": len(subtitle),
             "dialogue_lines": dialogue,
         }
+
+    def _references(
+        self, uploads: list[UploadFile], options: JobOptions, directory: Path, has_audio: bool
+    ) -> list[dict[str, Any]]:
+        """Store the reference subtitles of a job. One entry for each, in the order sent.
+
+        One reference subtitle has to be readable, as it always had to. Of
+        several, one that cannot be read does not sink the job: a client that
+        sends every track of a video file cannot know which of them is broken.
+        Its entry says what is wrong with it, and the job goes on with the rest.
+        """
+        tracks = options.reference_tracks or [None] * len(uploads)
+        single = len(uploads) == 1
+        entries: list[dict[str, Any]] = []
+        refused: ApiError | None = None
+        for index, (upload, track) in enumerate(zip(uploads, tracks, strict=True)):
+            field = REFERENCE_SUBTITLE if single else f"{REFERENCE_SUBTITLE}[{index}]"
+            path = directory / reference_file(index)
+            entry: dict[str, Any] = {
+                "index": index,
+                "language": track.language if track else None,
+                "title": track.title if track else None,
+                "default": bool(track.default) if track else False,
+                "forced": bool(track.forced) if track else False,
+            }
+            try:
+                entry.update(self._subtitle(upload, path, REFERENCE_SUBTITLE, field))
+            except ApiError as error:
+                # A file over the size limit is refused whatever came with it.
+                if single or error.status != 422:
+                    raise
+                path.unlink(missing_ok=True)
+                refused = refused or error
+                entry["filename"] = _safe_name(upload.filename, REFERENCE_SUBTITLE)
+                entry["error"] = {"code": error.code, "message": error.message}
+            entries.append(entry)
+        if refused is not None and not has_audio and all("error" in entry for entry in entries):
+            raise refused
+        return entries
 
     def _audio(self, upload: UploadFile, path: Path) -> dict[str, Any]:
         field = REFERENCE_AUDIO
@@ -505,22 +569,31 @@ class _Intake:
             request: dict[str, Any] = {
                 "target": self._subtitle(parts.target, directory / TARGET, TARGET),
                 "reference_subtitle": None,
+                "reference_subtitles": [],
                 "reference_audio": None,
             }
-            if parts.reference_subtitle is not None:
-                request["reference_subtitle"] = self._subtitle(
-                    parts.reference_subtitle, directory / REFERENCE_SUBTITLE, REFERENCE_SUBTITLE
-                )
+            references = self._references(
+                parts.reference_subtitles, options, directory, parts.reference_audio is not None
+            )
+            request["reference_subtitles"] = references
+            # A job with one reference subtitle also names it as it always did.
+            if len(references) == 1:
+                request["reference_subtitle"] = references[0]
             if parts.reference_audio is not None:
                 request["reference_audio"] = self._audio(
                     parts.reference_audio, directory / REFERENCE_AUDIO
                 )
-            request["options"] = options.model_dump(exclude={"agent", "output_format"})
+            request["options"] = options.model_dump(
+                exclude={"agent", "output_format", "reference_tracks"}
+            )
             request["agent"] = agent
             request["output_format"] = options.output_format or request["target"]["format"]
             if options.matched_reference:
-                request["matched_reference_format"] = (
-                    options.output_format or request["reference_subtitle"]["format"]
+                # Without a format of its own it takes the format of the
+                # reference subtitle the job is synced against. With several
+                # to choose from, that is known when the job has run.
+                request["matched_reference_format"] = options.output_format or (
+                    references[0]["format"] if len(references) == 1 else None
                 )
             job = self.store.add(job_id, owner, request)
         except BaseException:
@@ -528,11 +601,11 @@ class _Intake:
             raise
         audio = request["reference_audio"]
         log.info(
-            "job %s accepted from %s: target %d lines, reference subtitle %s, audio %s, agent %s",
+            "job %s accepted from %s: target %d lines, reference subtitles %d, audio %s, agent %s",
             job.id,
             owner,
             request["target"]["lines"],
-            "yes" if request["reference_subtitle"] else "no",
+            len(references),
             f"{audio['duration_ms'] / 60_000:.1f} min" if audio else "no",
             agent,
         )
@@ -620,7 +693,10 @@ _SUBMIT_SCHEMA = {
                         "reference_subtitle": {
                             "type": "string",
                             "format": "binary",
-                            "description": "A subtitle that is in sync, in any language.",
+                            "description": "A subtitle that is in sync, in any language. "
+                            "The part may come several times, such as once for every "
+                            "subtitle track of a video file: the one that fits the target "
+                            "best is taken.",
                         },
                         "options": {
                             "type": "string",
@@ -795,6 +871,25 @@ def create_app(
     def health() -> dict[str, str]:
         return {"status": "ok"}
 
+    @app.get(FEATURES_PATH, summary="What this server can do, and the limits of a job")
+    def features() -> dict[str, Any]:
+        """For a client that also talks to servers of an earlier release.
+
+        A server without this call has none of the features it would list.
+        """
+        return {
+            "features": list(FEATURES),
+            "limits": {
+                "reference_subtitles": settings.max_reference_subtitles,
+                "request_bytes": settings.max_body_bytes,
+                "subtitle_bytes": settings.max_subtitle_bytes,
+                "subtitle_dialogue_lines": settings.max_dialogue_lines,
+                "audio_bytes": min(settings.max_audio_bytes, settings.max_body_bytes),
+                "audio_minutes": settings.max_audio_minutes,
+                "image_subtitle_bytes": settings.image_subtitle_limit,
+            },
+        }
+
     def admit(owner: str) -> None:
         """Refuse a submission before its body is read, where that can be known already."""
         if shutil.disk_usage(settings.data_dir).free < settings.min_free_bytes:
@@ -849,8 +944,13 @@ def create_app(
         await run_in_threadpool(admit, owner)
         try:
             submissions_left(owner)
-            async with request.form(max_files=3, max_fields=4, max_part_size=64 * 1024) as form:
-                parts = _read_form(form)
+            # A few parts more than a job takes are read, so that a form with
+            # too many gets an answer that says so.
+            most = settings.max_reference_subtitles
+            async with request.form(
+                max_files=most + 6, max_fields=4, max_part_size=64 * 1024
+            ) as form:
+                parts = _read_form(form, most)
                 job = await run_in_threadpool(intake.accept, owner, parts)
         finally:
             uploads.release(owner)
@@ -927,8 +1027,9 @@ def create_app(
                 f"The job ended as {job.outcome} and has no matched reference. "
                 "Its report says why.",
             )
-        fmt = job.request["matched_reference_format"]
-        stem = _stem(job.request["reference_subtitle"]["filename"])
+        source = matched_reference_source(job.request, (job.summary or {}).get("reference"))
+        fmt = job.request.get("matched_reference_format") or source["format"]
+        stem = _stem(source["filename"])
         return Response(
             path.read_bytes(),
             media_type=f"{_MEDIA_TYPES[fmt]}; charset=utf-8",

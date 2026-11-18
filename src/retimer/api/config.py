@@ -62,6 +62,10 @@ class ApiSettings(BaseModel):
     # dialogue among as many as 140,000 that redraw a sign frame by frame.
     max_subtitle_lines: int = 400_000
     max_dialogue_lines: int = 4_000
+    # Reference subtitles one job may come with, for the service to choose
+    # from. A video file seldom holds more text tracks than this, and each is
+    # read and compared with the target.
+    max_reference_subtitles: int = 6
     # The text of one line, tags and drawings aside. Nothing a viewer could
     # read is this long, and a file that is cut wrong can be.
     max_line_chars: int = 2_000
@@ -106,11 +110,12 @@ class ApiSettings(BaseModel):
 
     @property
     def max_body_bytes(self) -> int:
-        """The most a request may carry: one audio file, two subtitles and the form around them.
+        """The most a request may carry: one audio file, the subtitles and the form around them.
 
         Never more than `max_request_bytes`, whatever the files may be on their own.
         """
-        files = self.max_audio_bytes + 2 * self.max_subtitle_bytes + 64 * 1024
+        subtitles = 1 + self.max_reference_subtitles
+        files = self.max_audio_bytes + subtitles * self.max_subtitle_bytes + 64 * 1024
         return min(files, self.max_request_bytes)
 
     @property
@@ -171,6 +176,7 @@ class ApiSettings(BaseModel):
         take("RETIMER_MAX_AUDIO_MINUTES", "max_audio_minutes", int)
         take("RETIMER_MAX_SUBTITLE_LINES", "max_subtitle_lines", int)
         take("RETIMER_MAX_DIALOGUE_LINES", "max_dialogue_lines", int)
+        take("RETIMER_MAX_REFERENCE_SUBTITLES", "max_reference_subtitles", int)
         take("RETIMER_REQUESTS_PER_MINUTE", "requests_per_minute", int)
         take("RETIMER_JOBS_PER_HOUR", "jobs_per_hour", int)
         take("RETIMER_MAX_ACTIVE_JOBS", "max_active_jobs", int)
@@ -208,6 +214,7 @@ class ApiSettings(BaseModel):
             "max_audio_minutes",
             "max_subtitle_lines",
             "max_dialogue_lines",
+            "max_reference_subtitles",
             "max_line_chars",
             "requests_per_minute",
             "jobs_per_hour",

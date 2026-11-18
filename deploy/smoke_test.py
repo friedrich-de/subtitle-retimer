@@ -7,13 +7,15 @@ whenever the service is in doubt:
     cd /opt/retimer/current
     .venv/bin/python deploy/smoke_test.py --url https://retimer.example
 
-It checks the gate, then sends two real jobs with a subtitle of Tears of Steel.
+It checks the gate, then sends three real jobs with a subtitle of Tears of Steel.
 One has a block moved by 41 seconds and goes against the audio of the film,
-which takes a transcript. The other has an outro added that the film does not
+which takes a transcript. The second has an outro added that the film does not
 have and goes against the Japanese subtitle, which takes the agent, and asks
-for that subtitle back as the matched reference. Together they cost about one
-cent at the providers. `--large` adds the uploads around
-the size limit, which is where the proxy in front has a say of its own.
+for that subtitle back as the matched reference. The third comes with three
+reference subtitles, as a video file holds them: a track of signs, the
+subtitle of another film and the Japanese one, which the service has to find.
+Together they cost about one cent at the providers. `--large` adds the uploads
+around the size limit, which is where the proxy in front has a say of its own.
 
 The key comes from a file and is never printed, and never sent over plain HTTP
 to anything but this machine.
@@ -51,6 +53,9 @@ BLOCK_SHIFT_MS = 41_000
 OFFSET_MS = 2_500
 OUTRO = ("Thank you for watching.", "Subscribe for more films like this one.", "See you next time.")
 TOLERANCE_MS = 500
+# The third job: what a track of signs shows, and the film whose subtitle is other content.
+SIGNS = ("Harbor Office", "Platform 3", "Closed on Sundays", "Chapter Two", "North Gate")
+OTHER_SEED = "sintel"
 MB = 1024 * 1024
 LOCAL = ("127.0.0.1", "localhost", "::1")
 
@@ -120,6 +125,20 @@ def late_with_outro() -> tuple[bytes, list[int]]:
     return subtitle.to_string("srt").encode("utf-8"), truth
 
 
+def signs_track() -> bytes:
+    """A track of signs, as a video file has it next to the full one. No line is spoken."""
+    subtitle = pysubs2.SSAFile()
+    subtitle.styles["Signs"] = pysubs2.SSAStyle()
+    for index, text in enumerate(SIGNS):
+        start = 5_000 + index * 17_000
+        subtitle.append(
+            pysubs2.SSAEvent(
+                start=start, end=start + 2_000, style="Signs", text="{\\pos(320,60)}" + text
+            )
+        )
+    return subtitle.to_string("ass").encode("utf-8")
+
+
 def check_gate(checks: Checks, url: str, key: str) -> None:
     host = urlsplit(url).hostname or ""
     # A proxy on this machine is believed about HTTPS, so a check against the
@@ -151,7 +170,12 @@ def check_gate(checks: Checks, url: str, key: str) -> None:
             "an upload without a key is refused",
             str(response.status_code),
         )
-        for path in ("/docs", "/openapi.json", "/v1/jobs/0123456789abcdef0123456789abcdef"):
+        for path in (
+            "/docs",
+            "/openapi.json",
+            "/v1/features",
+            "/v1/jobs/0123456789abcdef0123456789abcdef",
+        ):
             response = client.get(path)
             checks.check(response.status_code == 401, f"{path} says nothing without a key", "401")
 
@@ -160,6 +184,13 @@ def check_gate(checks: Checks, url: str, key: str) -> None:
             response.status_code == 200 and "jobs" in response.json(),
             "a request with the key is served",
             str(response.status_code),
+        )
+        response = client.get("/v1/features", headers={"Authorization": f"Bearer {key}"})
+        features = response.json().get("features", []) if response.status_code == 200 else []
+        checks.check(
+            {"reference_tracks", "remove_signs_and_credits"} <= set(features),
+            "the service says what it can do",
+            f"{response.status_code} {features}",
         )
 
     if host not in LOCAL and url.startswith("https://"):
@@ -274,6 +305,66 @@ def run_job(
         )
 
 
+def run_choice(checks: Checks, client: httpx.Client, wait_s: float) -> None:
+    """Send a target with three reference subtitles and see that the right one is taken."""
+    subtitle, truth = late_with_outro()
+    tracks = [
+        ("signs.ass", signs_track(), {"language": "eng", "title": "Signs", "forced": True}),
+        (
+            f"{OTHER_SEED}.en.srt",
+            (SEEDS / OTHER_SEED / "en.srt").read_bytes(),
+            {"language": "eng", "title": "English", "default": True},
+        ),
+        ("tears-of-steel.ja.srt", (SEEDS / SEED / "ja.srt").read_bytes(), {"language": "jpn"}),
+    ]
+    options = {"agent": "off", "reference_tracks": [label for _, _, label in tracks]}
+    files = [("target", ("tears-of-steel.en.srt", subtitle))]
+    files += [("reference_subtitle", (name, content)) for name, content, _ in tracks]
+    response = client.post("/v1/jobs", files=files, data={"options": json.dumps(options)})
+    if not checks.check(
+        response.status_code == 202,
+        "a job with three reference subtitles is accepted",
+        f"{response.status_code} {error_code(response) or ''}".strip(),
+    ):
+        checks.note(response.text[:300])
+        return
+    job = response.json()
+    path = f"/v1/jobs/{job['id']}"
+    try:
+        deadline = time.monotonic() + wait_s
+        while job["status"] != "finished" and time.monotonic() < deadline:
+            time.sleep(2)
+            job = client.get(path).json()
+        if not checks.check(job["status"] == "finished", "the job finishes", job["status"]):
+            return
+        summary = job.get("summary") or {}
+        reference = summary.get("reference") or {}
+        verdicts = [track.get("verdict") for track in reference.get("candidates") or []]
+        checks.check(
+            job["outcome"] == "synced" and reference.get("chosen") == 2,
+            "the subtitle of the film is chosen among the three",
+            f"{job['outcome']}, chosen {reference.get('chosen')}",
+        )
+        checks.check(
+            verdicts == ["too_little_dialogue", "no_match", "chosen"],
+            "the signs and the other film are told apart from it",
+            ", ".join(str(verdict) for verdict in verdicts),
+        )
+        checks.note(f"{reference.get('reason')} {summary.get('cost_usd')} USD")
+        response = client.get(path + "/result")
+        if checks.check(response.status_code == 200, "the result can be fetched"):
+            starts = [line.start for line in pysubs2.SSAFile.from_string(response.text)]
+            near = sum(abs(a - b) <= TOLERANCE_MS for a, b in zip(starts, truth, strict=False))
+            checks.check(
+                near >= 0.9 * len(truth),
+                "the lines are back where they belong",
+                f"{near} of {len(truth)} within {TOLERANCE_MS} ms",
+            )
+    finally:
+        deleted = client.delete(path)
+        checks.check(deleted.status_code == 204, "the job is deleted on request")
+
+
 def upload_with_curl(url: str, key: str, body: Path, work: Path) -> tuple[int, str]:
     """Send `body` as audio with curl, which takes an answer that comes before the upload ends.
 
@@ -386,6 +477,7 @@ def main() -> int:
                 extra_lines=args.no_agent,
                 matched_reference=True,
             )
+            run_choice(checks, client, args.wait)
             if args.large:
                 check_limits(checks, url, key, client, audio, args.media, args.wait)
     with contextlib.suppress(BrokenPipeError):

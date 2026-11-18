@@ -22,6 +22,28 @@ def test_remove_hearing_impaired(ass):
     ]
 
 
+def test_remove_signs_and_credits(ass):
+    assert ops_of(ass, remove_signs_and_credits=True) == [
+        RemoveLines(reason="signs", ids=[7, 8]),
+        RemoveLines(reason="credits", ids=[12]),
+    ]
+    # A drawing is a sign, and is removed as one whatever else is asked.
+    assert ops_of(ass, remove_signs_and_credits=True, strip_formatting=True) == [
+        RemoveLines(reason="signs", ids=[7, 8]),
+        RemoveLines(reason="credits", ids=[12]),
+        StripText(what="formatting", ids=[1, 2, 4, 11]),
+    ]
+
+
+def test_signs_that_carry_no_mark_of_one_stay():
+    # In a plain SRT nothing tells a sign from a line of dialogue.
+    subtitle = loads(
+        "1\n00:00:01,000 --> 00:00:03,000\nTokyo Station\n\n"
+        "2\n00:00:04,000 --> 00:00:06,000\nWhere are we going?\n"
+    )
+    assert ops_of(subtitle, remove_signs_and_credits=True) == []
+
+
 def test_remove_symbols_drops_lines_that_hold_nothing_else(ass, srt):
     assert ops_of(ass, remove_symbols=True) == [RemoveLines(reason="symbols", ids=[10])]
     assert ops_of(srt, remove_symbols=True) == [StripText(what="symbols", ids=[2, 5])]

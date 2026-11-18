@@ -24,6 +24,9 @@ class Options(BaseModel):
 
     remove_hearing_impaired: bool = False
     remove_karaoke: bool = False
+    # Text that is shown on screen and not spoken: signs, drawings, and the
+    # credits and advertisements of whoever made or passed on the file.
+    remove_signs_and_credits: bool = False
     strip_formatting: bool = False
     remove_symbols: bool = False
     # Trim leading or trailing lines that the reference confirms are absent. This one
@@ -75,6 +78,9 @@ def build_content_ops(
             continue
         if options.remove_hearing_impaired and label == "sound_description":
             remove.setdefault("hearing_impaired", []).append(line.id)
+            continue
+        if options.remove_signs_and_credits and label in ("sign", "credit"):
+            remove.setdefault(f"{label}s", []).append(line.id)
             continue
         if options.strip_formatting and is_drawing(line.text):
             remove.setdefault("drawing", []).append(line.id)

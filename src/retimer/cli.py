@@ -46,6 +46,7 @@ def _options(args: argparse.Namespace) -> Options:
     return Options(
         remove_hearing_impaired=args.remove_hearing_impaired,
         remove_karaoke=args.remove_karaoke,
+        remove_signs_and_credits=args.remove_signs_and_credits,
         strip_formatting=args.strip_formatting,
         remove_symbols=args.remove_symbols,
         drop_unmatched=not getattr(args, "keep_unmatched", False),
@@ -61,17 +62,23 @@ def _cmd_clean(args: argparse.Namespace) -> int:
 
 def _cmd_sync(args: argparse.Namespace) -> int:
     # Imported here: the other commands do not need numpy and start faster without it.
+    from retimer.choice import MAX_REFERENCES, Candidate
     from retimer.pipeline import sync
 
-    if not args.audio and not args.reference:
+    paths = args.reference or []
+    if not args.audio and not paths:
         print("error: give --audio, --reference, or both", file=sys.stderr)
         return 1
-    if args.matched_reference and not args.reference:
+    if args.matched_reference and not paths:
         print("error: --matched-reference needs --reference", file=sys.stderr)
+        return 1
+    if len(paths) > MAX_REFERENCES:
+        print(f"error: --reference can be given up to {MAX_REFERENCES} times", file=sys.stderr)
         return 1
     job = {
         "audio": Path(args.audio) if args.audio else None,
-        "reference": load(args.reference) if args.reference else None,
+        # Several are candidates: the one that fits the target best is taken.
+        "references": [Candidate(subtitle=load(path), filename=Path(path).name) for path in paths],
         "options": _options(args),
         "audio_language": args.audio_language,
         "matched_reference": bool(args.matched_reference),
@@ -126,6 +133,18 @@ def _cmd_sync(args: argparse.Namespace) -> int:
         "warnings": report.warnings,
         "cost_usd": round(report.total_cost_usd, 5),
     }
+    if report.reference_choice is not None and len(report.reference_choice.candidates) > 1:
+        choice = report.reference_choice
+        summary["reference"] = {
+            "chosen": choice.candidates[choice.chosen].filename
+            if choice.chosen is not None
+            else None,
+            "reason": choice.reason,
+            "candidates": [
+                {"file": found.filename, "verdict": found.verdict, "reason": found.reason}
+                for found in choice.candidates
+            ],
+        }
     if report.matched_reference is not None:
         # The pairs themselves are in the report. Here they are only counted.
         summary["matched_reference"] = {
@@ -189,6 +208,11 @@ def _apply(subtitle, plan: Plan, args: argparse.Namespace) -> int:
 def _add_content_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--remove-hearing-impaired", action="store_true")
     parser.add_argument("--remove-karaoke", action="store_true")
+    parser.add_argument(
+        "--remove-signs-and-credits",
+        action="store_true",
+        help="drop what is shown on screen and not spoken: signs, credits, advertisements",
+    )
     parser.add_argument("--strip-formatting", action="store_true")
     parser.add_argument("--remove-symbols", action="store_true")
 
@@ -228,7 +252,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
     syncer.add_argument("file", help="the subtitle to retime")
     syncer.add_argument("--audio", help="audio of the video the subtitle should fit")
-    syncer.add_argument("--reference", help="a subtitle that is in sync, in any language")
+    syncer.add_argument(
+        "--reference",
+        action="append",
+        metavar="FILE",
+        help="a subtitle that is in sync, in any language; given several times, such as "
+        "once for every subtitle track of a video, the one that fits the target best is taken",
+    )
     syncer.add_argument("--audio-language", help="language spoken in the audio, if known")
     _add_content_options(syncer)
     syncer.add_argument(

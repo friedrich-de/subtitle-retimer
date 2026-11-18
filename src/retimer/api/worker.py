@@ -29,9 +29,11 @@ from retimer.api.store import (
     TARGET,
     Job,
     JobStore,
+    reference_file,
 )
 from retimer.audio import AudioError
 from retimer.cache import Cache
+from retimer.choice import Candidate, ReferenceChoice, TrackLabel
 from retimer.io import SubtitleError, dumps, load
 from retimer.providers import OpenRouter, ProviderError
 from retimer.views import Options
@@ -74,6 +76,67 @@ def agent_available() -> bool:
     return agent.agent_available()
 
 
+def _candidates(request: dict[str, Any], directory: Path) -> list[Candidate]:
+    """The reference subtitles of a job, in the order they were sent."""
+    entries = request.get("reference_subtitles")
+    if entries is None:
+        # A job that an earlier release took in: one reference subtitle at most.
+        path = directory / REFERENCE_SUBTITLE
+        if not path.is_file():
+            return []
+        entry = request.get("reference_subtitle") or {}
+        return [Candidate(subtitle=load(path), filename=entry.get("filename"))]
+    candidates = []
+    for entry in entries:
+        label = TrackLabel(
+            language=entry.get("language"),
+            title=entry.get("title"),
+            default=bool(entry.get("default")),
+            forced=bool(entry.get("forced")),
+        )
+        if "error" in entry:
+            # It could not be read when the job came in, and its entry says why.
+            candidates.append(
+                Candidate(
+                    subtitle=None,
+                    label=label,
+                    filename=entry.get("filename"),
+                    problem=entry["error"]["message"],
+                )
+            )
+            continue
+        candidates.append(
+            Candidate(
+                subtitle=load(directory / reference_file(entry["index"])),
+                label=label,
+                filename=entry.get("filename"),
+            )
+        )
+    return candidates
+
+
+def matched_reference_source(
+    request: dict[str, Any], reference: dict[str, Any] | None
+) -> dict[str, Any]:
+    """What a job's request says about the reference subtitle its matched reference is made of.
+
+    `reference` is the choice between the reference subtitles as the job's
+    summary has it. The matched reference comes from the chosen one.
+    """
+    entries = request.get("reference_subtitles") or []
+    chosen = (reference or {}).get("chosen")
+    if chosen is not None and 0 <= chosen < len(entries):
+        return entries[chosen]
+    return request.get("reference_subtitle") or (entries[0] if entries else {})
+
+
+def _reference_summary(choice: ReferenceChoice | None) -> dict[str, Any] | None:
+    """The choice between the reference subtitles, as the summary of a job shows it."""
+    if choice is None:
+        return None
+    return choice.model_dump(exclude={"candidates": {"__all__": {"left_out"}}})
+
+
 def _summary(result, seconds: float) -> dict[str, Any]:
     report = result.report
     summary: dict[str, Any] = {
@@ -90,6 +153,9 @@ def _summary(result, seconds: float) -> dict[str, Any]:
             }
             for block in report.blocks
         ],
+        # Which reference subtitle the job was synced against, and what was
+        # found out about each. None for a job without a reference subtitle.
+        "reference": _reference_summary(report.reference_choice),
         "target_lines": report.target_lines,
         "delivered_lines": len(result.subtitle) if result.subtitle is not None else 0,
         "trimmed_lines": len(report.trimmed),
@@ -223,15 +289,15 @@ def run_job(job: Job, store: JobStore, settings: ApiSettings, services: Services
 
         options = request["options"]
         target = load(directory / TARGET)
-        reference_path = directory / REFERENCE_SUBTITLE
         audio_path = directory / REFERENCE_AUDIO
         prepared = prepare(
             target,
             audio=audio_path if audio_path.is_file() else None,
-            reference=load(reference_path) if reference_path.is_file() else None,
+            references=_candidates(request, directory),
             options=Options(
                 remove_hearing_impaired=options["remove_hearing_impaired"],
                 remove_karaoke=options["remove_karaoke"],
+                remove_signs_and_credits=options.get("remove_signs_and_credits", False),
                 strip_formatting=options["strip_formatting"],
                 remove_symbols=options["remove_symbols"],
                 drop_unmatched=options["drop_unmatched"],
@@ -243,7 +309,8 @@ def run_job(job: Job, store: JobStore, settings: ApiSettings, services: Services
             progress=lambda step: store.set_stage(job.id, step),
         )
         store.set_stage(job.id, "deciding")
-        if request["agent"] == "off":
+        # With no reference to sync against there is nothing for a model to settle.
+        if request["agent"] == "off" or prepared.refused:
             result = propose(prepared).result
         else:
             from retimer.agent import AgentSettings, Workbench, run_agent
@@ -273,8 +340,13 @@ def run_job(job: Job, store: JobStore, settings: ApiSettings, services: Services
             text = dumps(result.subtitle, request["output_format"])
             (directory / RESULT).write_text(text, encoding="utf-8")
         if result.reference is not None:
-            text = dumps(result.reference, request["matched_reference_format"])
-            (directory / MATCHED_REFERENCE).write_text(text, encoding="utf-8")
+            source = matched_reference_source(
+                request, _reference_summary(result.report.reference_choice)
+            )
+            fmt = request.get("matched_reference_format") or source["format"]
+            (directory / MATCHED_REFERENCE).write_text(
+                dumps(result.reference, fmt), encoding="utf-8"
+            )
     except Exception as error:
         code = (
             "invalid_subtitle"

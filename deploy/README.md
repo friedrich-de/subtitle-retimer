@@ -114,11 +114,12 @@ changed, `release.sh` says so, and `sudo bash
 /opt/retimer/current/deploy/server-setup.sh` installs them. The last three
 releases stay, and `release.sh COMMIT` goes back to one of them.
 
-`smoke_test.py` checks that the service is closed without a key, and sends two
-real jobs through the public address: one against audio, which takes a
-transcript, and one that takes the agent and asks for the matched reference
-back. They cost about a cent. `--no-job`
-checks the gate only. `--large` also uploads around the size limit.
+`smoke_test.py` checks that the service is closed without a key, and sends
+three real jobs through the public address: one against audio, which takes a
+transcript, one that takes the agent and asks for the matched reference back,
+and one with three reference subtitles of which only one fits. They cost about
+a cent. `--no-job` checks the gate only. `--large` also uploads around the
+size limit.
 
 ## From nothing
 

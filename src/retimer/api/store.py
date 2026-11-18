@@ -30,7 +30,12 @@ RESULT = "result"
 MATCHED_REFERENCE = "matched_reference"
 PLAN = "plan.json"
 REPORT = "report.json"
-UPLOADS = (TARGET, REFERENCE_SUBTITLE, REFERENCE_AUDIO)
+
+
+def reference_file(index: int) -> str:
+    """The file of the reference subtitle at this position among those of a job."""
+    return f"{REFERENCE_SUBTITLE}.{index}"
+
 
 QUEUED = "queued"
 RUNNING = "running"

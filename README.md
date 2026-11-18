@@ -6,9 +6,9 @@ deterministic tools do all the timing math.
 
 The project is built in milestones. This repository holds the subtitle core,
 the benchmark harness, the fixed pipeline that syncs a file without an agent,
-the agent that settles what the pipeline leaves open, the matched reference
-for dual subtitles, the HTTP API with its deployment, and the reading of image
-subtitles.
+the agent that settles what the pipeline leaves open, the choice between the
+subtitle tracks of a video file, the matched reference for dual subtitles, the
+HTTP API with its deployment, and the reading of image subtitles.
 
 ## What the subtitle core does
 
@@ -22,8 +22,8 @@ subtitles.
   of a song are known by name, by family and by their timing tags, and a
   positioned line that is gone within a quarter second is a sign.
 - Produces an inspection report that summarizes a file without quoting all of it.
-- Turns request options (remove hearing-impaired text, karaoke, symbols,
-  formatting) into content operations.
+- Turns request options (remove hearing-impaired text, karaoke, signs and
+  credits, symbols, formatting) into content operations.
 - Builds the match view: dialogue only, reduced to the spoken words. The
   layers of one line, and a line an effect draws frame by frame, are one line.
 - Validates and applies an operation plan. The plan is the only thing that
@@ -37,8 +37,10 @@ agent adds.
 
 1. **Reference.** Audio is transcribed with word timestamps (Whisper large v3
    turbo, through OpenRouter, pinned to one upstream) and grouped into
-   utterances. A reference subtitle is reduced to its dialogue. With both, the
-   subtitle is first checked against the audio, and the audio wins.
+   utterances. A reference subtitle is reduced to its dialogue. Of
+   [several reference subtitles](#several-reference-subtitles) the one that
+   fits the target is taken. With both, the subtitle is first checked against
+   the audio, and the audio wins.
 2. **Matching.** Target lines and reference events are compared by meaning with
    a multilingual embedding model, so the two may be in different languages.
    Pairs that stand out from everything else, in the same order in both files,
@@ -168,6 +170,99 @@ laughs and a newscast in the background, which the English script does not
 have. A mistimed copy of the captions, late and with a cut of 35 seconds in
 it, gave the same file byte for byte.
 
+## Several reference subtitles
+
+A video file often holds more than one subtitle track: the full dialogue, a
+track with only signs and songs, a second language, a commentary. Which of
+them is in sync with the picture is not the question, they all are. The
+question is which one says what the target says, and a label such as "English"
+does not answer it. So a job may carry up to six reference subtitles, and the
+service looks into each of them.
+
+Every track is reduced to its dialogue and matched against the target, with
+the same matching and the same test the sync itself uses. Then:
+
+- **The track that fits is taken.** With several that fit, the one in which
+  most lines of the target find their counterpart. Labels only decide between
+  tracks that fit about equally well, within two lines or 5% of each other: a
+  track that is not marked as forced before one that is, then the default
+  track, then the one with more dialogue, then the one that was sent first.
+- **A track of signs is not other content.** A track without dialogue, or
+  with far too little of it to carry the target (fewer than 30 lines and less
+  than a fifth of the target's), is set aside as `too_little_dialogue`. A track
+  with dialogue of its own that does not match is `no_match`: another
+  episode, another film.
+- **The same track twice is compared once.** A track with the same dialogue
+  at the same times as an earlier one is a `duplicate`.
+- **A file that is no subtitle** does not stop the job when other tracks
+  came with it. It is `unreadable`, with the reason.
+
+The job says what it found, in its summary under `reference`:
+
+```json
+{
+  "chosen": 1,
+  "reason": "Of 2 reference subtitles only \"Full Subtitles\" fits the target: 215 of 280 lines of dialogue have a counterpart in it.",
+  "candidates": [
+    {"index": 0, "language": "eng", "title": "Signs & Songs", "default": false, "forced": true,
+     "filename": "track3.ass", "lines": 460, "dialogue_lines": 0,
+     "matched_lines": 0, "comparable_lines": 0, "share": 0.0,
+     "verdict": "too_little_dialogue",
+     "reason": "It has no dialogue: its 460 lines are signs, songs or sound descriptions.",
+     "duplicate_of": null},
+    {"index": 1, "language": "eng", "title": "Full Subtitles", "default": true, "forced": false,
+     "filename": "track2.ass", "lines": 733, "dialogue_lines": 273,
+     "matched_lines": 215, "comparable_lines": 280, "share": 0.768,
+     "verdict": "chosen",
+     "reason": "The target's dialogue finds its counterpart in it: 215 of 280 lines.",
+     "duplicate_of": null}
+  ]
+}
+```
+
+`index` is the position of the track among the `reference_subtitle` parts of
+the request, from 0. `chosen` is the index of the track the job was synced
+against, or `null` when none of them fits. `matched_lines` of
+`comparable_lines` is how much of the target's dialogue found a counterpart.
+The report has the same under `reference_choice`, and there every track also
+counts under `left_out` the lines that are no dialogue, by what they are.
+
+| Verdict | Meaning |
+| --- | --- |
+| `chosen` | The job was synced against this track. |
+| `fits` | It fits the target too, and another one fits more or was preferred. |
+| `duplicate` | The same dialogue as the earlier track `duplicate_of`. |
+| `too_little_dialogue` | Signs, songs, or too few spoken lines to judge the target by. |
+| `no_match` | Dialogue of its own that is not the target's. |
+| `unreadable` | Not a subtitle, or more lines than a subtitle may have. `reason` says which. |
+
+When no track fits, what happens depends on what else the job has:
+
+| The job has | Outcome |
+| --- | --- |
+| Audio as well | The target is synced against the audio alone, and a warning says why. |
+| No audio, several tracks | `rejected_no_match`. Tracks of signs alone are refused without a call to the agent's model. Of tracks that are other content, the closest is still put before the agent, which may find that it is the same content after all. A client that has the video can send the job again with audio. |
+| No audio, one track | As for any job with one reference subtitle: it is tried, and the outcome says how that went. |
+
+The matched reference is made from the chosen track and keeps that track's
+format.
+
+What it costs: only the embeddings of the tracks' dialogue, which are cached
+by content. A job with two tracks of an episode of 24 minutes cost 0.03 cents
+and took about ten seconds the first time, and under a second after that.
+Three tracks of an episode twice as long cost 0.09 cents and took 42 seconds.
+A job with several tracks counts as one job for the rate limits.
+
+Tried on four episodes of an anime series, with Japanese captions as the
+target and the tracks a release holds: the full English script, the same
+script reduced to its signs and songs, Japanese and Chinese scripts, and the
+script of another episode. The full track was chosen in either order of
+sending. The signs track came back as `too_little_dialogue`, and the other
+episode as `no_match` with 4 of 280 lines. Two tracks of signs alone were
+refused. On an open film, a signs track and the script of other content were
+refused without audio, and with the audio the same job was synced against the
+audio alone.
+
 ## The HTTP API
 
 A job takes from under a second to a minute, so the API is job-based: submit,
@@ -189,6 +284,7 @@ plan describes. That run is in
 | `GET /v1/jobs` | The jobs of the key, newest first. |
 | `DELETE /v1/jobs/{id}` | Delete a job and its files before they expire. |
 | `POST /v1/ocr` | Submit an image subtitle to be read into text. Answers with the job. |
+| `GET /v1/features` | What this server can do beyond the first release, and its limits. |
 | `GET /healthz` | Whether the service is up. The only call that needs no key. |
 
 ```bash
@@ -201,28 +297,30 @@ curl https://retimer.example/v1/jobs \
   -F 'options={"remove_hearing_impaired": true}'
 ```
 
-A job is a multipart form with up to four parts:
+A job is a multipart form with these parts:
 
 | Part | Content |
 | --- | --- |
 | `target` | The subtitle to synchronize, SRT or ASS. Required. |
 | `reference_audio` | Audio of the video, without the picture. Mono Opus at 24 kbps is enough and keeps an episode near 4 MB. |
-| `reference_subtitle` | A subtitle that is in sync, in any language. SRT or ASS. |
+| `reference_subtitle` | A subtitle that is in sync, in any language. SRT or ASS. The part may be sent up to six times, once for every text track of the video file. See [Several reference subtitles](#several-reference-subtitles). |
 | `options` | A JSON object, see below. |
 
-One reference is required, and both may be sent. Audio is taken in Ogg,
-Matroska or WebM, MP3, MP4 or M4A, FLAC, WAV and AAC.
+One reference is required, and audio and subtitles may be sent together.
+Audio is taken in Ogg, Matroska or WebM, MP3, MP4 or M4A, FLAC, WAV and AAC.
 
 | Option | Default | Meaning |
 | --- | --- | --- |
 | `remove_hearing_impaired` | `false` | Drop sound descriptions and speaker labels from the output. |
 | `remove_karaoke` | `false` | Drop karaoke and song lines from the output. |
+| `remove_signs_and_credits` | `false` | Drop what is shown on screen and not spoken: signs, and the credits and advertisements of whoever made or passed on the file. |
 | `strip_formatting` | `false` | Remove styling tags, keep the text. |
 | `remove_symbols` | `false` | Remove music notes and similar symbols, among them the arrows and device icons of Japanese broadcast captions (`➡`, `📱`, `☎`). |
 | `drop_unmatched` | `true` | Trim leading or trailing lines when the reference confirms the content is absent. |
 | `matched_reference` | `false` | Also hand back the reference subtitle, reduced to the dialogue lines the delivered target has a counterpart for. See [The matched reference](#the-matched-reference). Needs a `reference_subtitle`. |
 | `audio_language`, `reference_language` | detected | Hints such as `"ja"`. |
-| `output_format` | as the target | `"srt"` or `"ass"`. The matched reference keeps the format of the reference subtitle unless one is named here. |
+| `reference_tracks` | none | What the video file says about each `reference_subtitle`, in the order they were sent: a list of `{"language": "eng", "title": "Signs & Songs", "default": false, "forced": true}`, every field optional. With it there has to be one entry for every track. The labels are hints that decide between tracks which fit equally well, and they come back in the summary. |
+| `output_format` | as the target | `"srt"` or `"ass"`. The matched reference keeps the format of the reference subtitle it was made from unless one is named here. |
 | `agent` | the server's | `"haiku"`, `"sonnet"`, `"opus"`, or `"off"` for the fixed pipeline. |
 
 An option the service does not know is refused, not ignored.
@@ -243,6 +341,7 @@ The answer to every job call is the job:
       {"from_ms": null, "to_ms": 239724, "shift_ms": 0, "lines": 17, "confidence": 0.79},
       {"from_ms": 239724, "to_ms": null, "shift_ms": -40901, "lines": 59, "confidence": 0.95}
     ],
+    "reference": null,
     "target_lines": 76,
     "delivered_lines": 76,
     "trimmed_lines": 0,
@@ -263,7 +362,10 @@ The answer to every job call is the job:
 `links` only names what exists. A job that asked for the matched reference
 has it under `matched_reference`, with the number of its lines and of its
 pairs in the summary. The pairs themselves are in the report.
-The content options apply to it as they do to the target.
+The content options apply to it as they do to the target. `reference` is
+`null` for a job without a reference subtitle, and otherwise says which track
+the job was synced against and what was found out about each, as shown under
+[Several reference subtitles](#several-reference-subtitles).
 
 | Outcome | Meaning | Delivered |
 | --- | --- | --- |
@@ -280,7 +382,24 @@ yet, 413 for an upload over the limit, 422 for a file or an option that cannot
 be used, such as `matched_reference` with audio alone, and 429 with
 `Retry-After` when a limit is reached. A file that is no
 subtitle, or audio that cannot be read, is refused when it is submitted and
-not when the job runs.
+not when the job runs. With several reference subtitles, one that cannot be
+read is set aside and the job goes on with the others. More than six are
+refused (`too_many_reference_subtitles`), and so is a list of
+`reference_tracks` that is not as long as the tracks sent
+(`reference_tracks_mismatch`).
+
+A client that also talks to servers of an earlier release asks
+`GET /v1/features` first. It needs the key like every other call, and a
+server that does not have the route answers 404:
+
+```json
+{
+  "features": ["matched_reference", "ocr", "reference_tracks", "remove_signs_and_credits"],
+  "limits": {"reference_subtitles": 6, "request_bytes": 99614720, "subtitle_bytes": 67108864,
+             "subtitle_dialogue_lines": 4000, "audio_bytes": 94371840, "audio_minutes": 240,
+             "image_subtitle_bytes": 94371840}
+}
+```
 
 ### Image subtitles
 
@@ -417,6 +536,7 @@ stranger.
 | `RETIMER_MAX_IMAGE_SUBTITLE_MB` | 90 | Largest image subtitle upload, bare or packed. |
 | `RETIMER_MAX_IMAGE_STREAM_MB` | 1024 | Largest image subtitle once it is unpacked. |
 | `RETIMER_MAX_SUBTITLE_LINES` | 400000 | Most lines in a subtitle, signs and effects included. A script with typesetting has up to 140,000. |
+| `RETIMER_MAX_REFERENCE_SUBTITLES` | 6 | Most reference subtitles in one job. Each is matched against the target, one after the other. |
 | `RETIMER_MAX_DIALOGUE_LINES` | 4000 | Most lines of dialogue in a subtitle. Matching needs about 320 MB of memory at 3000 lines and 1 GB at 6000. |
 | `RETIMER_REQUESTS_PER_MINUTE` | 120 | Per key. |
 | `RETIMER_JOBS_PER_HOUR` | 60 | Per key. |
@@ -456,6 +576,7 @@ retimer apply episode.ass plan.json -o synced.srt --format srt
 retimer sync episode.ja.srt --audio episode.ogg -o synced.srt
 retimer sync episode.ja.srt --reference episode.en.srt -o synced.srt --plan plan.json
 retimer sync episode.ja.srt --reference episode.en.ass -o synced.srt --matched-reference pair.en.ass
+retimer sync episode.ja.srt --reference track2.ass --reference track3.ass -o synced.srt
 retimer sync episode.ja.srt --audio episode.ogg -o synced.srt --agent            # with the agent
 retimer sync episode.ja.srt --audio episode.ogg -o synced.srt --agent opus --report report.json
 ```
@@ -463,9 +584,13 @@ retimer sync episode.ja.srt --audio episode.ogg -o synced.srt --agent opus --rep
 `sync` takes audio, a reference subtitle, or both. It prints the outcome, the
 blocks it moved and any warnings, and can write the plan and the full report
 next to the result. It exits with 3 and writes no file when the reference is
-other content. `--matched-reference` also writes
+other content. `--reference` may be given up to six times, and the summary
+then says [which one was taken](#several-reference-subtitles) and why.
+`--matched-reference` also writes
 [the matched reference](#the-matched-reference): the reference subtitle,
 reduced to the dialogue lines the synced file has a counterpart for.
+`--remove-signs-and-credits` drops signs and credits from the output, here
+and in `clean`.
 
 `sync` is the only command that calls a hosted service. It needs
 `OPENROUTER_API_KEY` in the environment and `ffmpeg` for audio. Transcripts and
@@ -573,6 +698,7 @@ Rules the engine enforces:
 | `retimer.speech` | Text-free alignment of line starts and speech onsets |
 | `retimer.score` | The verification score, per block |
 | `retimer.pipeline` | The fixed pipeline: reference, matching, fit, plan, report. Also builds a plan under a reader's adjustments |
+| `retimer.choice` | Which of several reference subtitles a target is synced against, and why |
 | `retimer.counterpart` | The matched reference: which lines of the reference the target has a counterpart for |
 | `retimer.agent.workbench` | The agent's desk: the draft, the open questions, the dossier and the tools |
 | `retimer.agent.prompt` | What the model is told, and the tool definitions |

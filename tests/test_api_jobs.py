@@ -342,12 +342,14 @@ def test_too_many_parts_are_refused(tmp_path):
     service = make_service(tmp_path)
     target, reference = shifted()
     files = [("target", ("a.srt", target)), ("reference_subtitle", ("b.srt", reference))]
-    files += [("reference_audio", (f"{index}.ogg", AUDIO)) for index in range(3)]
+    # More files than a form with every reference subtitle a job takes can hold.
+    files += [("reference_audio", (f"{index}.ogg", AUDIO)) for index in range(12)]
 
     response = service.client.post("/v1/jobs", files=files)
 
     assert refused(response, 400, "bad_request")
     assert "Too many files" in response.json()["error"]["message"]
+    assert list(service.store.jobs_dir.iterdir()) == []
 
 
 @pytest.mark.parametrize(
@@ -510,7 +512,7 @@ def test_the_name_a_client_gives_a_file_is_only_ever_a_name(tmp_path):
     assert job["request"]["reference_subtitle"]["filename"] == "ref.srt"
     assert sorted(path.name for path in service.store.directory(job["id"]).iterdir()) == [
         "plan.json",
-        "reference_subtitle",
+        "reference_subtitle.0",
         "report.json",
         "result",
         "target",
