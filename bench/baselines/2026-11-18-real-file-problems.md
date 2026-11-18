@@ -48,7 +48,9 @@ cases that ask for timing, and decisions.
   split option. The agent solves 124, the pipeline 119.
 - **No tool refuses.** In all 36 cases that ask for it, alass and ffsubsync
   move the file anyway: onto another episode, or onto the times of signs.
-- **The agent loses refusals that the pipeline gets right.** See below.
+- **The agent loses refusals that the pipeline gets right.** See below. A
+  change after this run fixed it:
+  [the agent and the next episode](#after-the-run-the-agent-and-the-next-episode).
 
 ## The cases after real files
 
@@ -256,6 +258,40 @@ code and solves the same 461 cases. Nineteen cases against audio differ in
 the size of their error, and not because of the code: the first run began on
 an empty cache, its workers fetched a transcript of each film more than once,
 and the cache kept the last one.
+
+## After the run: the agent and the next episode
+
+The eight refusals the agent lost are fixed (#17). The question of same
+content now says where the agreeing pairs lie, and shows lines from all
+through the rest of the target, each with the place of the reference that
+comes closest to it. The agent is told that episodes of one series begin
+alike. And a refusal is only overturned by a timing that holds: its
+confidence reaches the bar of a block, and the lines it places reach over at
+least a third of the file.
+
+The agent alone was run again on all 535 cases, on the code with that change:
+
+| `agent-haiku` | The run above | With the change |
+| --- | --- | --- |
+| Solved, of 535 | 470 (88%) | 480 (90%) |
+| Refuse, or leave alone, of 36 | 28 | 36 |
+| Timing against a reference subtitle, of 345 | 318 | 320 |
+| Timing against audio alone, of 116 | 86 | 86 |
+| Timing against both, of 38 | 38 | 38 |
+
+No case that the run above solves is lost. Ten are gained: the eight
+refusals, and two packs that the agent's answers decided differently this
+time, which is the change from run to run and not the fix.
+
+In this run the agent answered "other content" in all ten cases it was asked
+about. In a run over the 21 refusal cases alone it still answered "same
+content" three times, and the check on the timing kept those three refusals.
+In none of the 535 cases, before or after, did the agent rightly overturn a
+refusal, so the check costs nothing that was measured. A real file where the
+routine steps refuse and a reader is right to say otherwise is not among the
+cases.
+
+The other tables in this file are those of the run above.
 
 ## The run's report
 

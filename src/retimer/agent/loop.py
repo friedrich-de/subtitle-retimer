@@ -19,7 +19,7 @@ import anthropic
 from pydantic import BaseModel, Field
 
 from retimer.agent.prompt import LAST_STEP, OPENING, REMIND_SUBMIT, SYSTEM, TOOLS
-from retimer.agent.workbench import ToolError, Workbench
+from retimer.agent.workbench import MIN_REACH, ToolError, Workbench
 from retimer.cache import Cache
 from retimer.choice import Candidate
 from retimer.classify import LineLabel
@@ -298,6 +298,7 @@ def _converse(bench: Workbench, settings: AgentSettings, client: Any, trace: Age
 def _conclude(bench: Workbench, trace: AgentTrace) -> SyncResult:
     """Turn the bench into the job's result, and say in the report what happened."""
     notes: list[str] = []
+    unfounded = False
     if trace.finished == "submitted":
         # The verdict of the routine steps is overruled only where they were in
         # doubt. Many lines that found their counterpart are not undone by a
@@ -315,11 +316,33 @@ def _conclude(bench: Workbench, trace: AgentTrace) -> SyncResult:
         elif not was_aligned and in_doubt:
             bench.same_content = True
             bench.refresh()
+            # A refusal is overturned by a timing that holds all through the
+            # file, not by a reading alone. The next episode of a series reads
+            # like the same one for as long as its recap lasts, and what is
+            # built on that places the opening and guesses the rest.
+            plan = bench.draft.result.plan
+            refused = bench.baseline.alignment.verdict == "no_match"
+            if refused and plan.outcome != "rejected_no_match":
+                bar = bench.prepared.settings.min_block_confidence
+                why = None
+                if plan.confidence < bar:
+                    why = f"rests on too little (confidence {plan.confidence:.2f})"
+                elif bench.reach() < MIN_REACH:
+                    why = "rests on one part of the file, and the rest found no place"
+                if why:
+                    unfounded = True
+                    notes.append(
+                        "The agent took the reference for the same content. The timing that "
+                        f"follows from that {why}, so the reference is still treated as other "
+                        "content."
+                    )
 
     draft, baseline = bench.draft, bench.baseline
-    use: Proposal = draft
-    trace.changed = bench.changed
-    if bench.changed and draft.result.plan.outcome != "rejected_no_match":
+    use: Proposal = baseline if unfounded else draft
+    trace.changed = bench.changed and not unfounded
+    if unfounded:
+        trace.accepted = False
+    elif bench.changed and draft.result.plan.outcome != "rejected_no_match":
         slack = max(1, round(0.1 * baseline.in_place))
         if draft.in_place < baseline.in_place - slack:
             use = baseline

@@ -326,18 +326,62 @@ def test_other_content_is_not_believed_against_many_placed_lines(open_job):
     assert result.report.agent["verdict"] == "other_content"
 
 
-def test_same_content_overrules_a_rejection_that_was_in_doubt(desk):
+def a_few_lines_shared(desk, shared: tuple[int, ...]) -> Workbench:
+    """A job that the rules refuse: of thirty lines, only the given ones are in the reference."""
     truth = spread(30)
     other = [f"qa{index} qb{index} qc{index} qd{index} qe{index}" for index in range(30)]
-    target = make_subtitle([start + 3_000 for start in truth])
-    bench = desk(target, reference=make_subtitle(truth, SENTENCES[:4] + other[4:]))
+    texts = [SENTENCES[index] if index in shared else other[index] for index in range(30)]
+    bench = desk(
+        make_subtitle([start + 3_000 for start in truth]),
+        reference=make_subtitle(truth, texts),
+    )
     assert bench.baseline.result.plan.outcome == "rejected_no_match"
+    assert bench.verdict_doubt() is not None
+    bench.truth = truth
+    return bench
+
+
+def test_same_content_overrules_a_rejection_that_was_in_doubt(desk):
+    # The few lines that both files share lie all through the file.
+    bench = a_few_lines_shared(desk, (2, 10, 18, 26))
 
     result = run_agent(bench, HAIKU, FakeModel([submit("same_content", "Same film.")]))
 
     assert result.plan.outcome != "rejected_no_match"
-    assert starts_of(result) == truth
+    assert starts_of(result) == bench.truth
     assert result.report.agent["changed"]
+
+
+def test_same_content_does_not_overrule_a_rejection_when_only_the_opening_agrees(desk):
+    # The next episode of a series: the recap is shared, and nothing after it.
+    bench = a_few_lines_shared(desk, (0, 1, 2, 3))
+    assert "Those lie between L0 and L3" in bench.verdict_doubt()
+
+    result = run_agent(bench, HAIKU, FakeModel([submit("same_content", "Same episode.")]))
+
+    assert result.plan.outcome == "rejected_no_match" and result.subtitle is None
+    agent = result.report.agent
+    assert (agent["verdict"], agent["changed"], agent["accepted"]) == ("same_content", False, False)
+    assert (
+        "The timing that follows from that rests on one part of the file, and the rest "
+        "found no place, so the reference is still treated as other content."
+    ) in result.report.warnings[-2]
+    assert result.report.warnings[-1] == "Agent: Same episode."
+
+
+def test_same_content_does_not_overrule_a_rejection_when_the_timing_rests_on_too_little(desk):
+    bench = a_few_lines_shared(desk, (2, 10, 18, 26))
+    # The timing that the four shared lines give does not reach this bar.
+    settings = bench.prepared.settings
+    bench.prepared.settings = settings.model_copy(update={"min_block_confidence": 1.5})
+
+    result = run_agent(bench, HAIKU, FakeModel([submit("same_content", "Same film.")]))
+
+    assert result.plan.outcome == "rejected_no_match" and result.subtitle is None
+    agent = result.report.agent
+    assert (agent["verdict"], agent["changed"], agent["accepted"]) == ("same_content", False, False)
+    assert "rests on too little (confidence 1.00), so the reference" in result.report.warnings[-2]
+    assert result.report.warnings[-1] == "Agent: Same film."
 
 
 def test_a_model_that_does_not_submit_is_reminded_once(open_job):

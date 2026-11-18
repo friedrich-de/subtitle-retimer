@@ -36,7 +36,8 @@ or left as it was.
   what they do elsewhere: `alass` solves 13 of 15, `ffsubsync-split` 15 of 15.
 - **The agent takes the next episode for the same film in 3 of 5 cases.**
   This is the weakness the run over 535 cases found in `next_episode`, met
-  here by another road. See below.
+  here by another road. See below. A change after this run fixed it (#17),
+  and the agent then solves 53 of 53.
 - **The pipeline misses one case by its timing, not by its choice**: a film of
   26 lines at the wrong frame rate, 77% of the lines within 250 ms and all
   within 500 ms.
@@ -87,6 +88,17 @@ of the series the model calls it the same content. The file comes back as
 `partial` with a confidence of 0.02 to 0.06. The two films share nothing, and
 there the job is refused without the model being asked. With the audio beside
 the tracks the same cases are synced on the audio and solved.
+
+Fixed after this run (#17, described in
+[2026-11-18-real-file-problems.md](2026-11-18-real-file-problems.md#after-the-run-the-agent-and-the-next-episode)).
+`agent-haiku` alone was run again over the 53 cases of this family, on the
+code with that change: it solves 53 of 53. For the three episodes of the
+series the model now answers "other content" itself, and names the lines from
+the middle and the end of the target that have no place in the other episode.
+Had it answered as before, the check on the timing would have kept the
+refusal: a plan with a confidence of 0.02 to 0.06 does not overturn one. The
+other systems were not run again, and the tables in this file are those of
+the first run.
 
 **A short film at the wrong frame rate (pipeline, 1 case).** `same-track-twice`
 on the film with 26 lines: the dialogue track was chosen, and the fit of the

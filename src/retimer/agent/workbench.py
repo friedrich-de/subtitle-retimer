@@ -15,14 +15,17 @@ does. So a plan from the agent passes the same engine checks as any other.
 
 from __future__ import annotations
 
+import math
 import re
 import statistics
+from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Literal
 
 import numpy as np
 
 from retimer.fit import FitKind, Pin
+from retimer.match import MIN_DISTINCTIVENESS
 from retimer.pipeline import Adjustments, Prepared, Proposal, propose
 from retimer.plan import RemoveLines
 from retimer.reference import ReferenceTimeline, _is_wide
@@ -46,6 +49,15 @@ DISTANCE_MIN_LIKENESS = 1.0
 # With so little agreement between the two sides, the verdict deserves a second look.
 DOUBT_MIN_IN_PLACE = 6
 DOUBT_MIN_SHARE = 0.3
+# The question of same content shows how the target begins, and this many lines
+# from all through the rest of it.
+VERDICT_OPENING = 10
+VERDICT_SAMPLE = 12
+NOTHING_CLOSE = "closest: nothing comes close"
+# The part of the target that holds this share of a set of lines is where they lie.
+WHEREABOUTS_SHARE = 0.8
+# Lines that lie within this share of the target are one part of it, not all of it.
+MIN_REACH = 1 / 3
 
 _CLAUSE_END = re.compile(r"[.?!…。？！,、;:，；：]+[\"'”’）)」』]*$")
 _SENTENCE_END = re.compile(r"[.?!…。？！]+[\"'”’）)」』]*$")
@@ -664,15 +676,69 @@ class Workbench:
             if in_place >= 2:
                 return (
                     f"Matching found {len(alignment.anchors)} pairs that mean the same, but only "
-                    f"{in_place} of them agree on one timing. The rules call that other content."
+                    f"{in_place} of them agree on one timing. {self._whereabouts()}"
+                    "The rules call that other content."
                 )
             return None
         if in_place < DOUBT_MIN_IN_PLACE or share < DOUBT_MIN_SHARE:
             return (
                 f"Only {in_place} of {comparable} comparable lines found a certain "
-                "counterpart. The rules call that the same content, by a small margin."
+                f"counterpart. {self._whereabouts()}"
+                "The rules call that the same content, by a small margin."
             )
         return None
+
+    def _whereabouts(self) -> str:
+        """Where in the target the pairs that agree on one timing lie, when that is one part."""
+        alignment = self.baseline.alignment
+        spoken = self._spoken()
+        if alignment.chosen is None:
+            return ""
+        span = self._dense_span(alignment.chosen.explained(alignment.anchors))
+        if span is None or span[1] - span[0] + 1 > len(spoken) * MIN_REACH:
+            return ""
+        first, last, most, total = span
+        count = "Those" if most == total else f"{most} of those"
+        return (
+            f"{count} lie between L{spoken[first]} and L{spoken[last]}, and the target "
+            f"runs from L{spoken[0]} to L{spoken[-1]}. "
+        )
+
+    def _dense_span(self, line_ids: Iterable[int]) -> tuple[int, int, int, int] | None:
+        """The shortest stretch of the target that holds most of the given lines.
+
+        Episodes of a series share an opening, and a pair or two elsewhere
+        agree with any timing by chance. So what counts is where most of the
+        lines lie, not where the first and the last one do. Returns the first
+        and last position among the dialogue lines, how many lines the stretch
+        holds, and of how many.
+        """
+        place = {line_id: index for index, line_id in enumerate(self._spoken())}
+        held = sorted(place[line_id] for line_id in line_ids if line_id in place)
+        if len(held) < 2:
+            return None
+        most = max(2, math.ceil(WHEREABOUTS_SHARE * len(held)))
+        first, last = min(
+            ((held[index], held[index + most - 1]) for index in range(len(held) - most + 1)),
+            key=lambda span: span[1] - span[0],
+        )
+        return first, last, most, len(held)
+
+    def reach(self) -> float:
+        """How much of the target the placed lines of the draft reach over, from 0 to 1."""
+        span = self._dense_span(self.draft.matched)
+        spoken = self._spoken()
+        if span is None or not spoken:
+            return 0.0
+        return (span[1] - span[0] + 1) / len(spoken)
+
+    def _spoken(self) -> list[int]:
+        """The dialogue lines that were compared by meaning, in the order of the file."""
+        return [
+            line.id
+            for line in self.prepared.lines
+            if line.id in self.prepared.dialogue_ids and line.id in self._row
+        ]
 
     def open_questions(self) -> list[str]:
         """One line per thing the draft leaves open. Empty means the draft stands on its own."""
@@ -901,10 +967,42 @@ class Workbench:
                 out.append(f"    {line} ~ {clock(event.start_ms)} {quote(event.text)}")
         spoken = [line.id for line in self.prepared.lines if line.id in self.prepared.dialogue_ids]
         out.append("  How the target begins:")
-        out += [f"    {self._line(line_id, landing=False)}" for line_id in spoken[:10]]
+        out += [f"    {self._line(line_id, landing=False)}" for line_id in spoken[:VERDICT_OPENING]]
         out.append("  How the reference begins:")
         out += [f"    {place}" for place in self._units(0, min(len(self.units), 12) - 1)]
+        sample = self._sample()
+        if sample:
+            # Episodes of one series begin alike. What tells them apart is the rest.
+            out.append(
+                "  Lines from all through the rest of the target, each with the place of the "
+                "reference that comes closest to it. Closest is not the same: read whether "
+                "the place says what the line says."
+            )
+            for line_id in sample:
+                out.append(f"    {self._line(line_id, landing=False)}")
+                out.append(f"      {self._closest(line_id)}")
         return "\n".join(out)
+
+    def _sample(self) -> list[int]:
+        """Lines after the opening, evenly apart, up to the end of the target."""
+        rest = self._spoken()[VERDICT_OPENING:]
+        if len(rest) <= VERDICT_SAMPLE:
+            return rest
+        step = len(rest) / VERDICT_SAMPLE
+        return [rest[int(step * (index + 0.5))] for index in range(VERDICT_SAMPLE)]
+
+    def _closest(self, line_id: int) -> str:
+        """The place that comes closest to a line in meaning, and whether it says the same."""
+        standing = self.prepared.matching.standing
+        row = self._row[line_id]
+        if standing.shape[1] == 0:
+            return NOTHING_CLOSE
+        event = int(np.argmax(standing[row]))
+        level = float(standing[row, event])
+        units = self._event_units.get(event, [])
+        if level < MIN_DISTINCTIVENESS or not units:
+            return NOTHING_CLOSE
+        return f"closest: {self._unit(units[0])}  (stands out {level:.1f})"
 
     def render_draft(self) -> str:
         report = self.draft.result.report

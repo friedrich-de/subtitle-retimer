@@ -84,7 +84,17 @@ land on their counterpart, which confirms the block, or pair them with the right
 places if they land wrong.
 - Same content: if the lines of the two sides tell different scenes, the reference \
 is other content. Submit with verdict other_content. Two cuts or translations of \
-the same film are the same content.
+the same film are the same content. Two episodes of one series are not, and they \
+are easy to take for one: they can begin with the same narration or a recap that \
+runs for minutes, end with the same words, share phrases all through, and speak \
+of the same people and things in every scene. So an opening that agrees line by \
+line settles nothing. Judge by the lines from the rest of the target that the \
+question shows with their closest places. The same content says the same thing \
+line after line, in the order of the reference. A place that only speaks of the \
+same things is not a counterpart. When most of those lines have no place that \
+says what they say, it is other content: submit that without pairing the lines \
+of the opening. A refusal is only overturned when lines from the middle and the \
+end of the target are paired with their places as well.
 
 How to work
 - The dossier shows what most questions need: the open lines next to the stretch \

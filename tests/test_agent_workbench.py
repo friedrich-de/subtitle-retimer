@@ -1,6 +1,7 @@
 import pytest
 
 from retimer.agent import ToolError, Workbench
+from retimer.agent.prompt import SYSTEM
 from retimer.agent.workbench import clock, reference_units
 from retimer.cache import Cache
 from retimer.pipeline import prepare
@@ -433,3 +434,58 @@ def test_long_answers_are_cut_and_say_so(desk):
     assert bench.read_reference(0, 79).splitlines()[-1] == (
         "… 20 more places; ask for a smaller range …"
     )
+
+
+def test_the_question_of_same_content_shows_the_rest_of_the_target(desk):
+    # The next episode of a series: it opens with the lines the reference opens
+    # with, and goes on with scenes of its own.
+    truth = spread(30)
+    other = [f"qa{index} qb{index} qc{index} qd{index} qe{index}" for index in range(30)]
+    scenes = [f"za{index} zb{index} zc{index} zd{index} ze{index}" for index in range(30)]
+    target = make_subtitle([start + 3_000 for start in truth], SENTENCES[:5] + scenes[5:])
+
+    episode = desk(target, reference=make_subtitle(truth, SENTENCES[:5] + other[5:]))
+    question = episode.open_questions()[0]
+    assert "Only 6 of 30 comparable lines found a certain counterpart." in question
+    # One of the six is a chance pair further on. Where most of them lie is what is said.
+    assert "5 of those lie between L0 and L4, and the target runs from L0 to L29." in question
+    rest = episode.render_verdict().split("Lines from all through the rest of the target")[1]
+    assert "Closest is not the same: read whether the place says what the line says." in rest
+    # Twelve lines after the ten of the opening, up to the last one.
+    shown = [line.split()[0] for line in rest.splitlines() if line.startswith("    L")]
+    assert len(shown) == 12 and shown[0] == "L10" and shown[-1] == "L29"
+    assert rest.count("closest: nothing comes close") == 10
+    assert (
+        'L12 01:25.0 dialogue "za12 zb12 zc12 zd12 ze12"\n      closest: nothing comes close'
+    ) in rest
+    # A place can come closest without saying the same. It is shown, for the reader to judge.
+    assert (
+        'L17 01:55.0 dialogue "za17 zb17 zc17 zd17 ze17"\n'
+        '      closest: R18 01:58.0 "qa18 qb18 qc18 qd18 qe18"  (stands out 2.8)'
+    ) in rest
+
+    # A film whose lines have their counterpart all through shows them line by line.
+    every_third = [SENTENCES[index] if index % 3 == 0 else other[index] for index in range(30)]
+    film = desk(
+        make_subtitle([start + 3_000 for start in truth]),
+        reference=make_subtitle(truth, every_third),
+    )
+    assert film.baseline.alignment.verdict == "aligned" and film.open_questions() == []
+    rest = film.render_verdict().split("Lines from all through the rest of the target")[1]
+    assert rest.count("(stands out") == 4
+    assert (
+        'L12 01:25.0 dialogue "you promised to return the silver key"\n'
+        '      closest: R12 01:22.0 "you promised to return the silver key"  (stands out 3.9)'
+    ) in rest
+
+
+def test_a_short_target_has_no_rest_to_show(desk):
+    truth = spread(8)
+    bench = desk(make_subtitle([start + 3_000 for start in truth]), reference=make_subtitle(truth))
+    assert "Lines from all through the rest" not in bench.render_verdict()
+
+
+def test_the_agent_is_told_that_episodes_of_a_series_begin_alike():
+    assert "Two episodes of one series are not" in SYSTEM
+    assert "an opening that agrees line by line settles nothing" in SYSTEM
+    assert "A place that only speaks of the same things is not a counterpart." in SYSTEM

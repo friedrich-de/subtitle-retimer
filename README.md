@@ -62,8 +62,10 @@ On 535 cases, with a made-up series and the problems of real files among them,
 the pipeline solves 86%, the agent 88%, alass 58% and ffsubsync 50% at best.
 With a reference subtitle and nothing to refuse, alass is level with the
 retimer (310 of 345, against 306 and 318). The lead comes from audio, from
-scripts full of karaoke and signs, and from knowing when not to sync. The
-tables, and where the retimer loses, are in
+scripts full of karaoke and signs, and from knowing when not to sync. A change
+after that run, which keeps the agent from taking the next episode of a series
+for the same one, brought the agent to 90%. The tables, and where the retimer
+loses, are in
 [bench/baselines/2026-11-18-real-file-problems.md](bench/baselines/2026-11-18-real-file-problems.md).
 
 ## What the agent does
@@ -101,6 +103,12 @@ What keeps a wrong answer from doing harm:
 - A plan that puts fewer certain lines in place than the draft is dropped for
   the draft. The verdict of the routine steps is overruled only where they were
   in doubt.
+- A refusal is overturned only by a timing that holds: its confidence reaches
+  the bar of a block, and the lines it places reach over at least a third of
+  the file. The next episode of a series reads like the same one for as long as
+  its recap lasts, so the question of same content shows lines from the rest of
+  the file with the place that comes closest to each. An answer of "same
+  content" that rests on the opening alone leaves the refusal standing.
 - A job has a budget of eight model calls and one dollar. When it runs out, the
   plan so far is returned as `partial`. When the model declines or cannot be
   reached, the job gets the plan of the fixed pipeline.
