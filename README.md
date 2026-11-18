@@ -80,16 +80,28 @@ the draft rests on too little:
 - a verdict on whether both sides are the same content that was reached by a
   small margin;
 - no timing at all, because the parts that were placed cannot follow each
-  other.
+  other;
+- a target that holds clearly more than the reference covers, such as several
+  episodes in one file of which the reference is one.
 
 When nothing is open, no model is called. On the benchmark that is two files in
 three. Otherwise the model gets a dossier: the job, what the routine steps
 found, and every open question with the lines concerned next to the stretch of
-the reference they can belong to. It has eight tools and never writes a time.
+the reference they can belong to. It has nine tools and never writes a time.
 It says which line begins at which place in the reference, what happens to a
-line at the edge of the file, which fit to go with, and whether the two sides
-are the same content. Each answer is an adjustment to the pipeline, which then
-builds and validates the plan as it always does.
+line at the edge of the file, which part of the file the reference covers,
+which fit to go with, and whether the two sides are the same content. Each
+answer is an adjustment to the pipeline, which then builds and validates the
+plan as it always does.
+
+A file of several episodes is settled in one step. The routine steps find the
+episode of the reference and where its lines would land. The dossier shows the
+lines around both ends of that part, and the model names its first and its
+last line. The lines outside are removed, and the part is matched and timed
+anew, on its own. That matters because episodes of a series share lines, a
+narration or a recap, and one chain of pairs through the whole file gives some
+of the reference's places to the wrong episode. The report lists the removed
+lines as `cut`, and the summary of a job counts them as `cut_lines`.
 
 What keeps a wrong answer from doing harm:
 
@@ -109,6 +121,13 @@ What keeps a wrong answer from doing harm:
   its recap lasts, so the question of same content shows lines from the rest of
   the file with the place that comes closest to each. An answer of "same
   content" that rests on the opening alone leaves the refusal standing.
+- A file is cut down to a part only where the routine steps found the reference
+  in the target, where the part holds the lines they placed, and where the
+  lines placed in it reach over at least half of the reference. The next
+  episode shares a recap with the reference, which is a piece of it, so it
+  cannot be cut down to the lines the two have in common.
+- A line named to the edge tool that is no edge line is left as it is and
+  reported. The other lines named with it are still decided.
 - A job has a budget of eight model calls and one dollar. When it runs out, the
   plan so far is returned as `partial`. When the model declines or cannot be
   reached, the job gets the plan of the fixed pipeline.
@@ -361,6 +380,7 @@ The answer to every job call is the job:
     "target_lines": 76,
     "delivered_lines": 76,
     "trimmed_lines": 0,
+    "cut_lines": 0,
     "matched_reference_lines": null,
     "matched_reference_pairs": null,
     "warnings": [],

@@ -131,6 +131,7 @@ def _cmd_sync(args: argparse.Namespace) -> int:
             for block in report.blocks
         ],
         "trimmed_lines": len(report.trimmed),
+        "cut_lines": len(report.cut),
         "warnings": report.warnings,
         "cost_usd": round(report.total_cost_usd, 5),
     }

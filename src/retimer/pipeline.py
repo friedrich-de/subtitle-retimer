@@ -122,6 +122,9 @@ class SyncReport(BaseModel):
     fallback: Correlation | None = None
     trimmed: list[int] = Field(default_factory=list)
     unmatched_kept: list[int] = Field(default_factory=list)
+    # Lines outside the part of the target that the reference covers, removed
+    # with it: the other episodes of a file that holds several.
+    cut: list[int] = Field(default_factory=list)
     score: Score | None = None
     warnings: list[str] = Field(default_factory=list)
     # What the agent did, when one was asked. None for the fixed pipeline.
@@ -171,6 +174,11 @@ class Adjustments(BaseModel):
     # Lines the routine steps placed, with the reference time they were placed
     # at. They keep that counterpart while pairs are asserted around them.
     held: dict[int, int] = Field(default_factory=dict)
+    # The part of the target that the reference covers, when the target holds
+    # more than that, such as several episodes in one file: the ids of its
+    # first and its last line. The lines outside it are other content. They
+    # take no part in the timing and are removed.
+    cover: tuple[int, int] | None = None
 
     @property
     def empty(self) -> bool:
@@ -759,6 +767,9 @@ class Proposal:
     matched: set[int]
     removed: set[int]
     in_place: int = 0
+    # Where every line would have landed under the timing that was found, when
+    # that timing was given up because too many lines would be over before zero.
+    attempted: dict[int, tuple[int, int]] | None = None
 
 
 def _judge(matching: Matching, settings: Settings) -> tuple[str, int, int]:
@@ -886,6 +897,16 @@ def prepare(
     )
 
 
+def _covered(lines: list[Line], cover: tuple[int, int]) -> list[Line]:
+    """The lines from the first to the last line of a cover, in the order of the file."""
+    position = {line.id: index for index, line in enumerate(lines)}
+    missing = [line_id for line_id in cover if line_id not in position]
+    if missing:
+        raise ValueError(f"the cover names lines that are not in the file: {missing}")
+    low, high = sorted(position[line_id] for line_id in cover)
+    return lines[low : high + 1]
+
+
 def propose(prepared: Prepared, adjustments: Adjustments | None = None) -> Proposal:
     """Build the plan for a prepared job: fit, blocks, edge lines, score and outcome.
 
@@ -896,9 +917,20 @@ def propose(prepared: Prepared, adjustments: Adjustments | None = None) -> Propo
     target, options, settings = prepared.target, prepared.options, prepared.settings
     timeline, views, lines = prepared.timeline, prepared.views, prepared.lines
     label_of = prepared.label_of
-    dialogue_ids = prepared.dialogue_ids | {pin.line_id for pin in adjust.pins}
+    matching = prepared.matching
+    # The lines that are synced. With a cover that is a part of the file: the
+    # rest is other content, and neither its pairs nor its lines count.
+    part = lines
+    outside: set[int] = set()
+    if adjust.cover is not None:
+        part = _covered(lines, adjust.cover)
+        inside = {line.id for line in part}
+        outside = {line.id for line in lines} - inside
+        matching = matching.within(inside)
+    pins = [pin for pin in adjust.pins if pin.line_id not in outside]
+    dialogue_ids = (prepared.dialogue_ids | {pin.line_id for pin in pins}) - outside
 
-    alignment = align(prepared.matching, settings, adjust.pins, adjust.fit, adjust.held)
+    alignment = align(matching, settings, pins, adjust.fit, adjust.held)
     verdict = alignment.verdict
     if adjust.same_content is False:
         verdict = "no_match"
@@ -917,7 +949,8 @@ def propose(prepared: Prepared, adjustments: Adjustments | None = None) -> Propo
             dropped=timeline.dropped,
             notes=timeline.notes,
         ),
-        target_lines=result.target_lines,
+        # The file as it came. What was compared is the part that is synced.
+        target_lines=prepared.matching.result.target_lines,
         eligible_lines=result.eligible_lines,
         anchors=len(result.anchors),
         coverage=alignment.coverage,
@@ -993,7 +1026,7 @@ def propose(prepared: Prepared, adjustments: Adjustments | None = None) -> Propo
         return finish("rejected_no_match", [], [])
 
     if verdict == "too_little_text" or alignment.chosen is None:
-        found, rate, rate_name = _fallback(lines, dialogue_ids, timeline, settings)
+        found, rate, rate_name = _fallback(part, dialogue_ids, timeline, settings)
         report.fallback = found
         # Why there was too little: a side without dialogue says more than the rest.
         if timeline.kind == "subtitle" and not timeline.events:
@@ -1030,7 +1063,7 @@ def propose(prepared: Prepared, adjustments: Adjustments | None = None) -> Propo
         fit = alignment.chosen
         rate, rate_name = fit.rate, fit.rate_name
         matched = alignment.matched
-        blocks = build_blocks(fit, lines, dialogue_ids, timeline, settings)
+        blocks = build_blocks(fit, part, dialogue_ids, timeline, settings)
         report.chosen, report.rate, report.rate_name = fit.kind, rate, rate_name
         bar = settings.in_sync_audio_ms if timeline.kind == "audio" else settings.in_sync_ms
         in_sync = _in_sync(rate, blocks, bar)
@@ -1051,16 +1084,18 @@ def propose(prepared: Prepared, adjustments: Adjustments | None = None) -> Propo
         )
         if best >= FOUND_STRENGTH
     }
+    # Lines outside the cover go, unless the job keeps what the reference lacks.
+    cut = (outside - removed) if options.drop_unmatched else set()
     merged = False
     widened = False
     while True:
         new_times = _new_times(lines, rate, blocks)
         trim, keep, too_many = _edge_lines(
-            lines, label_of, matched, new_times, timeline, elsewhere, settings
+            part, label_of, matched, new_times, timeline, elsewhere, settings
         )
         # What the reader decided about a line stands over what the rules say.
-        trim = sorted((set(trim) | set(adjust.trim)) - set(adjust.keep) - matched)
-        keep = sorted((set(keep) | set(adjust.keep)) - set(trim))
+        trim = sorted((set(trim) | set(adjust.trim)) - set(adjust.keep) - matched - outside)
+        keep = sorted((set(keep) | set(adjust.keep)) - set(trim) - outside)
         if not options.drop_unmatched:
             keep, trim = sorted(set(keep) | set(trim)), []
         trim = sorted(set(trim) - removed)
@@ -1074,16 +1109,20 @@ def propose(prepared: Prepared, adjustments: Adjustments | None = None) -> Propo
             and line.duration_ms > 0
             and line.id not in removed
             and line.id not in trim
+            and line.id not in cut
         )
         content = list(views.content_ops)
-        if trim or before_zero:
+        if trim or before_zero or cut:
             content.append(
-                RemoveLines(reason="absent_from_reference", ids=sorted({*trim, *before_zero}))
+                RemoveLines(reason="absent_from_reference", ids=sorted({*trim, *before_zero, *cut}))
             )
         timing = _timing_ops(rate, rate_name, blocks)
         issues = validate_plan(target, Plan(content_ops=content, timing_ops=timing))
-        limit = max(settings.max_trim_lines, int(settings.max_trim_share * len(lines)))
-        if len(before_zero) > limit:
+        # Lines outside the cover are known to have no place. Of the part that
+        # is synced, only a few may fall before zero.
+        early = [line_id for line_id in before_zero if line_id not in outside]
+        limit = max(settings.max_trim_lines, int(settings.max_trim_share * len(part)))
+        if len(early) > limit:
             issues.append(
                 PlanIssue(code="negative_time", message="too many lines would end before zero")
             )
@@ -1092,15 +1131,16 @@ def propose(prepared: Prepared, adjustments: Adjustments | None = None) -> Propo
         if len(blocks) > 1 and not widened:
             # Before a block is given up, its breaks may move.
             widened = True
-            moved = _widen_breaks(blocks, lines, matched, rate)
+            moved = _widen_breaks(blocks, part, matched, rate)
             if [(b.from_ms, b.to_ms) for b in moved] != [(b.from_ms, b.to_ms) for b in blocks]:
                 blocks = moved
                 continue
         if len(blocks) <= 1:
             codes = "; ".join(issue.code for issue in issues)
-            if len(before_zero) > limit:
+            if len(early) > limit:
+                state.attempted = new_times
                 return unchanged(
-                    f"No valid timing could be built ({codes}): {len(before_zero)} lines "
+                    f"No valid timing could be built ({codes}): {len(early)} lines "
                     "would be over before the reference begins. The target may hold more than "
                     "the reference does, such as several episodes in one file."
                 )
@@ -1111,8 +1151,11 @@ def propose(prepared: Prepared, adjustments: Adjustments | None = None) -> Propo
         merged = True
 
     too_many = too_many and not adjust.edges_reviewed
-    uncovered = _uncovered(lines, label_of, new_times, timeline, settings)
-    if uncovered > max(settings.max_trim_lines, int(settings.max_trim_share * len(lines))):
+    # What was taken out with the cover: all of the rest, or only what cannot be shown.
+    cut_out = sorted(cut | (outside & set(before_zero)))
+    left = [line for line in lines if line.id not in set(cut_out)] if outside else lines
+    uncovered = _uncovered(left, label_of, new_times, timeline, settings)
+    if uncovered > max(settings.max_trim_lines, int(settings.max_trim_share * len(left))):
         warnings.append(
             f"{uncovered} lines land more than "
             f"{settings.uncovered_margin_ms // 60_000} minutes outside everything the "
@@ -1132,14 +1175,23 @@ def propose(prepared: Prepared, adjustments: Adjustments | None = None) -> Propo
             "More lines at one end of the file land where nobody speaks than an outro has. "
             "They were kept: a part of the file may not have been placed."
         )
-    if before_zero:
+    if early:
         warnings.append(
-            f"{len(before_zero)} lines would be over before the reference begins and were removed."
+            f"{len(early)} lines would be over before the reference begins and were removed."
+        )
+    if outside:
+        stay = len(outside - removed) - len(cut_out)
+        warnings.append(
+            "The target holds more than the reference covers, such as several episodes in "
+            f"one file. Only the part the reference covers was synced: {len(part)} of "
+            f"{len(lines)} lines. {len(cut_out)} lines outside it were removed"
+            + (f", and {stay} after it were kept as the job asks." if stay else ".")
         )
     report.trimmed = trim
     report.unmatched_kept = keep
+    report.cut = cut_out
 
-    gone = removed | set(trim) | set(before_zero)
+    gone = removed | set(trim) | set(before_zero) | cut
     kept_starts = {
         line_id: start for line_id, (start, _) in new_times.items() if line_id not in gone
     }

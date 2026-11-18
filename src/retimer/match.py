@@ -164,6 +164,8 @@ class Matching:
     event_ok: np.ndarray
     anchors: list[Anchor]
     embedding_model: str
+    # How far a pair has to stand out to be one of the certain ones.
+    floor: float = MIN_DISTINCTIVENESS
 
     @property
     def result(self) -> MatchResult:
@@ -186,6 +188,60 @@ class Matching:
             np.float32
         )
 
+    def within(self, line_ids: set[int]) -> Matching:
+        """The matching of a part of the target: those lines alone against the whole reference.
+
+        How far each pair stands out is kept as it was found. The certain
+        pairs are found anew, because they are one chain through both files in
+        order, and a line outside the part may hold a place in the reference
+        that a line of the part has the better claim to.
+        """
+        rows = [row for row, line in enumerate(self.lines) if line.id in line_ids]
+        lines = [self.lines[row] for row in rows]
+        standing = self.standing[rows, :]
+        line_ok = self.line_ok[rows]
+        return Matching(
+            lines=lines,
+            events=self.events,
+            standing=standing,
+            line_ok=line_ok,
+            event_ok=self.event_ok,
+            anchors=_chain(lines, self.events, standing, line_ok, self.event_ok, self.floor),
+            embedding_model=self.embedding_model,
+            floor=self.floor,
+        )
+
+
+def _chain(
+    lines: list[MatchLine],
+    events: list[RefEvent],
+    standing: np.ndarray,
+    line_ok: np.ndarray,
+    event_ok: np.ndarray,
+    min_distinctiveness: float,
+) -> list[Anchor]:
+    """The pairs that are certain from the text alone: the best chain that keeps both orders."""
+    anchors: list[Anchor] = []
+    if not lines or not events:
+        return anchors
+    weights = np.clip(standing - min_distinctiveness, 0.0, None)
+    weights[~line_ok, :] = 0.0
+    weights[:, ~event_ok] = 0.0
+    for row, column in best_chain(weights):
+        line = lines[row]
+        event = events[column]
+        anchors.append(
+            Anchor(
+                target_id=line.id,
+                target_start_ms=line.start_ms,
+                ref_index=column,
+                ref_start_ms=event.start_ms,
+                offset_ms=event.start_ms - line.start_ms,
+                score=round(float(standing[row, column]), 3),
+            )
+        )
+    return anchors
+
 
 def match_lines(
     lines: list[MatchLine],
@@ -201,34 +257,18 @@ def match_lines(
     line_ok = np.array([not is_generic(text) for _, _, text in target], dtype=bool)
     event_ok = np.array([not is_generic(text) for _, _, text in reference], dtype=bool)
 
-    anchors: list[Anchor] = []
     standing = np.zeros((len(target), len(reference)), dtype=np.float32)
     if target and reference:
         standing = distinctiveness(similarity(target, reference, embedder))
-        weights = np.clip(standing - min_distinctiveness, 0.0, None)
-        weights[~line_ok, :] = 0.0
-        weights[:, ~event_ok] = 0.0
-        for row, column in best_chain(weights):
-            line = lines[row]
-            event = events[column]
-            anchors.append(
-                Anchor(
-                    target_id=line.id,
-                    target_start_ms=line.start_ms,
-                    ref_index=column,
-                    ref_start_ms=event.start_ms,
-                    offset_ms=event.start_ms - line.start_ms,
-                    score=round(float(standing[row, column]), 3),
-                )
-            )
     return Matching(
         lines=lines,
         events=events,
         standing=standing,
         line_ok=line_ok,
         event_ok=event_ok,
-        anchors=anchors,
+        anchors=_chain(lines, events, standing, line_ok, event_ok, min_distinctiveness),
         embedding_model=embedder.model,
+        floor=min_distinctiveness,
     )
 
 

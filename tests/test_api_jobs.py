@@ -68,6 +68,7 @@ def test_a_job_against_a_reference_subtitle(tmp_path):
         30,
         0,
     )
+    assert summary["cut_lines"] == 0
     assert summary["cost_usd"] > 0
     assert set(job["links"]) == {"self", "result", "plan", "report"}
 

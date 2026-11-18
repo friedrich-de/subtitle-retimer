@@ -159,6 +159,9 @@ def _summary(result, seconds: float) -> dict[str, Any]:
         "target_lines": report.target_lines,
         "delivered_lines": len(result.subtitle) if result.subtitle is not None else 0,
         "trimmed_lines": len(report.trimmed),
+        # Lines outside the part the reference covers, in a file that holds
+        # more than that, such as several episodes.
+        "cut_lines": len(report.cut),
         # The lines of the matched reference, when one was asked for and made.
         "matched_reference_lines": len(result.reference) if result.reference is not None else None,
         # How many pairs of lines the report lists for it.

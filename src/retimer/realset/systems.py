@@ -11,7 +11,10 @@ so it is done beforehand for a sample of the videos (`retimer.realset.speech`)
 and the retimer runs against the audio of those videos only.
 
 The agent is the one system that is billed while it runs: a model is asked
-about what the fixed pipeline leaves open. It is run when it is named.
+about what the fixed pipeline leaves open. It is run when it is named. So is
+`retimer-questions`, which writes down what that model would be asked and asks
+nobody: it shows for nothing on which files a change to the questions takes
+effect.
 """
 
 from __future__ import annotations
@@ -28,6 +31,7 @@ from retimer.bench.runners import (
     AlassRunner,
     FfsubsyncRunner,
     PipelineRunner,
+    QuestionsRunner,
     Runner,
     RunOutput,
 )
@@ -63,6 +67,8 @@ class System:
     tuned: bool = False
     # A model at a provider decides what the fixed pipeline leaves open.
     agent: bool = False
+    # What that model would be asked is written down, and nobody is asked.
+    dry: bool = False
 
     @property
     def sampled(self) -> bool:
@@ -73,6 +79,7 @@ class System:
 SYSTEMS = (
     System("retimer", "retimer", "subtitle"),
     System("retimer-agent", "retimer", "subtitle", agent=True),
+    System("retimer-questions", "retimer", "subtitle", dry=True),
     System("alass", "alass", "subtitle"),
     System("alass-tuned", "alass", "subtitle", tuned=True),
     System("ffsubsync", "ffsubsync", "subtitle"),
@@ -85,7 +92,7 @@ SYSTEMS = (
     System("ffsubsync-audio-tuned", "ffsubsync", "audio", tuned=True),
 )
 # What a run takes when no system is named: everything that is not billed while it runs.
-DEFAULT_SYSTEMS = tuple(system.name for system in SYSTEMS if not system.agent)
+DEFAULT_SYSTEMS = tuple(system.name for system in SYSTEMS if not system.agent and not system.dry)
 
 # The settings that are tried for each tool. The first of each is the default.
 _ALASS = {
@@ -257,7 +264,7 @@ def make_runner(system: System, root: Path) -> Runner:
         # Embeddings and transcripts come from the set's cache and from nowhere
         # else. The agent's model is not behind this client: it is asked with
         # the key in the environment.
-        kind = AgentRunner if system.agent else PipelineRunner
+        kind = QuestionsRunner if system.dry else AgentRunner if system.agent else PipelineRunner
         runner = kind(system.name, client=CachedOnly(), cache=CompactCache(root / CACHE_DIR))
         runner.names_audio_language = True
         return runner

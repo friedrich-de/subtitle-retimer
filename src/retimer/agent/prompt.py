@@ -75,6 +75,16 @@ episode, or a scene the reference does not have. Keep a line when it reads like 
 dialogue that belongs to the film and the reference may simply lack a line for it. \
 Against audio, a line that lands in silence or past the end of the audio is not \
 spoken in it.
+- The target holds more than the reference covers: one file can hold several \
+episodes, and the reference is one of them. The question names the part of the \
+target in which the reference was found and shows the lines around its two ends. \
+When the lines outside that part are other content, another episode or another \
+film, call cut_to_reference with the first and the last line of the part. The \
+lines outside are removed and the part is timed on its own. Episodes of a series \
+share an opening, a narration and phrases, so a few lines outside the part that \
+match the reference do not make them part of it. Settle this before the other \
+questions, which change with it. Do not cut when the lines outside carry on the \
+same scenes and the reference merely begins later or ends earlier.
 - No timing could be built: the lines that found their counterpart fall into \
 stretches with different timings, and the lines between two stretches leave no way \
 from one timing to the next. Those lines are usually a block of their own. Pair \
@@ -100,8 +110,8 @@ How to work
 - The dossier shows what most questions need: the open lines next to the stretch \
 of the reference they can belong to. Act on it directly. Read more lines or more \
 of the reference only when a question cannot be settled from what is shown.
-- After pair_lines or set_edge_lines you get the new draft and what is still open. \
-Check that your pairs are reported as in place.
+- After pair_lines, set_edge_lines or cut_to_reference you get the new draft and \
+what is still open. Check that your pairs are reported as in place.
 - When nothing more can be settled by reading, call submit. Every step costs money, \
 so do not check again what the tools already report.
 
@@ -162,13 +172,25 @@ TOOLS = [
     _tool(
         "set_edge_lines",
         "Decide about lines at the start or the end of the file that have no counterpart "
-        "in the reference: remove them from the output, or keep them. Only such lines can "
-        "be named. A kept line moves with the nearest block.",
+        "in the reference: remove them from the output, or keep them. Only such lines are "
+        "decided: any other line you name is left as it is and reported. A kept line moves "
+        "with the nearest block.",
         {
             "remove": {**_LINES, "description": "Lines the reference does not contain."},
             "keep": {**_LINES, "description": "Lines to keep although nothing matches them."},
         },
         ["remove", "keep"],
+    ),
+    _tool(
+        "cut_to_reference",
+        "Say that the target holds more than the reference covers, such as several "
+        "episodes in one file, by naming the first and the last target line of the part "
+        "the reference covers. Every line before the first and after the last is removed "
+        "from the output, the part is timed on its own, and you get the new draft. It is "
+        "taken only where that part holds the reference as a whole. Naming the first and "
+        "the last line of the file takes a cut back.",
+        {"first_line": _LINE, "last_line": _LINE},
+        ["first_line", "last_line"],
     ),
     _tool(
         "find_counterparts",

@@ -156,6 +156,7 @@ provider, costs nothing, and gives the same result every time.
 | `retimer` | This project's fixed pipeline against the subtitle track |
 | `retimer-audio` | The fixed pipeline against the audio, on the videos that have a transcript |
 | `retimer-agent`, `retimer-agent-audio` | The same two with the agent: a model is asked about what the fixed pipeline leaves open |
+| `retimer-questions` | The fixed pipeline, with what the agent's model would be asked written into the record. Nobody is asked, so it costs nothing |
 | `alass`, `ffsubsync` | The tools with their defaults against the subtitle track |
 | `alass-audio`, `ffsubsync-audio` | The tools with their defaults against the audio |
 | `...-tuned` | Each of the four with the setting chosen on the tuning pairs |
@@ -170,6 +171,13 @@ the model is asked at the provider. `--agent-limit-usd` (5 unless given) is
 what the model may cost in one run: when that is reached, the agent's jobs
 that have not begun are dropped and the run can be continued later with a
 higher limit. A key file is read into the process and never shown.
+
+`retimer-questions` is run when it is named too. Its records carry the
+questions under `details.report.agent.questions`, and under `part_asked` the
+part that the question about a file of several episodes names. A run of it
+shows on which files a change to the questions takes effect, before a run with
+the model is paid for. It is not meant to be judged: its outputs are the
+fixed pipeline's.
 
 ```
 retimer realset tune SET

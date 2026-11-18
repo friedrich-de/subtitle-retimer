@@ -374,6 +374,24 @@ def test_the_agent_is_run_when_it_is_named_and_needs_a_key(heard_set, monkeypatc
     )
 
 
+def test_what_the_model_would_be_asked_is_recorded_without_asking_it(heard_set, monkeypatch):
+    root, manifest, speaker = heard_set
+    assert "retimer-questions" not in DEFAULT_SYSTEMS
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+
+    pairs = select_pairs(manifest, only="t1.v1s1")
+    run_dir = run_systems(root, "asked", ["retimer", "retimer-questions"], pairs=pairs, workers=1)
+
+    records = {record["system"]: record for record in load_results(run_dir)}
+    dry, plain = records["retimer-questions"], records["retimer"]
+    assert dry["error"] is None
+    assert dry["outcome"] == plain["outcome"] == "synced" and dry["cost_usd"] == 0.0
+    assert dry["details"]["plan"] == plain["details"]["plan"]
+    trace = dry["details"]["report"]["agent"]
+    assert trace["questions"] == [] and trace["part_asked"] is None
+    assert not trace["consulted"] and trace["model"] == "none"
+
+
 def test_the_run_stops_asking_the_agent_at_its_limit(heard_set, monkeypatch):
     root, manifest, speaker = heard_set
     monkeypatch.setenv("OPENROUTER_API_KEY", "not a key")
@@ -436,7 +454,7 @@ def test_the_report_says_what_the_agent_changed_and_what_was_billed(heard_set):
         record("t1.v1s1", "retimer-agent", "synced", finished="not_needed", consulted=False),
         record("t1.v2s1", "retimer", "rejected_no_match", kind="wrong"),
         record("t1.v2s1", "retimer-agent", "partial", 0.0125, kind="wrong",
-               finished="submitted", consulted=True, changed=True),
+               finished="submitted", consulted=True, changed=True, cover=[4, 90]),
         record("t1.v2s1.main", "retimer-agent", "synced", finished="error", consulted=True),
     ]  # fmt: skip
     judgments = [
@@ -451,7 +469,8 @@ def test_the_report_says_what_the_agent_changed_and_what_was_billed(heard_set):
     assert "| wrong | rejected_no_match | partial | 1 |" in changed.split("##")[0]
     did = text.split("## What the agent did")[1].split("##")[0]
     assert "| System | Jobs | Model asked | not_needed | submitted |" in did
-    assert "| retimer-agent | 3 | 2 | 1 | 1 | 0 | 0 | 0 | 1 | 1 |" in did
+    assert "| retimer-agent | 3 | 2 | 1 | 1 | 0 | 0 | 0 | 1 | 1 | 1 |" in did
+    assert "| declined | error | Plan changed | Cut down |" in did
     billed = text.split("## What was billed")[1]
     assert "| retimer-agent | 3 | 1 | 0.01 |" in billed
     assert "| retimer |" not in billed

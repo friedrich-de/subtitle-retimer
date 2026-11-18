@@ -255,6 +255,9 @@ _ENDINGS = ("not_needed", "submitted", "no_submit", "budget", "declined", "error
 def agent_rows(results: list[dict], systems: list[str]) -> list[list[object]]:
     """What the agent did per system: how often the model was asked, and how that ended.
 
+    The last two numbers are the jobs whose plan is the agent's, and those
+    among them where it cut the file down to the part the reference covers.
+
     An ending of `error` is a call to the model that failed. The job then
     kept the fixed pipeline's plan, so many of them make the agent look like
     the pipeline when it was never heard.
@@ -266,6 +269,7 @@ def agent_rows(results: list[dict], systems: list[str]) -> list[list[object]]:
             endings[record["system"]][str(trace.get("finished"))] += 1
             endings[record["system"]]["asked"] += bool(trace.get("consulted"))
             endings[record["system"]]["changed"] += bool(trace.get("changed"))
+            endings[record["system"]]["cut"] += bool(trace.get("cover"))
     return [
         [
             system,
@@ -273,6 +277,7 @@ def agent_rows(results: list[dict], systems: list[str]) -> list[list[object]]:
             endings[system]["asked"],
             *(endings[system][ending] for ending in _ENDINGS),
             endings[system]["changed"],
+            endings[system]["cut"],
         ]
         for system in systems
         if endings[system]
@@ -641,8 +646,10 @@ def render(
             "## What the agent did",
             "The model is asked only about what the fixed pipeline leaves open. The columns "
             "after that say how the agent's part of a job ended. `error` is a call to the "
-            "model that failed: the job then kept the fixed pipeline's plan.",
-            _table(["System", "Jobs", "Model asked", *_ENDINGS, "Plan changed"], asked),
+            "model that failed: the job then kept the fixed pipeline's plan. The last column "
+            "counts the files it cut down to the part the reference covers, as it does with "
+            "a file of several episodes.",
+            _table(["System", "Jobs", "Model asked", *_ENDINGS, "Plan changed", "Cut down"], asked),
         ]
     for system in SYSTEMS:
         pipeline = system.name.replace("-agent", "")

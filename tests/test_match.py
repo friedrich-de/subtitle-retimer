@@ -99,3 +99,25 @@ def test_coverage_is_counted_per_region():
     assert coverage.share == 0.5
     assert len(coverage.regions) == 6
     assert [region.matched_lines for region in coverage.regions] == [2, 2, 2, 0, 0, 0]
+
+
+def test_a_part_of_the_target_is_matched_anew_against_the_whole_reference():
+    # The same lines twice, as in a file of two episodes that say the same. One
+    # chain through both files gives each place of the reference to one line.
+    truth = spread(12)
+    target = lines_of(
+        make_subtitle(truth + [start + 600_000 for start in truth], SENTENCES[:12] * 2)
+    )
+    matching = match_lines(target, timeline_from_subtitle(make_subtitle(truth)), embedder())
+    assert len(matching.anchors) == 12
+
+    second = {line.id for line in target[12:]}
+    part = matching.within(second)
+
+    assert [line.id for line in part.lines] == sorted(second)
+    assert part.standing.shape == (12, 12) and part.events == matching.events
+    assert [(anchor.target_id, anchor.ref_index) for anchor in part.anchors] == [
+        (line_id, index) for index, line_id in enumerate(sorted(second))
+    ]
+    assert part.result.target_lines == 12
+    assert matching.within(set()).anchors == []

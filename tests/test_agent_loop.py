@@ -23,7 +23,7 @@ from retimer.cache import Cache
 from retimer.cli import main
 from retimer.pipeline import prepare, sync
 
-from .agent_helpers import FakeModel, Reply, call, pair, say, submit, three_parts
+from .agent_helpers import FakeModel, Reply, call, pack, pair, say, submit, three_parts
 from .bench_helpers import write_seeds
 from .sync_helpers import SENTENCES, FakeClient, make_subtitle, spread
 
@@ -207,6 +207,7 @@ def test_the_tool_definitions_are_strict():
         "pair_lines",
         "unpair_lines",
         "set_edge_lines",
+        "cut_to_reference",
         "find_counterparts",
         "read_lines",
         "read_reference",
@@ -686,3 +687,46 @@ def test_sync_command_with_the_agent_needs_its_key(files, monkeypatch, capsys):
     assert main(command) == 1
     assert "It takes openrouter or anthropic" in capsys.readouterr().err
     assert not (folder / "out.srt").exists()
+
+
+def test_the_agent_cuts_a_file_of_several_episodes_down_to_the_one(desk):
+    target, reference, truth = pack("second", reworded=True)
+    bench = desk(target, reference=reference)
+    assert bench.baseline.result.plan.outcome == "partial"
+    model = FakeModel(
+        [call("cut_to_reference", first_line=24, last_line=53)],
+        [submit(note="Two episodes in one file. Cut down to the second.")],
+    )
+
+    result = run_agent(bench, HAIKU, model)
+
+    assert result.plan.outcome == "synced"
+    assert starts_of(result) == truth
+    assert result.report.cut == list(range(24))
+    agent = result.report.agent
+    assert agent["questions"] == [
+        "The target holds more than the reference covers: 24 lines before L24 lie outside "
+        "the part in which the reference was found."
+    ]
+    assert agent["part_asked"] == {"first": 24, "last": 53, "before": 24, "after": 0}
+    assert agent["cover"] == [24, 53] and agent["changed"] and agent["accepted"]
+    assert [made["name"] for made in agent["calls"]] == ["cut_to_reference", "submit"]
+    # The answer to the cut is the new draft, and it leaves nothing open.
+    answer = model.requests[1]["messages"][-1]["content"][0]
+    assert "Cut down to L24 to L53" in answer["content"]
+    assert "Nothing is open any more." in answer["content"]
+
+
+def test_a_cut_the_tools_refuse_leaves_the_plan_as_it_was(desk):
+    target, reference, _ = pack("second")
+    bench = desk(target, reference=reference)
+    model = FakeModel([call("cut_to_reference", first_line=40, last_line=53)], [submit()])
+
+    result = run_agent(bench, HAIKU, model)
+
+    assert result.plan.outcome == "partial" and result.plan.timing_ops == []
+    agent = result.report.agent
+    assert agent["cover"] is None and not agent["changed"]
+    assert agent["calls"][0]["error"]
+    refusal = model.requests[1]["messages"][-1]["content"][0]
+    assert refusal["is_error"] and "Nothing was changed." in refusal["content"]

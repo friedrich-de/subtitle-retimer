@@ -2,8 +2,9 @@
 
 from types import SimpleNamespace
 
-from retimer import Subtitle
+from retimer import Subtitle, loads
 
+from .bench_helpers import _stamp
 from .sync_helpers import SENTENCES, make_subtitle, spread
 
 # Three lines of the target in another language. The stand-in for the embedding
@@ -107,3 +108,65 @@ def three_parts(
     texts = list(SENTENCES[:30])
     texts[first:second] = FOREIGN[: second - first]
     return make_subtitle(starts, texts), truth
+
+
+# What every episode of a made-up series begins with.
+NARRATION = [
+    "once again the wind crosses the little garden",
+    "and so the story of today can begin",
+]
+
+
+def episode(number: int, count: int) -> list[str]:
+    """The lines of an episode: the narration, then lines no other episode has."""
+    own = [
+        f"quartz{number}x{index} velvet{number}x{index} ember{number}x{index}"
+        for index in range(count - len(NARRATION))
+    ]
+    return NARRATION + own
+
+
+# The same narration as another subtitler would word it.
+REWORDED = [
+    "once more the wind crosses the small garden",
+    "and so the tale of today can begin",
+]
+
+
+def pack(
+    position: str = "second", lead_ms: int = 400_000, reworded: bool = False
+) -> tuple[Subtitle, Subtitle, list[int]]:
+    """Two episodes in one file, the reference for one of them, and its true starts.
+
+    The episode of the reference is the 30 sentences with the narration in
+    place of the first two. The other episode has 24 lines and comes before
+    it or after it. In the file each episode is timed from where the one
+    before it ended, so the one of the reference is late by `lead_ms` when it
+    is the second, and by 1.5 s when it is the first.
+
+    With `reworded`, the reference words the narration a little differently
+    from its own episode in the file, and exactly as the other episode does.
+    """
+    truth = spread(30)
+    own = NARRATION + list(SENTENCES[2:30])
+    other = (REWORDED if reworded else NARRATION) + episode(2, 24)[2:]
+    elsewhere = spread(24)
+    if position == "second":
+        starts = elsewhere + [start + lead_ms for start in truth]
+        texts = other + own
+    else:
+        starts = [start + 1_500 for start in truth] + [
+            start + truth[-1] + lead_ms for start in elsewhere
+        ]
+        texts = own + other
+    said = (REWORDED if reworded else NARRATION) + own[2:]
+    return make_subtitle(starts, texts), make_subtitle(truth, said), truth
+
+
+def timed(rows: list[tuple[int, int, str]]) -> Subtitle:
+    """An SRT from lines given as start, end and text."""
+    blocks = [
+        f"{index + 1}\n{_stamp(start)} --> {_stamp(end)}\n{text}\n"
+        for index, (start, end, text) in enumerate(rows)
+    ]
+    return loads("\n".join(blocks))

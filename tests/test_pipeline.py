@@ -650,6 +650,67 @@ def test_a_file_with_most_lines_before_the_reference_says_why_it_was_left_alone(
     assert "Timing is unchanged" in result.report.warnings[-1]
 
 
+def test_a_cover_syncs_one_part_of_the_file_and_removes_the_rest(tmp_path):
+    # What the pipeline leaves alone above, a reader settles by saying which
+    # part of the file the reference covers.
+    truth = spread(20)
+    earlier = [f"{sentence} in the part before" for sentence in SENTENCES[:20]]
+    target = make_subtitle(truth + [start + 1_500_000 for start in truth], earlier + SENTENCES[:20])
+    prepared = prepare(
+        target, reference=make_subtitle(truth), client=FakeClient(), cache=Cache(tmp_path)
+    )
+    left_alone = propose(prepared)
+    assert left_alone.result.plan.timing_ops == []
+    assert left_alone.attempted[20] == (truth[0], truth[0] + 2_000)
+
+    found = propose(prepared, Adjustments(cover=(20, 39)))
+
+    result = found.result
+    assert result.plan.outcome == "synced"
+    assert result.plan.timing_ops == [Shift(ms=-1_500_000)]
+    assert result.plan.content_ops == [
+        RemoveLines(reason="absent_from_reference", ids=list(range(20)))
+    ]
+    assert starts_of(result.subtitle) == truth
+    assert result.report.cut == list(range(20)) and result.report.trimmed == []
+    assert result.report.target_lines == 40 and result.report.eligible_lines == 20
+    assert (
+        "Only the part the reference covers was synced: 20 of 40 lines"
+        in (result.report.warnings[-1])
+    )
+    assert found.removed == set(range(20)) and found.attempted is None
+
+    # The earlier part says the same things. Without the cover its lines hold
+    # places of the reference that the lines of the part have the better claim to.
+    assert {anchor.target_id for anchor in found.alignment.anchors} == set(range(20, 40))
+    with pytest.raises(ValueError, match="not in the file"):
+        propose(prepared, Adjustments(cover=(20, 99)))
+
+
+def test_a_cover_leaves_the_lines_after_it_to_a_job_that_keeps_them(tmp_path):
+    truth = spread(20)
+    later = [f"{sentence} again in part 2" for sentence in SENTENCES[:20]]
+    target = make_subtitle(
+        [start + 4_000 for start in truth] + [start + 1_500_000 for start in truth],
+        SENTENCES[:20] + later,
+    )
+    prepared = prepare(
+        target,
+        reference=make_subtitle(truth),
+        options=Options(drop_unmatched=False),
+        client=FakeClient(),
+        cache=Cache(tmp_path),
+    )
+
+    result = propose(prepared, Adjustments(cover=(0, 19))).result
+
+    assert result.plan.timing_ops == [Shift(ms=-4_000)]
+    assert len(result.subtitle.lines) == 40 and result.report.cut == []
+    assert "20 after it were kept as the job asks" in result.report.warnings[-1]
+    # They are still content nothing places, and the outcome says so.
+    assert result.plan.outcome == "partial"
+
+
 def test_a_few_lines_meeting_by_accident_are_no_offset():
     # Six signs of a signs-and-songs track against 360 lines: somewhere in a
     # window of four minutes, four of them meet a line start.

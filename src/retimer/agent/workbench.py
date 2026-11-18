@@ -3,18 +3,21 @@
 The routine steps have run before the agent starts. The workbench holds their
 result as a draft plan and finds the places where that draft rests on too
 little: lines the fits could not place, blocks with hardly anything behind
-them, lines at the edges that have no counterpart, a doubtful verdict on
-whether both sides are the same content at all.
+them, lines at the edges that have no counterpart, a target that holds more
+than the reference covers, a doubtful verdict on whether both sides are the
+same content at all.
 
 The agent never writes a time. It says which line belongs to which place in
-the reference, what happens to a line without a counterpart, which fit to go
-with, and whether the two sides are the same content. Every one of these is an
+the reference, what happens to a line without a counterpart, which part of
+the target the reference covers, which fit to go with, and whether the two
+sides are the same content. Every one of these is an
 adjustment to the fixed pipeline, which then computes the plan as it always
 does. So a plan from the agent passes the same engine checks as any other.
 """
 
 from __future__ import annotations
 
+import functools
 import math
 import re
 import statistics
@@ -58,6 +61,26 @@ NOTHING_CLOSE = "closest: nothing comes close"
 WHEREABOUTS_SHARE = 0.8
 # Lines that lie within this share of the target are one part of it, not all of it.
 MIN_REACH = 1 / 3
+# A part of the target can be cut down to when the lines placed in it reach over
+# this share of the reference. The recap that two episodes share reaches over a
+# tenth of it, an episode found in a file of several over nearly all.
+MIN_COVERED = 0.5
+# With fewer placed lines than this, nothing says where the reference lies in the target.
+MIN_CORE = 6
+# Lines after the end of a reference subtitle still belong to its part while they
+# follow each other this closely: a last scene or a preview it has no lines for.
+TRAIL_PAUSE_MS = 30_000
+# ...and while they do not go on for longer than this after its end. More than
+# that is no last scene: it is what comes next in the file.
+TRAIL_SPAN_MS = 180_000
+# How many lines the question about a part shows on either side of a boundary.
+BOUNDARY_SHOWN = 5
+# A stretch with a shift of its own needs more lines placed than a chance pair or two.
+MIN_STRETCH = 3
+# A reference that spans less than this is a song, a clip or a few signs, and no
+# episode: what the target holds beyond it is the rest of the video, which a
+# reference subtitle says nothing about.
+MIN_EPISODE_MS = 120_000
 
 _CLAUSE_END = re.compile(r"[.?!…。？！,、;:，；：]+[\"'”’）)」』]*$")
 _SENTENCE_END = re.compile(r"[.?!…。？！]+[\"'”’）)」』]*$")
@@ -109,6 +132,33 @@ class Run:
     first_unit: int
     last_unit: int
     open: bool = False
+
+
+@dataclass
+class Excess:
+    """A target that holds more than the reference, and the part the reference was found in.
+
+    `first` and `last` are the lines that part is taken to run from and to,
+    worked out from where the lines land. `placed_first` and `placed_last` are
+    the outermost lines in it that found their counterpart, `units` the places
+    those reach from and to. `before` and `after` count the lines outside.
+    The shifts say where a line near either end lands under the timing found.
+    """
+
+    first: int
+    last: int
+    placed_first: int
+    placed_last: int
+    placed: int
+    units: tuple[int, int]
+    before: int
+    after: int
+    rate: float
+    head_shift: int
+    tail_shift: int
+    end_ms: int
+    begin_ms: int = 0
+    margin_ms: int = 0
 
 
 def clock(ms: int | float) -> str:
@@ -197,8 +247,22 @@ class Workbench:
         self.fit_kind: FitKind | None = None
         self.same_content: bool | None = None
         self.edges_reviewed = False
-        self.baseline = propose(prepared)
-        self.draft = self.baseline
+        # The part of the target the reference covers, when a reader cut the
+        # file down to it, and the lines outside that part.
+        self.cover: tuple[int, int] | None = None
+        self._outside: set[int] = set()
+        # The plan of the routine steps for the file as it came.
+        self.original = propose(prepared)
+        self._rebase(self.original)
+
+    def _rebase(self, proposal: Proposal) -> None:
+        """Take a plan as the one a reader starts from.
+
+        That is the plan of the routine steps, for the whole file or for the
+        part it was cut down to. What a reader does after is measured on it.
+        """
+        self.baseline = proposal
+        self.draft = proposal
         self._firm = self._firm_lines()
         # Where the routine steps found each line they placed: the place, and the time.
         self._home = {
@@ -273,6 +337,7 @@ class Workbench:
             edges_reviewed=self.edges_reviewed,
             same_content=self.same_content,
             held=self._held if self.pairs else {},
+            cover=self.cover,
         )
 
     @property
@@ -281,7 +346,9 @@ class Workbench:
 
     def refresh(self) -> Proposal:
         adjustments = self.adjustments()
-        self.draft = self.baseline if adjustments.empty else propose(self.prepared, adjustments)
+        # With nothing but the cover, the plan is the one the cut began with.
+        plain = adjustments.model_copy(update={"held": {}}) == Adjustments(cover=self.cover)
+        self.draft = self.baseline if plain else propose(self.prepared, adjustments)
         return self.draft
 
     # ----- reading the draft
@@ -434,6 +501,10 @@ class Workbench:
     def status(self, line_id: int) -> str:
         if line_id in self._option_removed:
             return "removed by the options"
+        if line_id in self._outside:
+            if line_id in self.draft.removed:
+                return "removed, outside the part the reference covers"
+            return "outside the part the reference covers, kept as the job asks"
         report = self.draft.result.report
         if line_id in self.trim and line_id in self.draft.removed:
             return "removed, your decision"
@@ -456,6 +527,7 @@ class Workbench:
             line.id
             for line in self.prepared.lines
             if line.id not in self._option_removed
+            and line.id not in self._outside
             and (line.id in spoken or self.label(line.id) == "credit")
         ]
 
@@ -737,7 +809,217 @@ class Workbench:
         return [
             line.id
             for line in self.prepared.lines
-            if line.id in self.prepared.dialogue_ids and line.id in self._row
+            if line.id in self.prepared.dialogue_ids
+            and line.id in self._row
+            and line.id not in self._outside
+        ]
+
+    def _core(self, proposal: Proposal) -> list[int]:
+        """Where most of the lines lie that found their counterpart under a plan's fit.
+
+        Positions in the file, in order. Episodes of a series share lines, and
+        a pair or two elsewhere agree with a timing by chance, so the part of
+        the file that holds most of the placed lines is what counts.
+        """
+        chosen = proposal.alignment.chosen
+        if chosen is None:
+            return []
+        held = sorted(
+            self._position[line_id]
+            for line_id in chosen.explained(proposal.alignment.anchors)
+            if line_id in self._position
+        )
+        if len(held) < MIN_CORE:
+            return []
+        most = math.ceil(WHEREABOUTS_SHARE * len(held))
+        start = min(
+            range(len(held) - most + 1), key=lambda index: held[index + most - 1] - held[index]
+        )
+        return held[start : start + most]
+
+    def covered(self, proposal: Proposal | None = None) -> tuple[float, int, int]:
+        """How much of the reference the placed lines of a plan reach over, from 0 to 1.
+
+        Also the first and the last place they reach. As in the target, what
+        counts is where most of them lie.
+        """
+        proposal = proposal or self.draft
+        chosen = proposal.alignment.chosen
+        events = proposal.alignment.matching.events
+        if chosen is None or not events:
+            return 0.0, 0, 0
+        placed = chosen.explained(proposal.alignment.anchors)
+        held = sorted(
+            anchor.ref_index
+            for anchor in proposal.alignment.anchors
+            if anchor.target_id in placed and 0 <= anchor.ref_index < len(events)
+        )
+        if len(held) < MIN_CORE:
+            return 0.0, 0, 0
+        most = math.ceil(WHEREABOUTS_SHARE * len(held))
+        start = min(
+            range(len(held) - most + 1), key=lambda index: held[index + most - 1] - held[index]
+        )
+        first, last = held[start], held[start + most - 1]
+        units = (
+            self._event_units.get(first, [0])[0],
+            self._event_units.get(last, [len(self.units) - 1])[-1],
+        )
+        return (last - first + 1) / len(events), units[0], units[1]
+
+    def excess(self) -> Excess | None:
+        """The part the reference covers, as long as it is open whether to cut down to it."""
+        return None if self.cover is not None else self._excess
+
+    @functools.cached_property
+    def _excess(self) -> Excess | None:
+        """The part the reference covers, when the target holds clearly more than that.
+
+        Under the timing the routine steps found, the lines of another episode
+        land where the reference has nothing: before it begins, or past its
+        end. A few such lines are an intro or a preview. Many spoken lines are
+        content the reference does not hold, and what to do with those a
+        reader decides. Songs, signs and credits there are the episode's own
+        opening and ending, and a line that is shown for no time has no place
+        to be judged by. A reference of a minute or two is no episode either:
+        a track of signs can end long before the video does.
+        """
+        base = self.original
+        alignment = base.alignment
+        chosen = alignment.chosen
+        times = base.attempted or (base.new_times if base.blocks else None)
+        if chosen is None or alignment.verdict != "aligned" or not times or not self.units:
+            return None
+        core = self._core(base)
+        share, first_unit, last_unit = self.covered(base)
+        if not core or share < MIN_COVERED:
+            return None
+        lines = self.prepared.lines
+        settings = self.prepared.settings
+        timeline = self.prepared.timeline
+        rate = chosen.rate
+        events = timeline.events
+        if max(event.end_ms for event in events) - events[0].start_ms < MIN_EPISODE_MS:
+            return None
+
+        def shift_at(position: int) -> int:
+            line = lines[position]
+            return times[line.id][0] - round(line.start_ms * rate)
+
+        explained = chosen.explained(alignment.anchors)
+        found = {self._position[line_id] for line_id in explained if line_id in self._position}
+        density = len(core) / (core[-1] - core[0] + 1)
+
+        def stretch(position: int, step: int) -> int | None:
+            """The shift of the stretch a line is timed with, when the reference covers it.
+
+            A file cut differently from the reference is timed in stretches
+            with a shift each, and the lines of each find their counterpart
+            about as often as elsewhere. Of another episode only the lines
+            find one that both episodes share.
+            """
+            own = shift_at(position)
+            run = held = 0
+            while 0 <= position < len(lines) and shift_at(position) == own:
+                run += 1
+                held += position in found
+                position += step
+            return own if held >= MIN_STRETCH and held / run >= density / 2 else None
+
+        head, tail = shift_at(core[0]), shift_at(core[-1])
+        # Before the part: everything up to the last line that would be over before zero.
+        low = core[0]
+        for position in range(core[0] - 1, -1, -1):
+            line = lines[position]
+            if line.duration_ms > 0 and round(line.end_ms * rate) + head <= 0:
+                own = stretch(position, -1)
+                if own is None or round(line.end_ms * rate) + own <= 0:
+                    break
+                head = own
+            low = position
+        # After it: audio has an end. A reference subtitle only has a last line,
+        # and lines that follow it closely can be a scene it has no lines for.
+        heard = timeline.kind in ("audio", "both") and timeline.duration_ms is not None
+        end = timeline.duration_ms if heard else max(event.end_ms for event in events)
+        margin = 0 if heard else settings.edge_margin_ms
+        high = within = core[-1]
+        for position in range(core[-1] + 1, len(lines)):
+            start = round(lines[position].start_ms * rate) + tail
+            if start <= end + margin:
+                within = position
+            else:
+                own = stretch(position, 1)
+                if own is not None and round(lines[position].start_ms * rate) + own <= end + margin:
+                    tail = own
+                    within = position
+                elif heard:
+                    break
+                else:
+                    last_end = round(lines[high].end_ms * rate) + tail
+                    if start - max(last_end, end) > TRAIL_PAUSE_MS:
+                        break
+                    if start - end > TRAIL_SPAN_MS:
+                        high = within
+                        break
+            high = position
+        # What the rules took out already is settled: against audio, the lines
+        # that land past its end. The question is about the lines still there.
+        before = sum(1 for line in lines[:low] if line.id not in base.removed)
+        after = sum(1 for line in lines[high + 1 :] if line.id not in base.removed)
+        spoken = self.prepared.dialogue_ids - base.removed
+        said_before = sum(1 for line in lines[:low] if line.id in spoken and line.duration_ms)
+        said_after = sum(1 for line in lines[high + 1 :] if line.id in spoken and line.duration_ms)
+        limit = self._trim_limit()
+        if said_before <= limit and said_after <= limit:
+            return None
+        placed = sorted(position for position in found if low <= position <= high)
+        # The places the lines of the part reach, from the outermost of them.
+        reached = sorted(
+            anchor.ref_index
+            for anchor in alignment.anchors
+            if anchor.target_id in explained
+            and anchor.ref_index in self._event_units
+            and low <= self._position.get(anchor.target_id, -1) <= high
+        )
+        if reached:
+            first_unit = self._event_units[reached[0]][0]
+            last_unit = self._event_units[reached[-1]][-1]
+        return Excess(
+            first=lines[low].id,
+            last=lines[high].id,
+            placed_first=lines[placed[0]].id,
+            placed_last=lines[placed[-1]].id,
+            placed=len(placed),
+            units=(first_unit, last_unit),
+            before=before,
+            after=after,
+            rate=rate,
+            head_shift=head,
+            tail_shift=tail,
+            end_ms=end,
+            begin_ms=0 if heard else events[0].start_ms,
+            margin_ms=margin,
+        )
+
+    def _asked(self) -> tuple[Excess | None, list[Run]]:
+        """What is asked about lines without counterpart: the part question, and the runs.
+
+        While it is open whether the target holds more than the reference,
+        runs of lines outside the part are not questions of their own. And
+        where no timing could be built for the whole file, the runs say
+        nothing yet about the part.
+        """
+        excess = self.excess()
+        runs = [run for run in self.runs() if run.open]
+        if excess is None:
+            return None, runs
+        if self.unbuilt:
+            return excess, []
+        low, high = self._position[excess.first], self._position[excess.last]
+        return excess, [
+            run
+            for run in runs
+            if all(low <= self._position[line_id] <= high for line_id in run.line_ids)
         ]
 
     def open_questions(self) -> list[str]:
@@ -746,13 +1028,15 @@ class Workbench:
         doubt = self.verdict_doubt() if self.same_content is None and not self.pairs else None
         if doubt:
             questions.append(f"Same content? {doubt}")
-        if self.unbuilt:
+        excess, runs = self._asked()
+        if excess is not None:
+            questions.append(self._excess_title(excess))
+        elif self.unbuilt:
             questions.append(
                 "No timing could be built from the lines that found their counterpart."
             )
-        for run in self.runs():
-            if run.open:
-                questions.append(self._run_title(run))
+        for run in runs:
+            questions.append(self._run_title(run))
         for index in self.weak_blocks():
             block = self.draft.blocks[index]
             questions.append(
@@ -838,6 +1122,87 @@ class Workbench:
             f"{count} ({span}) found no counterpart. {sit} between block "
             f"B{self.block_of(run.before) + 1} and block B{self.block_of(run.after) + 1}."
         )
+
+    def _excess_title(self, excess: Excess) -> str:
+        outside = []
+        if excess.before:
+            outside.append(f"{excess.before} lines before L{excess.first}")
+        if excess.after:
+            outside.append(f"{excess.after} lines after L{excess.last}")
+        return (
+            f"The target holds more than the reference covers: {' and '.join(outside)} lie "
+            "outside the part in which the reference was found."
+        )
+
+    def render_excess(self, excess: Excess) -> str:
+        """The question whether to cut the target down to the part the reference covers."""
+        lines = self.prepared.lines
+        low, high = self._position[excess.first], self._position[excess.last]
+        first_unit, last_unit = excess.units
+        rate = excess.rate
+        lands = []
+        if excess.before:
+            lands.append(
+                f"the {excess.before} lines before L{excess.first} would be over before the "
+                "reference begins"
+            )
+        if excess.after:
+            lands.append(f"the {excess.after} lines after L{excess.last} land past its end")
+        out = [
+            self._excess_title(excess),
+            f"  The reference was found in L{excess.placed_first} to L{excess.placed_last}: "
+            f"{excess.placed} certain pairs there agree on one timing and reach from "
+            f"R{first_unit} to R{last_unit}, of R0 to R{len(self.units) - 1}. Under that "
+            f"timing {' and '.join(lands)}. A file like that usually holds several "
+            "episodes, and the reference is one of them.",
+            "  If the lines outside are other content than the reference, such as another "
+            f"episode, call cut_to_reference with first_line {excess.first} and last_line "
+            f"{excess.last}. The lines outside are removed, the part is timed on its own, and "
+            "you get the new draft with what it leaves open. Do that before anything else.",
+            "  Those two lines were worked out from the times. Read the lines shown here and "
+            "name another line where the part plainly begins or ends elsewhere. A preview of "
+            "the next episode belongs to the part it follows.",
+            "  Do not cut when the lines outside carry on the scenes of the part, and the "
+            "reference merely begins later or ends earlier than the target does.",
+        ]
+        if excess.before:
+            if low > BOUNDARY_SHOWN + 3:
+                out.append("  How the file begins:")
+                out += [f"    {self._line(line.id, landing=False)}" for line in lines[:3]]
+            out.append(f"  Around L{excess.first}, the first line of the part:")
+            for line in lines[max(0, low - BOUNDARY_SHOWN) : low]:
+                over = -(round(line.end_ms * rate) + excess.head_shift)
+                out.append(
+                    f"    {self._line(line.id, landing=False)}  [outside: over {clock(over)} "
+                    "before the reference begins]"
+                )
+            stop = min(self._position[excess.placed_first], low + BOUNDARY_SHOWN)
+            for line in lines[low : stop + 1]:
+                at = round(line.start_ms * rate) + excess.head_shift
+                out.append(f"    {self._line(line.id, landing=False)}  [lands at {clock(at)}]")
+            out.append("  How the reference begins:")
+            out += [f"    {place}" for place in self._units(0, min(len(self.units), 6) - 1)]
+        if excess.after:
+            start = max(self._position[excess.placed_last], high - BOUNDARY_SHOWN)
+            out.append(f"  Around L{excess.last}, the last line of the part:")
+            for line in lines[start : high + 1]:
+                at = round(line.start_ms * rate) + excess.tail_shift
+                out.append(f"    {self._line(line.id, landing=False)}  [lands at {clock(at)}]")
+            for line in lines[high + 1 : high + 1 + BOUNDARY_SHOWN]:
+                past = round(line.start_ms * rate) + excess.tail_shift - excess.end_ms
+                out.append(
+                    f"    {self._line(line.id, landing=False)}  [outside: lands {clock(past)} "
+                    "after the end of the reference]"
+                )
+            out.append("  How the reference ends:")
+            out += [
+                f"    {place}"
+                for place in self._units(max(0, len(self.units) - 4), len(self.units) - 1)
+            ]
+            if len(lines) - 1 - high > BOUNDARY_SHOWN + 3:
+                out.append("  How the file ends:")
+                out += [f"    {self._line(line.id, landing=False)}" for line in lines[-3:]]
+        return "\n".join(out)
 
     def render_run(self, run: Run) -> str:
         out = [self._run_title(run)]
@@ -1009,7 +1374,7 @@ class Workbench:
         out = [f"Draft plan, outcome {report.outcome}."]
         if report.rate_name:
             out.append(f"  Rate change over the whole file: {report.rate_name}.")
-        ordered = [line.id for line in self.prepared.lines]
+        ordered = [line.id for line in self.prepared.lines if line.id not in self._outside]
         for index, block in enumerate(self.draft.blocks):
             inside = [line_id for line_id in ordered if self.block_of(line_id) == index]
             span = f"L{inside[0]} to L{inside[-1]}" if inside else "no lines"
@@ -1024,6 +1389,11 @@ class Workbench:
             out.append(
                 f"  Certain pairs in place: {self.draft.in_place} of {report.score.anchors} "
                 f"(the plan you started from: {self.baseline.in_place})."
+            )
+        if self.cover is not None:
+            out.append(
+                f"  Cut down to L{self.cover[0]} to L{self.cover[1]}, the part the reference "
+                f"covers: {len(report.cut)} lines outside it are removed."
             )
         if report.trimmed:
             out.append("  Removed at the edges: " + ", ".join(f"L{i}" for i in report.trimmed))
@@ -1063,13 +1433,16 @@ class Workbench:
 
     def render_questions(self) -> str:
         parts = []
-        if self.unbuilt:
+        excess, runs = self._asked()
+        if excess is not None:
+            parts.append(self.render_excess(excess))
+        elif self.unbuilt:
             parts.append(self.render_unbuilt())
         if self.same_content is None and not self.pairs:
             doubt = self.verdict_doubt()
             if doubt:
                 parts.append(f"Same content? {doubt}\n{self.render_verdict()}")
-        parts += [self.render_run(run) for run in self.runs() if run.open]
+        parts += [self.render_run(run) for run in runs]
         parts += [self.render_block(index) for index in self.weak_blocks()]
         if not parts:
             return "Nothing is open."
@@ -1191,6 +1564,12 @@ class Workbench:
         for pair in pairs:
             line_id = self._check_line(int(pair["line"]))
             unit = self._check_unit(int(pair["place"]))
+            if line_id in self._outside:
+                head.append(
+                    f"L{line_id} = R{unit}: not taken. L{line_id} is outside the part the "
+                    "reference covers."
+                )
+                continue
             if scope is not None and line_id not in scope:
                 block = self.block_of(line_id)
                 where = f"block B{block + 1}" if block is not None else "its block"
@@ -1337,28 +1716,208 @@ class Workbench:
         head = [f"Unpaired: {', '.join(f'L{i}' for i in lines)}.", *self._dropped_text(dropped)]
         return self._after_change(head)
 
+    def _spans(self, line_ids: Iterable[int]) -> str:
+        """Lines for the agent to read, with those that follow each other as one stretch."""
+        ordered = sorted(set(line_ids), key=lambda line_id: self._position[line_id])
+        spans: list[list[int]] = []
+        for line_id in ordered:
+            if spans and self._position[line_id] == self._position[spans[-1][-1]] + 1:
+                spans[-1].append(line_id)
+            else:
+                spans.append([line_id])
+        return ", ".join(
+            f"L{span[0]}" if len(span) == 1 else f"L{span[0]} to L{span[-1]}" for span in spans
+        )
+
     def set_edge_lines(self, remove: list[int], keep: list[int]) -> str:
-        """Decide about lines at the start or end of the file that have no counterpart."""
+        """Decide about lines at the start or end of the file that have no counterpart.
+
+        Each line is judged on its own. One that does not qualify is left as
+        it is and named in the answer, and the others are still decided.
+        """
         allowed = self.edge_lines()
         for line_id in [*remove, *keep]:
             self._check_line(line_id)
-            if line_id not in allowed:
-                raise ToolError(
-                    f"L{line_id} is not a line without counterpart at the start or the end "
-                    "of the file. Only those can be removed or kept. Nothing was changed."
-                )
+        refused = [line_id for line_id in [*remove, *keep] if line_id not in allowed]
+        remove = [line_id for line_id in remove if line_id in allowed]
+        keep = [line_id for line_id in keep if line_id in allowed]
+        only = (
+            "Only lines without counterpart at the start or the end of the file can be "
+            "removed or kept"
+        )
+        if refused and not remove and not keep:
+            raise ToolError(f"{self._spans(refused)}: not taken. {only}. Nothing was changed.")
         self.trim = (self.trim | set(remove)) - set(keep)
         self.keep = (self.keep | set(keep)) - set(remove)
         self.edges_reviewed = True
         self.refresh()
         head = []
         if remove:
-            head.append(f"Removed: {', '.join(f'L{i}' for i in remove)}.")
+            head.append(f"Removed: {self._spans(remove)}.")
         if keep:
-            head.append(f"Kept: {', '.join(f'L{i}' for i in keep)}.")
+            head.append(f"Kept: {self._spans(keep)}.")
+        if refused:
+            head.append(
+                f"Not changed: {self._spans(refused)}. {only}, and a line between placed "
+                "lines moves with its block."
+            )
         if remove and not self.prepared.options.drop_unmatched:
             head.append("The job's options say to keep such lines, so nothing is removed.")
         return self._after_change(head)
+
+    def cut_to_reference(self, first_line: int, last_line: int) -> str:
+        """Cut the target down to the part the reference covers, and time that part alone.
+
+        The cut is taken only where the routine steps found the reference in
+        the target, where the times say that spoken lines lie outside it, where
+        the part holds the lines they placed, and where the lines placed in
+        the part reach over most of the reference. A recap that two episodes
+        share is a piece of the reference, not the reference, so the wrong
+        episode cannot be cut down to the lines it has in common. And lines
+        that are shown while the reference runs are not cut away: the video
+        has them, whether the reference has a line for them or not.
+        """
+        lines = self.prepared.lines
+        low = self._position[self._check_line(first_line)]
+        high = self._position[self._check_line(last_line)]
+        if low > high:
+            raise ToolError(
+                f"L{first_line} comes after L{last_line}. Name the first line of the part, "
+                "then the last. Nothing was changed."
+            )
+        nothing = "Nothing was changed."
+        span = f"L{first_line} to L{last_line}"
+        dropped = bool(self.pairs or self.trim or self.keep or self.fit_kind)
+        if low == 0 and high == len(lines) - 1:
+            if self.cover is None:
+                raise ToolError(f"{span} is the whole file, so there is nothing to cut. {nothing}")
+            self._take_cover(None, self.original)
+            return self._after_change(["The cut was taken back. The whole file is synced."])
+        original = self.original.alignment
+        if original.verdict != "aligned" or original.chosen is None:
+            raise ToolError(
+                "The routine steps did not find the reference in the target, so there is no "
+                f"part of it to cut down to. {nothing}"
+            )
+        excess = self._excess
+        if excess is None:
+            raise ToolError(
+                "Nothing says that the target holds more than the reference covers: at the "
+                "timing found, no stretch of spoken lines lies before the reference begins or "
+                "after it ends. A reference that holds less than the target, such as a track "
+                "of signs and songs, is no reason to cut: the lines it lacks are shown in the "
+                f"video all the same. {nothing}"
+            )
+        core = self._core(self.original)
+        missed = [position for position in core if not low <= position <= high]
+        if len(missed) > max(1, round(0.1 * len(core))):
+            raise ToolError(
+                f"{len(missed)} lines outside {span} found their counterpart in the reference "
+                f"at the timing of the rest, among them L{lines[missed[0]].id} and "
+                f"L{lines[missed[-1]].id}. The part the reference covers includes them. {nothing}"
+            )
+        placed = self._placed_outside(excess, low, high)
+        limit = self._trim_limit()
+        if len(placed) > limit:
+            raise ToolError(
+                f"{len(placed)} lines outside {span} are shown while the reference runs, among "
+                f"them L{placed[0]} and L{placed[-1]}: at the timing of the part they begin "
+                "after its first line and before its last. A cut takes out what lies before "
+                "the reference or after it, such as another episode. Lines of this episode "
+                f"that the reference has no line for stay. {nothing}"
+            )
+        cover = (lines[low].id, lines[high].id)
+        candidate = propose(self.prepared, Adjustments(cover=cover))
+        if candidate.alignment.verdict != "aligned" or candidate.alignment.chosen is None:
+            raise ToolError(
+                f"In {span} too few lines find their counterpart in the reference to time the "
+                f"part by. {nothing}"
+            )
+        share, first_unit, last_unit = self.covered(candidate)
+        if share < MIN_COVERED:
+            raise ToolError(
+                f"The lines of {span} that found their counterpart reach over R{first_unit} to "
+                f"R{last_unit} only, of R0 to R{len(self.units) - 1}. A part can be cut down to "
+                "when it holds the reference, not when it shares a piece with it, as two "
+                f"episodes share a recap. {nothing}"
+            )
+        self._take_cover(cover, candidate)
+        gone = len(candidate.result.report.cut)
+        if self.prepared.options.drop_unmatched:
+            head = [
+                f"Cut down to {span}. {gone} lines outside that part are removed, and the "
+                "part is timed on its own."
+            ]
+        else:
+            head = [
+                f"Cut down to {span}: the part is timed on its own. The job's options say to "
+                f"keep lines the reference lacks, so the lines after the part stay. {gone} "
+                "lines before it would be over before zero and are removed."
+            ]
+        if dropped:
+            head.append("Your earlier pairs and decisions on edge lines were dropped with it.")
+        return self._after_change(head)
+
+    def _trim_limit(self) -> int:
+        """How many lines may fall outside a timing before that says something about the file."""
+        settings = self.prepared.settings
+        return max(settings.max_trim_lines, int(settings.max_trim_share * len(self.prepared.lines)))
+
+    def _placed_outside(self, excess: Excess, low: int, high: int) -> list[int]:
+        """The lines outside a part that are shown while the reference runs.
+
+        At the timing of the part, the lines of another episode begin before
+        the reference does, or after it has ended. A line between its first
+        and its last line has its place in the video, whether the reference
+        holds it or not: a song, a sign, a sentence it has no line for.
+        """
+        lines = self.prepared.lines
+        gone = self.original.removed
+        first = excess.begin_ms - excess.margin_ms
+        last = excess.end_ms + excess.margin_ms
+
+        def runs(line, shift: int) -> bool:
+            return (
+                line.duration_ms > 0
+                and line.id not in gone
+                and self.label(line.id) not in ("empty", "comment")
+                and first <= round(line.start_ms * excess.rate) + shift <= last
+            )
+
+        early = [line.id for line in lines[:low] if runs(line, excess.head_shift)]
+        late = [line.id for line in lines[high + 1 :] if runs(line, excess.tail_shift)]
+        return early + late
+
+    def part_asked(self) -> dict[str, int] | None:
+        """The part the question about a cut names, and how many lines lie outside it."""
+        excess = self._excess
+        if excess is None:
+            return None
+        return {
+            "first": excess.first,
+            "last": excess.last,
+            "before": excess.before,
+            "after": excess.after,
+        }
+
+    def _take_cover(self, cover: tuple[int, int] | None, proposal: Proposal) -> None:
+        """Go on from a plan for another part of the file. What was decided before is void."""
+        self.cover = cover
+        self._outside = set()
+        if cover is not None:
+            low, high = sorted(self._position[line_id] for line_id in cover)
+            self._outside = {
+                line.id
+                for index, line in enumerate(self.prepared.lines)
+                if not low <= index <= high
+            }
+        self.pairs = {}
+        self._eased = set()
+        self.trim = set()
+        self.keep = set()
+        self.fit_kind = None
+        self.edges_reviewed = False
+        self._rebase(proposal)
 
     def choose_fit(self, kind: str) -> str:
         available = [fit.kind for fit in self.baseline.alignment.fits]

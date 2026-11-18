@@ -412,6 +412,43 @@ class AgentRunner(PipelineRunner):
         )
 
 
+class QuestionsRunner(PipelineRunner):
+    """The fixed pipeline, with what the agent's model would be asked written into the report.
+
+    No model is called, so a run costs nothing. It shows on which files a
+    change to the questions takes effect, before a run with the model is
+    paid for.
+    """
+
+    name = "questions"
+
+    def _sync(self, case: LoadedCase) -> SyncResult:
+        from retimer.agent import Workbench
+        from retimer.agent.loop import AgentTrace
+        from retimer.pipeline import Settings, SyncResult, prepare, propose
+
+        prepared = prepare(
+            load(case.target_path),
+            audio=case.audio_path,
+            options=case.case.options,
+            audio_language=self._audio_language(case),
+            settings=Settings(**self.settings),
+            client=self.client,
+            cache=self.cache,
+            **_reference_of(case),
+        )
+        if prepared.refused:
+            return propose(prepared).result
+        bench = Workbench(prepared)
+        trace = AgentTrace(model="none", effort="none")
+        trace.questions = bench.open_questions()
+        trace.part_asked = bench.part_asked()
+        result = bench.baseline.result
+        report = result.report.model_copy(deep=True)
+        report.agent = trace.model_dump(mode="json")
+        return SyncResult(plan=result.plan, subtitle=result.subtitle, report=report)
+
+
 class ApiRunner:
     """A running service, reached over HTTP as a client reaches it.
 

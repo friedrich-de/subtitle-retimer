@@ -138,6 +138,11 @@ class AgentTrace(BaseModel):
     pairs: dict[int, int] = Field(default_factory=dict)
     removed: list[int] = Field(default_factory=list)
     kept: list[int] = Field(default_factory=list)
+    # The part the question about a file of several episodes named, with the
+    # number of lines before and after it, and the part the target was cut
+    # down to: its first and its last line.
+    part_asked: dict[str, int] | None = None
+    cover: list[int] | None = None
     fit: str | None = None
     # Whether the plan is the agent's, or the draft it started from.
     changed: bool = False
@@ -216,6 +221,8 @@ def _dispatch(bench: Workbench, name: str, args: dict) -> tuple[str, bool]:
             return bench.unpair_lines(args["lines"]), False
         if name == "set_edge_lines":
             return bench.set_edge_lines(args.get("remove", []), args.get("keep", [])), False
+        if name == "cut_to_reference":
+            return bench.cut_to_reference(args["first_line"], args["last_line"]), False
         if name == "find_counterparts":
             return bench.find_counterparts(args["lines"]), False
         if name == "read_lines":
@@ -354,6 +361,7 @@ def _conclude(bench: Workbench, trace: AgentTrace) -> SyncResult:
     trace.pairs = dict(bench.pairs)
     trace.removed = sorted(bench.trim)
     trace.kept = sorted(bench.keep)
+    trace.cover = list(bench.cover) if bench.cover else None
     trace.fit = bench.fit_kind
 
     result = use.result
@@ -391,6 +399,7 @@ def run_agent(
     settings = settings.model_copy(update={"model": resolve_model(settings.model)})
     trace = AgentTrace(model=settings.model, effort=settings.effort, provider=settings.provider)
     trace.questions = bench.open_questions()
+    trace.part_asked = bench.part_asked()
     if not trace.questions and settings.consult == "auto":
         return _conclude(bench, trace)
 
