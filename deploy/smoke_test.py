@@ -10,8 +10,9 @@ whenever the service is in doubt:
 It checks the gate, then sends two real jobs with a subtitle of Tears of Steel.
 One has a block moved by 41 seconds and goes against the audio of the film,
 which takes a transcript. The other has an outro added that the film does not
-have and goes against the Japanese subtitle, which takes the agent. Together
-they cost about one cent at the providers. `--large` adds the uploads around
+have and goes against the Japanese subtitle, which takes the agent, and asks
+for that subtitle back as the matched reference. Together they cost about one
+cent at the providers. `--large` adds the uploads around
 the size limit, which is where the proxy in front has a say of its own.
 
 The key comes from a file and is never printed, and never sent over plain HTTP
@@ -22,6 +23,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import json
 import os
 import secrets
 import shutil
@@ -179,12 +181,14 @@ def run_job(
     wait_s: float,
     needs_agent: bool = False,
     extra_lines: bool = False,
+    matched_reference: bool = False,
 ) -> None:
     """Send a target with one reference, wait for the job and judge what comes back.
 
     `target` is the subtitle and where its lines belong. `reference` is the
     form field, the file name to send, and the file. `extra_lines` is for a
-    target with lines after the end that nobody removes.
+    target with lines after the end that nobody removes. `matched_reference`
+    asks for the reference subtitle back, reduced to what the target says too.
     """
     subtitle, truth = target
     field, name, file = reference
@@ -195,6 +199,7 @@ def run_job(
         response = client.post(
             "/v1/jobs",
             files={"target": ("tears-of-steel.en.srt", subtitle), field: (name, handle)},
+            data={"options": json.dumps({"matched_reference": True})} if matched_reference else {},
             timeout=httpx.Timeout(30, write=900, read=300),
         )
     if not checks.check(
@@ -246,6 +251,16 @@ def run_job(
                 "the lines are back where they belong",
                 f"{near} of {len(truth)} within {TOLERANCE_MS} ms",
             )
+        if matched_reference:
+            response = client.get(path + "/matched_reference")
+            if checks.check(response.status_code == 200, "the matched reference can be fetched"):
+                handed = [line.start for line in pysubs2.SSAFile.from_string(response.text)]
+                own = [line.start for line in pysubs2.load(str(file))]
+                checks.check(
+                    set(handed) <= set(own) and len(handed) >= 0.9 * len(own),
+                    "the matched reference holds the lines of the reference, at their own times",
+                    f"{len(handed)} of {len(own)} lines",
+                )
         for document in ("plan", "report"):
             response = client.get(f"{path}/{document}")
             checks.check(response.status_code == 200, f"the {document} can be fetched")
@@ -369,6 +384,7 @@ def main() -> int:
                 needs_agent=not args.no_agent,
                 # The lines after the end are for the agent to remove.
                 extra_lines=args.no_agent,
+                matched_reference=True,
             )
             if args.large:
                 check_limits(checks, url, key, client, audio, args.media, args.wait)

@@ -23,7 +23,7 @@ from retimer.agent.workbench import ToolError, Workbench
 from retimer.cache import Cache
 from retimer.classify import LineLabel
 from retimer.model import Subtitle
-from retimer.pipeline import Proposal, Settings, SyncResult, prepare
+from retimer.pipeline import Proposal, Settings, SyncResult, prepare, with_matched_reference
 from retimer.providers import OPENROUTER_KEY_ENV, OpenRouter
 from retimer.views import Options
 
@@ -391,6 +391,7 @@ def sync_with_agent(
     cache: Cache | None = None,
     labels: list[LineLabel] | None = None,
     model_client: Any | None = None,
+    matched_reference: bool = False,
 ) -> SyncResult:
     """Synchronize `target` like `retimer.pipeline.sync`, with the agent deciding what is open."""
     prepared = prepare(
@@ -405,4 +406,5 @@ def sync_with_agent(
         cache=cache,
         labels=labels,
     )
-    return run_agent(Workbench(prepared), agent, model_client)
+    result = run_agent(Workbench(prepared), agent, model_client)
+    return with_matched_reference(prepared, result) if matched_reference else result

@@ -19,8 +19,9 @@ from pydantic import BaseModel, Field
 
 from retimer.cache import Cache
 from retimer.classify import LineLabel, classify_lines
+from retimer.counterpart import MatchedReferenceReport, match_reference
 from retimer.embed import Embedder
-from retimer.engine import PlanError, PlanIssue, apply_plan, validate_plan
+from retimer.engine import PlanError, PlanIssue, apply_plan, moved_span, validate_plan
 from retimer.fit import KNOWN_RATES, Evidence, Fit, FitKind, Pin, choose_fit, fit_offsets
 from retimer.match import Anchor, Coverage, Matching, match_content, match_lines
 from retimer.model import Line, Subtitle
@@ -124,6 +125,8 @@ class SyncReport(BaseModel):
     warnings: list[str] = Field(default_factory=list)
     # What the agent did, when one was asked. None for the fixed pipeline.
     agent: dict | None = None
+    # What became of the reference subtitle's lines, when it was asked back.
+    matched_reference: MatchedReferenceReport | None = None
     cost_usd: dict[str, float] = Field(default_factory=dict)
     seconds: dict[str, float] = Field(default_factory=dict)
 
@@ -138,6 +141,9 @@ class SyncResult(BaseModel):
     plan: Plan
     subtitle: Subtitle | None
     report: SyncReport
+    # The reference subtitle, reduced to the lines the target has a counterpart
+    # for. Only when it was asked for and could be made.
+    reference: Subtitle | None = None
 
 
 class Adjustments(BaseModel):
@@ -268,11 +274,16 @@ def _break_start(
     return best[1]
 
 
-def _shift_at(blocks: list[BlockReport], start_ms: int) -> int:
+def _block_at(blocks: list[BlockReport], start_ms: int) -> BlockReport | None:
     for block in blocks:
         if block.to_ms is None or start_ms < block.to_ms:
-            return block.shift_ms
-    return blocks[-1].shift_ms if blocks else 0
+            return block
+    return blocks[-1] if blocks else None
+
+
+def _shift_at(blocks: list[BlockReport], start_ms: int) -> int:
+    block = _block_at(blocks, start_ms)
+    return block.shift_ms if block else 0
 
 
 def build_blocks(
@@ -511,6 +522,7 @@ def _move_events(events: list[RefEvent], rate: float, blocks: list[BlockReport])
                 start_ms=round(event.start_ms * rate) + shift,
                 end_ms=round(event.end_ms * rate) + shift,
                 text=event.text,
+                line_ids=event.line_ids,
             )
         )
     return sorted(moved, key=lambda event: event.start_ms)
@@ -531,6 +543,7 @@ def combine_references(
     """
     notes = list(subtitle_timeline.notes)
     events = subtitle_timeline.events
+    moves: list[TimingOp] = []
     lines = [
         MatchLine(id=index, start_ms=event.start_ms, end_ms=event.end_ms, text=event.text)
         for index, event in enumerate(events)
@@ -555,6 +568,7 @@ def combine_references(
             notes.append("The reference subtitle agrees with the audio.")
         else:
             events = _move_events(events, check.chosen.rate, blocks)
+            moves = _timing_ops(check.chosen.rate, check.chosen.rate_name, blocks)
             shifts = ", ".join(f"{block.shift_ms} ms" for block in blocks)
             notes.append(
                 "The reference subtitle disagrees with the audio "
@@ -577,6 +591,7 @@ def combine_references(
         duration_ms=audio_timeline.duration_ms,
         dropped={**audio_timeline.dropped, **subtitle_timeline.dropped},
         notes=notes,
+        moves=moves,
     )
 
 
@@ -709,6 +724,9 @@ class Prepared:
     matching: Matching
     cost_usd: dict[str, float] = field(default_factory=dict)
     seconds: dict[str, float] = field(default_factory=dict)
+    # The reference subtitle as it came in, with the labels of its lines.
+    reference: Subtitle | None = None
+    reference_labels: list[LineLabel] | None = None
 
 
 @dataclass
@@ -783,9 +801,10 @@ def prepare(
 
     say("matching")
     started = time.monotonic()
+    reference_labels = classify_lines(reference) if reference is not None else None
     if transcript is not None and reference is not None:
         timeline = combine_references(
-            timeline_from_subtitle(reference, reference_language),
+            timeline_from_subtitle(reference, reference_language, reference_labels),
             timeline_from_transcript(transcript),
             embedder,
             settings,
@@ -793,7 +812,7 @@ def prepare(
     elif transcript is not None:
         timeline = timeline_from_transcript(transcript)
     else:
-        timeline = timeline_from_subtitle(reference, reference_language)
+        timeline = timeline_from_subtitle(reference, reference_language, reference_labels)
     matching = match_lines(views.match_view.lines, timeline, embedder)
     seconds["matching"] = round(time.monotonic() - started, 2)
     cost["embeddings"] = embedder.cost_usd
@@ -809,6 +828,8 @@ def prepare(
         matching=matching,
         cost_usd=cost,
         seconds=seconds,
+        reference=reference,
+        reference_labels=reference_labels,
     )
 
 
@@ -1088,6 +1109,55 @@ def propose(prepared: Prepared, adjustments: Adjustments | None = None) -> Propo
     return finish(outcome, content, timing)
 
 
+def with_matched_reference(prepared: Prepared, result: SyncResult) -> SyncResult:
+    """The result of a job, with the reference subtitle reduced to what the target says too.
+
+    The reduced file is `reference` of the result that comes back, and the
+    report says what became of the reference's lines. There is no file when
+    nothing says which lines belong together: the reference is other content,
+    or the target could not be placed by its text. The report then says why,
+    and so does a warning.
+    """
+    report = result.report.model_copy(deep=True)
+    made: Subtitle | None = None
+    if prepared.reference is None or prepared.reference_labels is None:
+        found = MatchedReferenceReport(note="The job has no reference subtitle.")
+    elif result.subtitle is None:
+        found = MatchedReferenceReport(note="The reference is other content than the target.")
+    elif report.chosen is None or not report.blocks:
+        found = MatchedReferenceReport(
+            note="The target could not be placed against the reference by its text, so "
+            "nothing says which lines of the two belong together."
+        )
+    else:
+        delivered = set(result.subtitle.ids)
+        bar = prepared.settings.min_block_confidence
+        spans: list[tuple[int, int]] = []
+        unplaced = 0
+        for line in prepared.views.match_view.lines:
+            if line.id not in delivered:
+                continue
+            block = _block_at(report.blocks, line.start_ms)
+            if block is None or block.confidence < bar:
+                unplaced += 1
+                continue
+            start, end = moved_span(result.plan, line.start_ms, line.end_ms)
+            spans.append((max(0, start), max(0, end)))
+        made, found = match_reference(
+            prepared.reference,
+            prepared.reference_labels,
+            prepared.timeline,
+            spans,
+            prepared.options,
+        )
+        found.target_dialogue_lines += unplaced
+        found.target_unplaced_lines = unplaced
+    report.matched_reference = found
+    if made is None:
+        report.warnings = [*report.warnings, f"No matched reference was made. {found.note}"]
+    return result.model_copy(update={"report": report, "reference": made})
+
+
 def sync(
     target: Subtitle,
     *,
@@ -1100,11 +1170,14 @@ def sync(
     client: OpenRouter | None = None,
     cache: Cache | None = None,
     labels: list[LineLabel] | None = None,
+    matched_reference: bool = False,
 ) -> SyncResult:
     """Synchronize `target` to the audio, the reference subtitle, or both.
 
     `audio_language` is a hint for the speech model; without it the language is
-    detected. `reference_language` only labels the reference subtitle.
+    detected. `reference_language` only labels the reference subtitle. With
+    `matched_reference` the result also holds the reference subtitle, reduced
+    to the lines the target has a counterpart for.
     """
     prepared = prepare(
         target,
@@ -1118,4 +1191,5 @@ def sync(
         cache=cache,
         labels=labels,
     )
-    return propose(prepared).result
+    result = propose(prepared).result
+    return with_matched_reference(prepared, result) if matched_reference else result

@@ -59,18 +59,18 @@ def _removed_ids(plan: Plan) -> set[int]:
     return {line_id for op in plan.content_ops if isinstance(op, RemoveLines) for line_id in op.ids}
 
 
+def moved_span(plan: Plan, start_ms: int, end_ms: int) -> tuple[int, int]:
+    """Where the timing operations put a span that starts at `start_ms` in the original file."""
+    factor = next((op.factor for op in plan.timing_ops if isinstance(op, Scale)), 1.0)
+    delta = next(
+        (op.ms for op in plan.timing_ops if isinstance(op, Shift) and op.contains(start_ms)), 0
+    )
+    return round(start_ms * factor) + delta, round(end_ms * factor) + delta
+
+
 def _new_times(subtitle: Subtitle, plan: Plan) -> dict[int, tuple[int, int]]:
     """New start and end for every line, from its original times."""
-    scales = [op for op in plan.timing_ops if isinstance(op, Scale)]
-    shifts = [op for op in plan.timing_ops if isinstance(op, Shift)]
-    factor = scales[0].factor if scales else 1.0
-    times = {}
-    for line in subtitle.lines:
-        start = round(line.start_ms * factor)
-        end = round(line.end_ms * factor)
-        delta = next((op.ms for op in shifts if op.contains(line.start_ms)), 0)
-        times[line.id] = (start + delta, end + delta)
-    return times
+    return {line.id: moved_span(plan, line.start_ms, line.end_ms) for line in subtitle.lines}
 
 
 def _ranges_overlap(a: Shift, b: Shift) -> bool:

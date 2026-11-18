@@ -7,7 +7,16 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, StringConstraints
 
-from retimer.api.store import FINISHED, PLAN, QUEUED, REPORT, RESULT, RUNNING, Job
+from retimer.api.store import (
+    FINISHED,
+    MATCHED_REFERENCE,
+    PLAN,
+    QUEUED,
+    REPORT,
+    RESULT,
+    RUNNING,
+    Job,
+)
 
 # A language as the speech model takes it: "ja", "en".
 Language = Annotated[
@@ -29,7 +38,11 @@ class JobOptions(BaseModel):
     # Hints. The language of the audio is detected when it is not given.
     audio_language: Language | None = None
     reference_language: Language | None = None
-    # Defaults to the format of the target.
+    # Also hand back the reference subtitle, reduced to the dialogue lines the
+    # delivered target has a counterpart for. Needs a reference subtitle.
+    matched_reference: bool = False
+    # Defaults to the format of the target, and for the matched reference to
+    # the format of the reference subtitle.
     output_format: Literal["srt", "ass"] | None = None
     # The model that settles what the routine steps leave open. "off" runs the
     # fixed pipeline. Defaults to what the server is set to.
@@ -62,7 +75,12 @@ def job_view(job: Job, files: set[str]) -> dict[str, Any]:
     base = f"/v1/jobs/{job.id}"
     links = {"self": base}
     if job.status == FINISHED:
-        for name, key in ((RESULT, "result"), (PLAN, "plan"), (REPORT, "report")):
+        for name, key in (
+            (RESULT, "result"),
+            (MATCHED_REFERENCE, "matched_reference"),
+            (PLAN, "plan"),
+            (REPORT, "report"),
+        ):
             if name in files:
                 links[key] = f"{base}/{key}"
     stage = job.stage

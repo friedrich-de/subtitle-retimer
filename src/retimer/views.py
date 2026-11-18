@@ -41,6 +41,8 @@ class MatchLine(BaseModel):
 class MatchView(BaseModel):
     lines: list[MatchLine]
     excluded: dict[str, int]
+    # For a line that stands for a run of repeats, the other lines of the run.
+    joined: dict[int, list[int]] = {}
 
 
 class Views(BaseModel):
@@ -105,25 +107,27 @@ def build_content_ops(
 _SAME_LINE_GAP_MS = 150
 
 
-def _join_repeats(lines: list[MatchLine]) -> tuple[list[MatchLine], int]:
+def _join_repeats(lines: list[MatchLine]) -> tuple[list[MatchLine], dict[int, list[int]]]:
     """One line for every run of lines that show the same words at the same time.
 
     The first line of a run stands for it, with the time span of the whole
-    run. Returns the lines in the order they came in, and how many were joined
-    into another.
+    run. Returns the lines in the order they came in, and for every line that
+    stands for a run the lines that were joined into it.
     """
     joined: dict[int, MatchLine] = {}
     latest: dict[str, int] = {}
+    members: dict[int, list[int]] = {}
     for line in sorted(lines, key=lambda line: (line.start_ms, line.id)):
         first = joined.get(latest.get(line.text, -1))
         if first is not None and line.start_ms <= first.end_ms + _SAME_LINE_GAP_MS:
             if line.end_ms > first.end_ms:
                 joined[first.id] = first.model_copy(update={"end_ms": line.end_ms})
+            members.setdefault(first.id, []).append(line.id)
             continue
         joined[line.id] = line
         latest[line.text] = line.id
     kept = [joined[line.id] for line in lines if line.id in joined]
-    return kept, len(lines) - len(kept)
+    return kept, members
 
 
 def build_match_view(subtitle: Subtitle, labels: list[LineLabel]) -> MatchView:
@@ -141,10 +145,10 @@ def build_match_view(subtitle: Subtitle, labels: list[LineLabel]) -> MatchView:
             excluded["empty"] += 1
             continue
         lines.append(MatchLine(id=line.id, start_ms=line.start_ms, end_ms=line.end_ms, text=text))
-    lines, repeats = _join_repeats(lines)
-    if repeats:
-        excluded["repeat"] += repeats
-    return MatchView(lines=lines, excluded=dict(excluded))
+    lines, joined = _join_repeats(lines)
+    if joined:
+        excluded["repeat"] += sum(len(members) for members in joined.values())
+    return MatchView(lines=lines, excluded=dict(excluded), joined=joined)
 
 
 def build_views(

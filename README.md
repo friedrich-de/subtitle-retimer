@@ -6,8 +6,9 @@ deterministic tools do all the timing math.
 
 The project is built in milestones. This repository holds the subtitle core,
 the benchmark harness, the fixed pipeline that syncs a file without an agent,
-the agent that settles what the pipeline leaves open, the HTTP API with its
-deployment, and the reading of image subtitles.
+the agent that settles what the pipeline leaves open, the matched reference
+for dual subtitles, the HTTP API with its deployment, and the reading of image
+subtitles.
 
 ## What the subtitle core does
 
@@ -113,6 +114,42 @@ what is behind them are in
 The model is called through OpenRouter, pinned to Anthropic's servers, and
 [comes out the same that way](bench/baselines/2026-11-17-agent-openrouter.md).
 
+## The matched reference
+
+A job with a reference subtitle can hand that subtitle back as a second file,
+reduced to what the target says too. It holds the dialogue lines of the
+reference that have a counterpart in the delivered target, with the same
+content options applied. Signs, songs, sound descriptions and comments are
+left out, and so is dialogue the target has nothing for. The two files lie on
+one timeline, so together they are a dual subtitle, and line by line the one
+is a translation of the other. The retimed target is delivered as always.
+
+- **Which lines belong together** is read off the clock once the target is in
+  place: a line of the reference and a dialogue line of the target that are on
+  screen together for at least half of the shorter of the two. A long sentence
+  in one language is often two lines in the other, and then all of them stay.
+  The text is not compared a second time. A name or a short answer reads too
+  differently across languages for that.
+- **Times.** The lines keep the reference's own times, which are the ones in
+  sync. Only where audio was sent as well and the reference disagreed with it
+  are they moved onto the audio, as they were for the sync itself.
+- **When there is none.** Lines of the target in a block that could not be
+  placed with confidence pair with nothing. A job that ends as
+  `rejected_no_match`, or whose target could only be placed by the timing of
+  speech, has no matched reference. The report says why, and so does a
+  warning.
+- **The report** counts under `matched_reference` what was kept and what was
+  left out, by reason.
+
+Tried on four episodes of an anime series, with a fansub's English script as
+the reference for the Japanese broadcast captions: 1,414 of the 1,415 English
+dialogue lines came back, and none of the 445 signs and 672 song lines. The
+one line is a chant that the captions describe as a sound. The other way
+round, 1,680 of the 1,779 caption lines came back. What stays out are gasps,
+laughs and a newscast in the background, which the English script does not
+have. A mistimed copy of the captions, late and with a cut of 35 seconds in
+it, gave the same file byte for byte.
+
 ## The HTTP API
 
 A job takes from under a second to a minute, so the API is job-based: submit,
@@ -128,6 +165,7 @@ plan describes. That run is in
 | `POST /v1/jobs` | Submit target, reference and options. Answers with the job. |
 | `GET /v1/jobs/{id}` | Status, the current stage, and the outcome with a summary once finished. |
 | `GET /v1/jobs/{id}/result` | The retimed subtitle. |
+| `GET /v1/jobs/{id}/matched_reference` | The reference subtitle, reduced to the lines the target has a counterpart for. Only for a job that asked for it. |
 | `GET /v1/jobs/{id}/plan` | The operation plan as JSON. |
 | `GET /v1/jobs/{id}/report` | Diagnosis, decisions, scores and warnings. |
 | `GET /v1/jobs` | The jobs of the key, newest first. |
@@ -164,8 +202,9 @@ Matroska or WebM, MP3, MP4 or M4A, FLAC, WAV and AAC.
 | `strip_formatting` | `false` | Remove styling tags, keep the text. |
 | `remove_symbols` | `false` | Remove music notes and similar symbols, among them the arrows and device icons of Japanese broadcast captions (`➡`, `📱`, `☎`). |
 | `drop_unmatched` | `true` | Trim leading or trailing lines when the reference confirms the content is absent. |
+| `matched_reference` | `false` | Also hand back the reference subtitle, reduced to the dialogue lines the delivered target has a counterpart for. See [The matched reference](#the-matched-reference). Needs a `reference_subtitle`. |
 | `audio_language`, `reference_language` | detected | Hints such as `"ja"`. |
-| `output_format` | as the target | `"srt"` or `"ass"`. |
+| `output_format` | as the target | `"srt"` or `"ass"`. The matched reference keeps the format of the reference subtitle unless one is named here. |
 | `agent` | the server's | `"haiku"`, `"sonnet"`, `"opus"`, or `"off"` for the fixed pipeline. |
 
 An option the service does not know is refused, not ignored.
@@ -189,6 +228,7 @@ The answer to every job call is the job:
     "target_lines": 76,
     "delivered_lines": 76,
     "trimmed_lines": 0,
+    "matched_reference_lines": null,
     "warnings": [],
     "agent": {"model": "claude-haiku-5-5", "consulted": true, "turns": 2, "cost_usd": 0.0008},
     "cost_usd": 0.0116,
@@ -201,7 +241,9 @@ The answer to every job call is the job:
 
 `status` goes from `queued` to `running` to `finished`. While a job runs,
 `stage` says where it is: `transcribing`, `matching`, `deciding`, `writing`.
-`links` only names what exists.
+`links` only names what exists. A job that asked for the matched reference
+has it under `matched_reference`, with the number of its lines in the summary.
+The content options apply to it as they do to the target.
 
 | Outcome | Meaning | Delivered |
 | --- | --- | --- |
@@ -215,7 +257,8 @@ The answer to every job call is the job:
 A refusal is JSON as well, `{"error": {"code": "…", "message": "…"}}`, with
 the usual status: 401 without a valid key, 409 for a result that is not there
 yet, 413 for an upload over the limit, 422 for a file or an option that cannot
-be used, and 429 with `Retry-After` when a limit is reached. A file that is no
+be used, such as `matched_reference` with audio alone, and 429 with
+`Retry-After` when a limit is reached. A file that is no
 subtitle, or audio that cannot be read, is refused when it is submitted and
 not when the job runs.
 
@@ -392,6 +435,7 @@ retimer clean episode.srt --remove-hearing-impaired -o cleaned.srt
 retimer apply episode.ass plan.json -o synced.srt --format srt
 retimer sync episode.ja.srt --audio episode.ogg -o synced.srt
 retimer sync episode.ja.srt --reference episode.en.srt -o synced.srt --plan plan.json
+retimer sync episode.ja.srt --reference episode.en.ass -o synced.srt --matched-reference pair.en.ass
 retimer sync episode.ja.srt --audio episode.ogg -o synced.srt --agent            # with the agent
 retimer sync episode.ja.srt --audio episode.ogg -o synced.srt --agent opus --report report.json
 ```
@@ -399,7 +443,9 @@ retimer sync episode.ja.srt --audio episode.ogg -o synced.srt --agent opus --rep
 `sync` takes audio, a reference subtitle, or both. It prints the outcome, the
 blocks it moved and any warnings, and can write the plan and the full report
 next to the result. It exits with 3 and writes no file when the reference is
-other content.
+other content. `--matched-reference` also writes
+[the matched reference](#the-matched-reference): the reference subtitle,
+reduced to the dialogue lines the synced file has a counterpart for.
 
 `sync` is the only command that calls a hosted service. It needs
 `OPENROUTER_API_KEY` in the environment and `ffmpeg` for audio. Transcripts and
@@ -498,6 +544,7 @@ Rules the engine enforces:
 | `retimer.speech` | Text-free alignment of line starts and speech onsets |
 | `retimer.score` | The verification score, per block |
 | `retimer.pipeline` | The fixed pipeline: reference, matching, fit, plan, report. Also builds a plan under a reader's adjustments |
+| `retimer.counterpart` | The matched reference: which lines of the reference the target has a counterpart for |
 | `retimer.agent.workbench` | The agent's desk: the draft, the open questions, the dossier and the tools |
 | `retimer.agent.prompt` | What the model is told, and the tool definitions |
 | `retimer.agent.loop` | The tool loop, budgets, fallbacks, and what goes into the report |

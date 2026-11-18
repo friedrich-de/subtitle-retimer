@@ -13,8 +13,9 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from retimer.classify import classify_lines
+from retimer.classify import LineLabel, classify_lines
 from retimer.model import Subtitle
+from retimer.plan import TimingOp
 from retimer.transcribe import Transcript, Word
 from retimer.views import build_match_view
 
@@ -48,13 +49,15 @@ class RefEvent(BaseModel):
 
     An utterance from a transcript also keeps its words and when each one
     starts, so that a reader can point at the place inside it where a subtitle
-    line begins.
+    line begins. A line of a reference subtitle keeps the ids of the lines of
+    the file it stands for: its own, and those of its repeats.
     """
 
     start_ms: int
     end_ms: int
     text: str
     words: list[RefWord] = Field(default_factory=list, exclude=True, repr=False)
+    line_ids: list[int] = Field(default_factory=list, exclude=True, repr=False)
 
 
 class ReferenceTimeline(BaseModel):
@@ -64,7 +67,9 @@ class ReferenceTimeline(BaseModel):
     moments speech starts after a pause, for the text-free alignment. `speech`
     are the spans in which anything is said, including what was too unclear to
     match; outside them there is silence. `duration_ms` is the length of the
-    audio, when there is audio.
+    audio, when there is audio. `moves` say how the lines of a reference
+    subtitle were moved onto the audio, when the two disagreed: the events
+    stand where the moves put them, the file does not.
     """
 
     kind: Literal["audio", "subtitle", "both"]
@@ -75,6 +80,7 @@ class ReferenceTimeline(BaseModel):
     duration_ms: int | None = None
     dropped: dict[str, int] = Field(default_factory=dict)
     notes: list[str] = Field(default_factory=list)
+    moves: list[TimingOp] = Field(default_factory=list)
 
     @property
     def span(self) -> tuple[int, int] | None:
@@ -239,12 +245,20 @@ def timeline_from_transcript(transcript: Transcript) -> ReferenceTimeline:
     )
 
 
-def timeline_from_subtitle(subtitle: Subtitle, language: str | None = None) -> ReferenceTimeline:
+def timeline_from_subtitle(
+    subtitle: Subtitle, language: str | None = None, labels: list[LineLabel] | None = None
+) -> ReferenceTimeline:
     """The dialogue lines of an in-sync subtitle, reduced to the spoken words."""
-    view = build_match_view(subtitle, classify_lines(subtitle))
+    view = build_match_view(subtitle, labels if labels is not None else classify_lines(subtitle))
     lines = sorted(view.lines, key=lambda line: line.start_ms)
     events = [
-        RefEvent(start_ms=line.start_ms, end_ms=line.end_ms, text=line.text) for line in lines
+        RefEvent(
+            start_ms=line.start_ms,
+            end_ms=line.end_ms,
+            text=line.text,
+            line_ids=[line.id, *view.joined.get(line.id, [])],
+        )
+        for line in lines
     ]
     return ReferenceTimeline(
         kind="subtitle",

@@ -26,6 +26,8 @@ REFERENCE_AUDIO = "reference_audio"
 # The PGS stream of a job that reads an image subtitle.
 IMAGE_SUBTITLE = "image_subtitle"
 RESULT = "result"
+# The reference subtitle, reduced to the lines the target has a counterpart for.
+MATCHED_REFERENCE = "matched_reference"
 PLAN = "plan.json"
 REPORT = "report.json"
 UPLOADS = (TARGET, REFERENCE_SUBTITLE, REFERENCE_AUDIO)

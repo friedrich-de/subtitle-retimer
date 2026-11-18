@@ -39,6 +39,7 @@ from retimer.api.schemas import JobOptions, OcrOptions, job_view
 from retimer.api.store import (
     FINISHED,
     IMAGE_SUBTITLE,
+    MATCHED_REFERENCE,
     PLAN,
     REFERENCE_AUDIO,
     REFERENCE_SUBTITLE,
@@ -329,6 +330,13 @@ def _read_form(form: FormData) -> _Parts:
             "A job needs a reference: reference_audio, reference_subtitle, or both.",
         )
     options = _options(form.get("options"), JobOptions)
+    if options.matched_reference and files[REFERENCE_SUBTITLE] is None:
+        raise ApiError(
+            422,
+            "missing_reference_subtitle",
+            "matched_reference hands back the reference subtitle, so the job needs a "
+            "reference_subtitle. Audio alone has no lines to hand back.",
+        )
     return _Parts(
         target=target,
         reference_subtitle=files[REFERENCE_SUBTITLE],
@@ -510,6 +518,10 @@ class _Intake:
             request["options"] = options.model_dump(exclude={"agent", "output_format"})
             request["agent"] = agent
             request["output_format"] = options.output_format or request["target"]["format"]
+            if options.matched_reference:
+                request["matched_reference_format"] = (
+                    options.output_format or request["reference_subtitle"]["format"]
+                )
             job = self.store.add(job_id, owner, request)
         except BaseException:
             self.store.discard_directory(job_id)
@@ -763,7 +775,11 @@ def create_app(
         return job
 
     def produced(job: Job) -> set[str]:
-        return {name for name in (RESULT, PLAN, REPORT) if store.file(job.id, name) is not None}
+        return {
+            name
+            for name in (RESULT, MATCHED_REFERENCE, PLAN, REPORT)
+            if store.file(job.id, name) is not None
+        }
 
     def document(job: Job, name: str) -> Response:
         path = store.file(job.id, name)
@@ -888,6 +904,35 @@ def create_app(
             path.read_bytes(),
             media_type=f"{_MEDIA_TYPES[fmt]}; charset=utf-8",
             headers={"Content-Disposition": _disposition(f"{stem}.{fmt}")},
+        )
+
+    @app.get(
+        JOBS_PATH + "/{job_id}/matched_reference",
+        summary="The reference subtitle, reduced to the lines the target has a counterpart for",
+    )
+    def get_matched_reference(request: Request, job_id: str) -> Response:
+        job = finished(request, job_id)
+        path = store.file(job.id, MATCHED_REFERENCE)
+        if path is None:
+            if not job.request.get("options", {}).get("matched_reference"):
+                raise ApiError(
+                    404,
+                    "not_requested",
+                    "The job was not asked for a matched reference. "
+                    'Submit it with the option "matched_reference": true.',
+                )
+            raise ApiError(
+                404,
+                "no_matched_reference",
+                f"The job ended as {job.outcome} and has no matched reference. "
+                "Its report says why.",
+            )
+        fmt = job.request["matched_reference_format"]
+        stem = _stem(job.request["reference_subtitle"]["filename"])
+        return Response(
+            path.read_bytes(),
+            media_type=f"{_MEDIA_TYPES[fmt]}; charset=utf-8",
+            headers={"Content-Disposition": _disposition(f"{stem}.matched.{fmt}")},
         )
 
     @app.get(JOBS_PATH + "/{job_id}/plan", summary="The operation plan")

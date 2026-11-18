@@ -20,6 +20,7 @@ from typing import Any
 from retimer.api.config import ApiSettings
 from retimer.api.store import (
     IMAGE_SUBTITLE,
+    MATCHED_REFERENCE,
     PLAN,
     REFERENCE_AUDIO,
     REFERENCE_SUBTITLE,
@@ -92,6 +93,8 @@ def _summary(result, seconds: float) -> dict[str, Any]:
         "target_lines": report.target_lines,
         "delivered_lines": len(result.subtitle) if result.subtitle is not None else 0,
         "trimmed_lines": len(report.trimmed),
+        # The lines of the matched reference, when one was asked for and made.
+        "matched_reference_lines": len(result.reference) if result.reference is not None else None,
         "warnings": report.warnings,
         "agent": None,
         "cost_usd": round(report.total_cost_usd, 6),
@@ -212,7 +215,7 @@ def run_job(job: Job, store: JobStore, settings: ApiSettings, services: Services
     request = job.request
     try:
         # Imported here, so that a server which runs no jobs itself starts without numpy.
-        from retimer.pipeline import prepare, propose
+        from retimer.pipeline import prepare, propose, with_matched_reference
 
         options = request["options"]
         target = load(directory / TARGET)
@@ -243,6 +246,19 @@ def run_job(job: Job, store: JobStore, settings: ApiSettings, services: Services
 
             agent = AgentSettings(model=request["agent"], max_cost_usd=settings.agent_max_cost_usd)
             result = run_agent(Workbench(prepared), agent, services.model_client)
+        if options.get("matched_reference"):
+            try:
+                result = with_matched_reference(prepared, result)
+            except Exception:
+                # The retimed target is what the job is for. It is delivered
+                # also when the second file could not be made.
+                log.exception("job %s: the matched reference failed", job.id)
+                report = result.report.model_copy(deep=True)
+                report.warnings = [
+                    *report.warnings,
+                    "No matched reference was made. It failed for a reason on the server's side.",
+                ]
+                result = result.model_copy(update={"report": report})
 
         store.set_stage(job.id, "writing")
         (directory / PLAN).write_text(result.plan.to_json() + "\n", encoding="utf-8")
@@ -252,6 +268,9 @@ def run_job(job: Job, store: JobStore, settings: ApiSettings, services: Services
         if result.subtitle is not None:
             text = dumps(result.subtitle, request["output_format"])
             (directory / RESULT).write_text(text, encoding="utf-8")
+        if result.reference is not None:
+            text = dumps(result.reference, request["matched_reference_format"])
+            (directory / MATCHED_REFERENCE).write_text(text, encoding="utf-8")
     except Exception as error:
         code = (
             "invalid_subtitle"
@@ -263,7 +282,7 @@ def run_job(job: Job, store: JobStore, settings: ApiSettings, services: Services
             else "internal_error"
         )
         log.exception("job %s failed (%s)", job.id, code)
-        for name in (RESULT, PLAN, REPORT):
+        for name in (RESULT, MATCHED_REFERENCE, PLAN, REPORT):
             (directory / name).unlink(missing_ok=True)
         # A failed job cannot say what it spent. Its audio may have been
         # transcribed, so that much is held against the day's budget: jobs

@@ -66,11 +66,15 @@ def _cmd_sync(args: argparse.Namespace) -> int:
     if not args.audio and not args.reference:
         print("error: give --audio, --reference, or both", file=sys.stderr)
         return 1
+    if args.matched_reference and not args.reference:
+        print("error: --matched-reference needs --reference", file=sys.stderr)
+        return 1
     job = {
         "audio": Path(args.audio) if args.audio else None,
         "reference": load(args.reference) if args.reference else None,
         "options": _options(args),
         "audio_language": args.audio_language,
+        "matched_reference": bool(args.matched_reference),
     }
     try:
         if args.agent:
@@ -107,6 +111,8 @@ def _cmd_sync(args: argparse.Namespace) -> int:
         Path(args.report).write_text(report.model_dump_json(indent=2) + "\n", encoding="utf-8")
     if result.subtitle is not None:
         save(result.subtitle, args.output, args.format)
+    if result.reference is not None:
+        save(result.reference, args.matched_reference, args.format)
     summary = {
         "outcome": report.outcome,
         "confidence": result.plan.confidence,
@@ -120,6 +126,8 @@ def _cmd_sync(args: argparse.Namespace) -> int:
         "warnings": report.warnings,
         "cost_usd": round(report.total_cost_usd, 5),
     }
+    if report.matched_reference is not None:
+        summary["matched_reference"] = report.matched_reference.model_dump(exclude_none=True)
     if report.agent:
         summary["agent"] = {
             key: report.agent[key]
@@ -242,6 +250,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--agent-always",
         action="store_true",
         help="ask the model about every file, not only where something is open",
+    )
+    syncer.add_argument(
+        "--matched-reference",
+        metavar="PATH",
+        help="also write the reference subtitle here, reduced to the dialogue lines the "
+        "synced file has a counterpart for; needs --reference",
     )
     syncer.add_argument("--plan", help="also write the plan here, as JSON")
     syncer.add_argument("--report", help="also write the full report here, as JSON")
