@@ -127,7 +127,11 @@ def _cmd_sync(args: argparse.Namespace) -> int:
         "cost_usd": round(report.total_cost_usd, 5),
     }
     if report.matched_reference is not None:
-        summary["matched_reference"] = report.matched_reference.model_dump(exclude_none=True)
+        # The pairs themselves are in the report. Here they are only counted.
+        summary["matched_reference"] = {
+            **report.matched_reference.model_dump(exclude_none=True, exclude={"pairs"}),
+            "pairs": len(report.matched_reference.pairs),
+        }
     if report.agent:
         summary["agent"] = {
             key: report.agent[key]

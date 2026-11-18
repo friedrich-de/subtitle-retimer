@@ -95,6 +95,10 @@ def _summary(result, seconds: float) -> dict[str, Any]:
         "trimmed_lines": len(report.trimmed),
         # The lines of the matched reference, when one was asked for and made.
         "matched_reference_lines": len(result.reference) if result.reference is not None else None,
+        # How many pairs of lines the report lists for it.
+        "matched_reference_pairs": len(report.matched_reference.pairs)
+        if result.reference is not None and report.matched_reference is not None
+        else None,
         "warnings": report.warnings,
         "agent": None,
         "cost_usd": round(report.total_cost_usd, 6),

@@ -140,6 +140,24 @@ is a translation of the other. The retimed target is delivered as always.
   warning.
 - **The report** counts under `matched_reference` what was kept and what was
   left out, by reason.
+- **The pairs.** The report also lists, under `matched_reference.pairs`, which
+  lines of the two delivered files belong together, so that nobody has to work
+  it out from the times again. A pair names its lines on both sides by their
+  number in the delivered file, with their times and their plain text:
+
+  ```json
+  {"start_ms": 61000, "end_ms": 69000,
+   "target": [{"index": 5, "start_ms": 61000, "end_ms": 63000, "text": "昨日の夜は"},
+              {"index": 6, "start_ms": 66000, "end_ms": 69000, "text": "どこにいたんだ"}],
+   "reference": [{"index": 5, "start_ms": 61000, "end_ms": 69000, "text": "Where were you last night?"}]}
+  ```
+
+  `index` counts from 1 over the lines a player shows as text, which in an SRT
+  file is the cue number. Mostly a pair is one line on each side. Where the
+  two languages cut a sentence differently, or a script draws one line in
+  several layers, everything that hangs together is one pair. Every line of
+  the matched reference is in exactly one pair, and the pairs come in the
+  order they are shown.
 
 Tried on four episodes of an anime series, with a fansub's English script as
 the reference for the Japanese broadcast captions: 1,414 of the 1,415 English
@@ -229,6 +247,7 @@ The answer to every job call is the job:
     "delivered_lines": 76,
     "trimmed_lines": 0,
     "matched_reference_lines": null,
+    "matched_reference_pairs": null,
     "warnings": [],
     "agent": {"model": "claude-haiku-5-5", "consulted": true, "turns": 2, "cost_usd": 0.0008},
     "cost_usd": 0.0116,
@@ -242,7 +261,8 @@ The answer to every job call is the job:
 `status` goes from `queued` to `running` to `finished`. While a job runs,
 `stage` says where it is: `transcribing`, `matching`, `deciding`, `writing`.
 `links` only names what exists. A job that asked for the matched reference
-has it under `matched_reference`, with the number of its lines in the summary.
+has it under `matched_reference`, with the number of its lines and of its
+pairs in the summary. The pairs themselves are in the report.
 The content options apply to it as they do to the target.
 
 | Outcome | Meaning | Delivered |

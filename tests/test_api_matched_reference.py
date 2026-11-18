@@ -49,6 +49,7 @@ def test_a_job_hands_back_the_reference_it_was_asked_for(tmp_path):
     assert set(job["links"]) == {"self", "result", "matched_reference", "plan", "report"}
     assert job["links"]["matched_reference"] == f"/v1/jobs/{job['id']}/matched_reference"
     assert job["summary"]["matched_reference_lines"] == 22
+    assert job["summary"]["matched_reference_pairs"] == 22
     assert job["summary"]["warnings"] == []
 
     matched = service.client.get(job["links"]["matched_reference"])
@@ -63,6 +64,15 @@ def test_a_job_hands_back_the_reference_it_was_asked_for(tmp_path):
     report = service.client.get(job["links"]["report"]).json()["matched_reference"]
     assert (report["delivered"], report["lines"]) == (True, 22)
     assert report["left_out"] == {"no_counterpart": 2}
+    # The pairs name the lines of both downloads, by number, time and text.
+    assert len(report["pairs"]) == 22
+    first = report["pairs"][0]
+    assert set(first) == {"start_ms", "end_ms", "target", "reference"}
+    assert first["reference"] == [
+        {"index": 1, "start_ms": shared[0], "end_ms": shared[0] + 2_000, "text": SENTENCES[0]}
+    ]
+    assert first["target"] == first["reference"]
+    assert [found["reference"][0]["start_ms"] for found in report["pairs"]] == shared
 
 
 def test_a_job_that_was_not_asked_has_none(tmp_path):

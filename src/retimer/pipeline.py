@@ -1133,6 +1133,9 @@ def with_matched_reference(prepared: Prepared, result: SyncResult) -> SyncResult
         delivered = set(result.subtitle.ids)
         bar = prepared.settings.min_block_confidence
         spans: list[tuple[int, int]] = []
+        # The lines each span stands for: a line, and the repeats joined into it.
+        span_ids: list[list[int]] = []
+        joined = prepared.views.match_view.joined
         unplaced = 0
         for line in prepared.views.match_view.lines:
             if line.id not in delivered:
@@ -1143,12 +1146,15 @@ def with_matched_reference(prepared: Prepared, result: SyncResult) -> SyncResult
                 continue
             start, end = moved_span(result.plan, line.start_ms, line.end_ms)
             spans.append((max(0, start), max(0, end)))
+            span_ids.append([line.id, *joined.get(line.id, [])])
         made, found = match_reference(
             prepared.reference,
             prepared.reference_labels,
             prepared.timeline,
             spans,
             prepared.options,
+            target=result.subtitle,
+            target_ids=span_ids,
         )
         found.target_dialogue_lines += unplaced
         found.target_unplaced_lines = unplaced

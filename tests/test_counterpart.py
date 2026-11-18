@@ -7,7 +7,7 @@ import pytest
 from retimer import dumps, load, loads
 from retimer.cache import Cache
 from retimer.cli import main
-from retimer.counterpart import pair_by_time
+from retimer.counterpart import link_by_time, pair_by_time
 from retimer.pipeline import prepare, propose, sync, with_matched_reference
 from retimer.reference import RefEvent
 from retimer.views import Options
@@ -402,6 +402,128 @@ def test_lines_of_a_block_that_is_not_trusted_pair_with_nothing(tmp_path):
     assert result.report.matched_reference is None
 
 
+# Which lines of the two files belong together
+
+
+def shown(subtitle) -> list[tuple[int, int, str]]:
+    """A delivered file as a player reads it back: start, end and text of every line."""
+    again = loads(dumps(subtitle))
+    return [(line.start_ms, line.end_ms, line.text.replace("\\N", "\n")) for line in again.lines]
+
+
+def test_the_links_name_every_event_and_span_that_belong_together():
+    events = [event(10_000, 18_000), event(20_000, 22_000), event(40_000, 41_000)]
+    spans = [(20_100, 22_000), (10_100, 12_000), (12_100, 14_500), (50_000, 51_000)]
+
+    assert link_by_time(events, spans) == [(0, 1), (0, 2), (1, 0)]
+    assert link_by_time([], spans) == []
+
+
+def test_the_report_lists_which_lines_belong_together(run):
+    truth = spread(30)
+    said = [index for index in range(30) if index not in (6, 7)]
+    reference = make_subtitle(truth)
+    target = make_subtitle(
+        [truth[index] + 4_200 for index in said], [SENTENCES[index] for index in said]
+    )
+
+    result = run(target, reference=reference)
+
+    pairs = result.report.matched_reference.pairs
+    assert len(pairs) == 28
+    ours, theirs = shown(result.reference), shown(result.subtitle)
+    for number, found in enumerate(pairs, 1):
+        (ref,), (line,) = found.reference, found.target
+        # Both files lost lines 6 and 7, so the pairs count through both alike.
+        assert (ref.index, line.index) == (number, number)
+        assert (ref.start_ms, ref.end_ms, ref.text) == ours[ref.index - 1]
+        assert (line.start_ms, line.end_ms, line.text) == theirs[line.index - 1]
+        assert (found.start_ms, found.end_ms) == (ref.start_ms, ref.end_ms)
+    assert [found.reference[0].text for found in pairs] == [SENTENCES[index] for index in said]
+
+
+def test_a_pair_holds_every_line_of_a_sentence_that_was_cut_differently(run):
+    truth = spread(24)
+    # The reference says lines 4 and 5 in one line.
+    starts = [start for index, start in enumerate(truth) if index != 5]
+    texts = [text for index, text in enumerate(SENTENCES[:24]) if index != 5]
+    texts[4] = f"{SENTENCES[4]} {SENTENCES[5]}"
+    reference = loads(
+        dumps(make_subtitle(starts, texts)).replace(
+            "00:00:34,000 --> 00:00:36,000", "00:00:34,000 --> 00:00:42,000"
+        )
+    )
+    target = make_subtitle([start - 3_300 for start in truth])
+
+    result = run(target, reference=reference)
+
+    pairs = result.report.matched_reference.pairs
+    assert len(pairs) == 23
+    long = pairs[4]
+    assert [line.index for line in long.reference] == [5]
+    assert [line.index for line in long.target] == [5, 6]
+    assert [line.text for line in long.target] == SENTENCES[4:6]
+    assert (long.start_ms, long.end_ms) == (truth[4], truth[5] + 2_000)
+    # Every line of both files is in exactly one pair.
+    assert sorted(line.index for found in pairs for line in found.target) == list(range(1, 25))
+    assert sorted(line.index for found in pairs for line in found.reference) == list(range(1, 24))
+
+
+def test_a_pair_names_the_lines_as_the_delivered_files_count_them(run):
+    truth = spread(20)
+    events = [(start, "Default", SENTENCES[index]) for index, start in enumerate(truth)]
+    events.insert(0, (truth[0], "Signs", "{\\pos(640,80)}Fuyuki City"))
+    events.insert(3, (truth[2], "Default", "a note for the editor", "Comment"))
+    # Line 7 is drawn twice, once for its glow.
+    events.insert(10, (truth[7], "Default", f"{{\\blur3}}{SENTENCES[7]}"))
+    reference = make_script(events)
+    texts = list(SENTENCES[:20])
+    texts[3] = "[thunder rumbles]"
+    target = make_subtitle([start + 2_000 for start in truth], texts)
+
+    result = run(target, reference=reference, options=Options(remove_hearing_impaired=True))
+
+    pairs = result.report.matched_reference.pairs
+    ours, theirs = shown(result.reference), shown(result.subtitle)
+    assert (len(ours), len(theirs), len(pairs)) == (20, 19, 19)
+    for found in pairs:
+        for ref in found.reference:
+            assert (ref.start_ms, ref.end_ms) == ours[ref.index - 1][:2]
+        for line in found.target:
+            assert (line.start_ms, line.end_ms, line.text) == theirs[line.index - 1]
+    # The sign and the note are in no pair, and the two layers of line 7 are in one.
+    layered = next(found for found in pairs if found.target[0].text == SENTENCES[7])
+    assert [ref.text for ref in layered.reference] == [SENTENCES[7], SENTENCES[7]]
+    assert all(SENTENCES[3] not in ref.text for found in pairs for ref in found.reference)
+
+
+def test_a_pair_shows_the_text_as_the_content_options_left_it(run):
+    truth = spread(20)
+    texts = list(SENTENCES[:20])
+    texts[9] = f"{texts[9]}\n[door slams]"
+    target = make_subtitle([start + 2_000 for start in truth])
+
+    result = run(
+        target,
+        reference=make_subtitle(truth, texts),
+        options=Options(remove_hearing_impaired=True),
+    )
+
+    pairs = result.report.matched_reference.pairs
+    assert len(pairs) == 20
+    assert pairs[9].reference[0].text == SENTENCES[9]
+
+
+def test_without_a_file_there_are_no_pairs(run):
+    target = make_subtitle(spread(14), SENTENCES[:14])
+    other = make_subtitle(spread(14), SENTENCES[15:29])
+
+    result = run(target, reference=other)
+
+    assert result.reference is None
+    assert result.report.matched_reference.pairs == []
+
+
 # Command line
 
 
@@ -440,6 +562,8 @@ def test_the_sync_command_writes_the_matched_reference(offline, tmp_path, capsys
     summary = json.loads(capsys.readouterr().out)
     assert summary["matched_reference"]["lines"] == 19
     assert summary["matched_reference"]["left_out"] == {"no_counterpart": 1}
+    # The summary counts the pairs. The report lists them.
+    assert summary["matched_reference"]["pairs"] == 19
     assert starts_of(load(tmp_path / "pair.srt")) == [truth[index] for index in said]
     assert starts_of(load(tmp_path / "out.srt")) == [truth[index] for index in said]
 
