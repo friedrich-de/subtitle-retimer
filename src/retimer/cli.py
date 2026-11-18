@@ -16,6 +16,7 @@ from retimer.inspection import inspect_subtitle, sample_lines
 from retimer.io import SUPPORTED_FORMATS, SubtitleError, load, save
 from retimer.plan import Plan
 from retimer.providers import ProviderError
+from retimer.realset.cli import add_realset_commands
 from retimer.views import Options, build_views
 
 # The reference is other content, so there is no output file.
@@ -325,6 +326,7 @@ def build_parser() -> argparse.ArgumentParser:
     api_key.set_defaults(run=_cmd_api_key)
 
     add_bench_commands(commands)
+    add_realset_commands(commands)
     return parser
 
 

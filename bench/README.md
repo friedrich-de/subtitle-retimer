@@ -334,6 +334,15 @@ What it can and cannot tell, measured on the two seed films:
 - Both films are in English and have few lines. Japanese speech and the
   denser dialogue of a series episode are not measured here.
 
+## Real files
+
+The cases above are made, also those that replicate what real files do. The
+files themselves are measured on a kept set of real videos' subtitle tracks,
+audio and shared subtitle files. It has its own commands, `retimer realset`,
+and its own page: [realset/README.md](realset/README.md). It runs the same
+runners as this benchmark and uses the sound check as one of its three
+witnesses.
+
 ## Results
 
 Each run writes a directory under `data/bench/results`:

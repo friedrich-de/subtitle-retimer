@@ -658,6 +658,29 @@ reading stands above chance. It tells whether lines are within about half a
 second of the voices, which is enough to compare tools on real files, and not
 more. [bench/README.md](bench/README.md#the-sound-check) has what was measured.
 
+### Real files
+
+The benchmark's cases are made, also those that replicate what real files
+do. How a system does on the files people really sync is measured on a set
+built from your own videos and from Jimaku: every subtitle track and the audio of each video, and the
+Japanese subtitle files shared for the same series. The set is kept outside
+the repository, because it names releases.
+
+```bash
+retimer realset build SET --videos VIDEOS --jimaku-key-file KEY   # tracks, audio, targets, pairs
+retimer realset embed SET     # every line's embedding, with a local model, into the set's cache
+retimer realset tune SET      # choose settings for alass and ffsubsync on a tenth of the pairs
+retimer realset run SET       # the retimer, alass and ffsubsync over every pair
+retimer realset judge SET     # window check, sound check, and how far each system moved the lines
+retimer realset report SET
+```
+
+No output of a real file has a known truth, so each is held against three
+witnesses: lines that clearly mean the same in the output and in the video's
+own subtitle track, the sound check, and the places where the systems disagree
+with each other. [bench/realset/README.md](bench/realset/README.md) has the
+details.
+
 ## The plan
 
 ```json
@@ -737,5 +760,16 @@ Rules the engine enforces:
 | `retimer.bench.harness` | Runs systems over cases and stores the results |
 | `retimer.bench.report` | Summary tables |
 | `retimer.bench.soundcheck` | The sound check: line starts against the voices in the audio, without a model |
+| `retimer.realset.build` | Builds a real-file set: tracks and audio out of videos, targets from Jimaku |
+| `retimer.realset.names` | What a file name says: the episode, and the kind of file |
+| `retimer.realset.pairs` | The roles of tracks, which file is for which video, and the pairs |
+| `retimer.realset.manifest` | The manifest of a set, its overrides, and its packed tracks |
+| `retimer.realset.embedding` | A local stand-in for the embedding provider, and the set's cache |
+| `retimer.realset.systems` | The systems run over a set, and the settings tried for the tools |
+| `retimer.realset.run` | Runs systems over the pairs, keeps the outputs, continues a run |
+| `retimer.realset.tune` | Chooses the tools' settings on a tenth of the main pairs |
+| `retimer.realset.judge` | Judges every output: window check, sound check, shifts |
+| `retimer.realset.windows` | The arithmetic of judging, per window of three minutes |
+| `retimer.realset.report` | The report of a run |
 | `bench/seeds` | Seed material: two open films and a made-up series, each with English and Japanese subtitles |
 | `deploy` | The system service, the keys tool, releases and the smoke test for the server |
