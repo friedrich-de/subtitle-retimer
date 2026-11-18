@@ -34,6 +34,19 @@ class ProviderError(RuntimeError):
     """A provider call failed for good. The message never contains the key."""
 
 
+class ModelUnavailable(ProviderError):
+    """The model that settles a job could not be asked: no key, no connection, or an error answer.
+
+    A model is part of every deployment, so a job is not delivered without
+    what the model was to settle. It fails and can be sent again. `cost_usd`
+    is what the calls before the failure cost.
+    """
+
+    def __init__(self, message: str, cost_usd: float = 0.0) -> None:
+        super().__init__(message)
+        self.cost_usd = cost_usd
+
+
 @dataclass
 class Transcription:
     """The provider's verbose transcription response, and its price."""

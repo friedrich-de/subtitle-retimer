@@ -15,6 +15,7 @@ from retimer.cache import Cache, content_hash
 from retimer.providers import DEFAULT_SPEECH_MODEL, DEFAULT_SPEECH_PROVIDER
 from retimer.transcribe import DEFAULT_MAX_CHUNK_MS, Transcript
 
+from .agent_helpers import AgreeingModel
 from .sync_helpers import FakeClient, make_subtitle, spread
 
 AUDIO = b"not really audio, but the same bytes every time"
@@ -88,7 +89,13 @@ class Service:
 def make_service(
     tmp_path: Path, *, labels=("al",), model_client=None, probe=fake_probe, **overrides
 ):
-    """A service whose worker only runs when the test says so."""
+    """A service whose worker only runs when the test says so.
+
+    A service does not run without a model, so a test that names none gets
+    one that submits what the routine steps propose.
+    """
+    if model_client is None:
+        model_client = AgreeingModel()
     keys = {}
     entries = []
     for label in labels:

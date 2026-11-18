@@ -21,7 +21,7 @@ DATA_DIR_ENV = "RETIMER_DATA_DIR"
 API_KEYS_ENV = "RETIMER_API_KEYS"
 DEV_ENV = "RETIMER_DEV"
 
-AGENT_CHOICES = ("haiku", "sonnet", "opus", "off")
+AGENT_CHOICES = ("haiku", "sonnet", "opus")
 # The models that read image subtitles. The names are those of `retimer.ocr.MODELS`.
 OCR_MODEL_CHOICES = ("haiku", "sonnet", "gemini-flash", "gemini-flash-lite", "qwen-flash")
 
@@ -92,7 +92,7 @@ class ApiSettings(BaseModel):
     # Jobs that run side by side.
     workers: int = 1
     # The model that settles what the routine steps leave open, when a request
-    # names none. "off" runs the fixed pipeline.
+    # names none. There is no setting that runs jobs without a model.
     agent: str = "haiku"
     agent_max_cost_usd: float = 0.25
     # The model that reads image subtitles when a request names none, and what

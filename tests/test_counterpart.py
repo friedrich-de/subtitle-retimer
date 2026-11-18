@@ -12,6 +12,7 @@ from retimer.pipeline import prepare, propose, sync, with_matched_reference
 from retimer.reference import RefEvent
 from retimer.views import Options
 
+from .agent_helpers import model_in_reach
 from .sync_helpers import (
     SENTENCES,
     FakeClient,
@@ -531,6 +532,8 @@ def test_without_a_file_there_are_no_pairs(run):
 def offline(monkeypatch, tmp_path):
     monkeypatch.setattr("retimer.embed.OpenRouter", FakeClient)
     monkeypatch.setenv("RETIMER_CACHE_DIR", str(tmp_path / "cache"))
+    # The command does not run without a model. These jobs leave it nothing to settle.
+    model_in_reach(monkeypatch)
 
 
 def test_the_sync_command_writes_the_matched_reference(offline, tmp_path, capsys):

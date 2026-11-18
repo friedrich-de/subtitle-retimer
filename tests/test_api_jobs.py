@@ -16,7 +16,7 @@ from retimer.cache import Cache
 from retimer.pipeline import prepare
 from retimer.providers import ProviderError
 
-from .agent_helpers import FakeModel, pair, submit, three_parts
+from .agent_helpers import AgreeingModel, FakeModel, pair, submit, three_parts
 from .api_helpers import AUDIO, make_service, shifted, srt, starts_of
 from .sync_helpers import SENTENCES, FakeClient, make_subtitle, make_transcript, spread
 
@@ -204,20 +204,20 @@ def test_the_agent_settles_what_the_routine_steps_leave_open(tmp_path):
     assert report["cost_usd"]["agent"] > 0
 
 
-def test_a_job_can_name_its_model_or_do_without(tmp_path):
+def test_a_job_can_name_its_model_but_cannot_do_without_one(tmp_path):
     model = FakeModel([pair((12, 12), (13, 13), (14, 14))], [submit()])
     service = make_service(tmp_path, model_client=model)
     target, truth = three_parts()
     files = {"target": dumps(target).encode(), "reference_subtitle": srt(truth)}
 
-    without = service.finished(files, '{"agent": "off"}')
     with_opus = service.finished(files, '{"agent": "opus"}')
 
-    assert without["request"]["agent"] == "off"
-    assert without["summary"]["agent"] is None
+    assert with_opus["request"]["agent"] == "opus"
     assert with_opus["summary"]["agent"]["model"] == "claude-opus-5-5"
     # The job named the model, and OpenRouter was asked for it under its name there.
     assert [request["model"] for request in model.requests] == ["anthropic/claude-opus-5.5"] * 2
+    # There is no fixed pipeline to ask for in its place.
+    assert refused(service.submit(files, '{"agent": "off"}'), 422, "invalid_options")
 
 
 def test_the_agent_gets_a_tighter_budget_than_the_command_line_gives_it(tmp_path):
@@ -232,27 +232,61 @@ def test_the_agent_gets_a_tighter_budget_than_the_command_line_gives_it(tmp_path
     assert job["outcome"] == "partial"
 
 
-def test_without_a_key_for_the_agent_jobs_run_the_fixed_pipeline(tmp_path):
+def test_the_service_is_not_built_without_a_model(tmp_path):
+    from retimer.api import create_app
+    from retimer.api.config import ConfigError
+    from retimer.api.worker import Services
+
     service = make_service(tmp_path)
-    target, reference = shifted()
-    files = {"target": target, "reference_subtitle": reference}
+    services = Services(cache=service.cache, openrouter=FakeClient())
+
+    with pytest.raises(ConfigError, match="does not run without a model"):
+        create_app(service.settings, services=services, run_worker=False)
+    with pytest.raises(ConfigError, match="agent must be one of haiku, sonnet, opus"):
+        make_service(tmp_path / "other", agent="off")
+
+
+def test_a_job_whose_model_cannot_be_asked_fails_and_says_so(tmp_path):
+    import anthropic
+    import httpx
+
+    request = httpx.Request("POST", "https://openrouter.ai/api/v1/messages")
+    overloaded = anthropic.APIStatusError(
+        "Overloaded", response=httpx.Response(529, request=request), body=None
+    )
+    model = FakeModel([pair((12, 12), (13, 13), (14, 14))], overloaded)
+    service = make_service(tmp_path, model_client=model)
+    target, truth = three_parts()
+    files = {"target": dumps(target).encode(), "reference_subtitle": srt(truth)}
 
     job = service.finished(files)
 
-    assert job["request"]["agent"] == "off"
-    assert job["outcome"] == "synced"
-    assert refused(service.submit(files, '{"agent": "haiku"}'), 422, "agent_unavailable")
-    assert service.submit(files, '{"agent": "off"}').status_code == 202
+    # The routine steps had an answer, but it is not handed out as the job's result.
+    assert (job["status"], job["outcome"]) == ("finished", "failed")
+    assert job["error"]["code"] == "model_unavailable"
+    assert "Send the job again" in job["error"]["message"]
+    assert service.client.get(job["links"]["self"] + "/result").status_code == 404
+    # The turn the model did answer was paid for, so it counts against the day's budget.
+    assert service.store.spent_today() > 0
 
 
-def test_a_server_can_be_set_to_run_without_the_agent(tmp_path):
-    service = make_service(tmp_path, model_client=FakeModel(), agent="off")
+def test_a_job_stored_before_the_model_became_mandatory_runs_with_the_servers_model(tmp_path):
+    model = FakeModel([pair((12, 12), (13, 13), (14, 14))], [submit()])
+    service = make_service(tmp_path, model_client=model)
     target, truth = three_parts()
+    response = service.submit({"target": dumps(target).encode(), "reference_subtitle": srt(truth)})
+    job_id = response.json()["id"]
+    request = {**service.store.get(job_id).request, "agent": "off"}
+    with service.store._connect() as connection:
+        connection.execute(
+            "UPDATE jobs SET request = ? WHERE id = ?", (json.dumps(request), job_id)
+        )
 
-    job = service.finished({"target": dumps(target).encode(), "reference_subtitle": srt(truth)})
+    service.run()
 
-    assert job["request"]["agent"] == "off"
-    assert job["summary"]["agent"] is None
+    job = service.client.get(response.json()["links"]["self"]).json()
+    assert job["outcome"] == "synced"
+    assert job["summary"]["agent"]["model"] == "claude-haiku-5-5"
 
 
 @pytest.mark.parametrize(
@@ -762,7 +796,7 @@ def test_the_application_starts_and_stops_its_worker(tmp_path):
 
     service = make_service(tmp_path)
     target, reference = shifted()
-    services = Services(cache=service.cache, openrouter=FakeClient())
+    services = Services(cache=service.cache, openrouter=FakeClient(), model_client=AgreeingModel())
     app = create_app(service.settings, services=services, probe=None)
 
     with TestClient(app, base_url="https://testserver", headers=service.auth()) as client:
@@ -877,7 +911,7 @@ def test_a_running_service_is_a_benchmark_system(tmp_path, monkeypatch):
     seeds = write_seeds(tmp_path / "seeds")
     generate_cases(seeds, tmp_path / "media", tmp_path / "cases")
     service = make_service(tmp_path)
-    services = Services(cache=service.cache, openrouter=FakeClient())
+    services = Services(cache=service.cache, openrouter=FakeClient(), model_client=AgreeingModel())
     app = create_app(service.settings, services=services)
 
     with TestClient(app, base_url="https://testserver", headers=service.auth()) as client:
@@ -935,11 +969,11 @@ def test_the_benchmark_sends_every_track_of_a_case_that_has_several(tmp_path):
     recipes = [recipe for recipe in real_file_recipes() if recipe.family == "several_references"]
     generate_cases(seeds, tmp_path / "media", tmp_path / "cases", recipes=[], real_recipes=recipes)
     service = make_service(tmp_path)
-    services = Services(cache=service.cache, openrouter=FakeClient())
+    services = Services(cache=service.cache, openrouter=FakeClient(), model_client=AgreeingModel())
     app = create_app(service.settings, services=services)
 
     with TestClient(app, base_url="https://testserver", headers=service.auth()) as client:
-        runner = ApiRunner(client=client, poll_s=0.02, agent="off")
+        runner = ApiRunner(client=client, poll_s=0.02)
         for name, outcome in (
             ("signs-marked-default", "synced"),
             ("six-tracks", "synced"),
@@ -1043,11 +1077,10 @@ def test_a_reference_without_dialogue_is_named_as_the_reason(tmp_path):
     )
 
     job = service.finished(
-        {"target": target, "reference_subtitle": (script + signs).encode("utf-8")},
-        '{"agent": "off"}',
+        {"target": target, "reference_subtitle": (script + signs).encode("utf-8")}
     )
 
     assert job["outcome"] == "partial"
     assert job["request"]["reference_subtitle"]["dialogue_lines"] == 0
     assert "The reference subtitle has no dialogue" in job["summary"]["warnings"][0]
-    assert "Timing is unchanged" in job["summary"]["warnings"][-1]
+    assert any("Timing is unchanged" in warning for warning in job["summary"]["warnings"])

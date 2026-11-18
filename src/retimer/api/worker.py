@@ -1,8 +1,9 @@
 """The worker: takes queued jobs one by one and runs them.
 
 A job is the same work as `retimer sync`: the routine steps, then the agent
-where something is open, or the fixed pipeline when the agent is off. What it
-produces goes into the job's directory, and the job's row says how it ended.
+where something is open. A job whose model cannot be asked fails and can be
+sent again. What a job produces goes into its directory, and its row says how
+it ended.
 The worker also cleans up: expired jobs, stray uploads, and old cache entries.
 """
 
@@ -35,7 +36,7 @@ from retimer.audio import AudioError
 from retimer.cache import Cache
 from retimer.choice import Candidate, ReferenceChoice, TrackLabel
 from retimer.io import SubtitleError, dumps, load
-from retimer.providers import OpenRouter, ProviderError
+from retimer.providers import ModelUnavailable, OpenRouter, ProviderError
 from retimer.views import Options
 
 log = logging.getLogger("retimer.api")
@@ -53,6 +54,7 @@ FAILURES = {
     "no_text": "No text could be read from the pictures of this image subtitle.",
     "ocr_budget_exceeded": "Reading this image subtitle cost more than one job may spend.",
     "provider_error": "A hosted service the job depends on failed. A new job may succeed later.",
+    "model_unavailable": "The model that settles the job could not be asked. Send the job again.",
     "internal_error": "The job failed for a reason on the server's side.",
 }
 
@@ -313,12 +315,14 @@ def run_job(job: Job, store: JobStore, settings: ApiSettings, services: Services
         )
         store.set_stage(job.id, "deciding")
         # With no reference to sync against there is nothing for a model to settle.
-        if request["agent"] == "off" or prepared.refused:
+        if prepared.refused:
             result = propose(prepared).result
         else:
             from retimer.agent import AgentSettings, Workbench, run_agent
 
-            agent = AgentSettings(model=request["agent"], max_cost_usd=settings.agent_max_cost_usd)
+            # A job stored by a release that still had "off" runs with the server's model.
+            model = request["agent"] if request["agent"] != "off" else settings.agent
+            agent = AgentSettings(model=model, max_cost_usd=settings.agent_max_cost_usd)
             result = run_agent(Workbench(prepared), agent, services.model_client)
         if options.get("matched_reference"):
             try:
@@ -356,6 +360,8 @@ def run_job(job: Job, store: JobStore, settings: ApiSettings, services: Services
             if isinstance(error, SubtitleError)
             else "invalid_audio"
             if isinstance(error, AudioError)
+            else "model_unavailable"
+            if isinstance(error, ModelUnavailable)
             else "provider_error"
             if isinstance(error, ProviderError)
             else "internal_error"
@@ -368,6 +374,7 @@ def run_job(job: Job, store: JobStore, settings: ApiSettings, services: Services
         # that fail must not be a way around it.
         audio = request.get("reference_audio") or {}
         spent = audio.get("duration_ms", 0) / 1000 * _TRANSCRIPTION_USD_PER_S
+        spent += float(getattr(error, "cost_usd", 0.0) or 0.0)
         store.finish(
             job.id,
             "failed",

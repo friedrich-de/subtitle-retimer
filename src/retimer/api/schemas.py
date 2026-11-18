@@ -93,9 +93,9 @@ class JobOptions(BaseModel):
     # Defaults to the format of the target, and for the matched reference to
     # the format of the reference subtitle.
     output_format: Literal["srt", "ass"] | None = None
-    # The model that settles what the routine steps leave open. "off" runs the
-    # fixed pipeline. Defaults to what the server is set to.
-    agent: Literal["haiku", "sonnet", "opus", "off"] | None = None
+    # The model that settles what the routine steps leave open. Defaults to
+    # what the server is set to. A job cannot switch the model off.
+    agent: Literal["haiku", "sonnet", "opus"] | None = None
 
 
 class OcrOptions(BaseModel):

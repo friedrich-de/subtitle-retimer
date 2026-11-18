@@ -300,7 +300,8 @@ def command_setup(secrets_, ask=getpass.getpass, check=check_provider, out=print
         out("have it.")
     if secrets_.direct and not secrets_.values.get(ANTHROPIC):
         out("")
-        out("Without an Anthropic key jobs run the fixed pipeline, without the agent.")
+        out("Without an Anthropic key the service does not start: it does not run without")
+        out("a model. Run this again when you have it.")
     clients = [label for label in secrets_.entries if label != SELFCHECK_LABEL]
     key = None if clients else secrets_.add_key(FIRST_LABEL)
     secrets_.ensure_selfcheck()

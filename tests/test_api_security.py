@@ -459,7 +459,7 @@ def test_settings_come_from_the_environment(tmp_path):
             "RETIMER_MAX_REQUEST_MB": "60",
             "RETIMER_DAILY_BUDGET_USD": "1.5",
             "RETIMER_RETENTION_HOURS": "6",
-            "RETIMER_AGENT": "off",
+            "RETIMER_AGENT": "sonnet",
         }
     )
 
@@ -467,7 +467,11 @@ def test_settings_come_from_the_environment(tmp_path):
     assert settings.data_dir == tmp_path
     assert settings.max_audio_bytes == 50 * 1024 * 1024
     assert settings.max_body_bytes == settings.max_request_bytes == 60 * 1024 * 1024
-    assert (settings.daily_budget_usd, settings.retention_hours, settings.agent) == (1.5, 6, "off")
+    assert (settings.daily_budget_usd, settings.retention_hours, settings.agent) == (
+        1.5,
+        6,
+        "sonnet",
+    )
     assert settings.dev is False
 
 
@@ -483,6 +487,8 @@ def test_a_setting_that_makes_no_sense_stops_the_start(tmp_path):
         ("RETIMER_REQUESTS_PER_MINUTE", "0"),
         ("RETIMER_DAILY_BUDGET_USD", "-1"),
         ("RETIMER_AGENT", "gpt"),
+        # A deployment without a model is not one.
+        ("RETIMER_AGENT", "off"),
         ("RETIMER_DEV", "maybe"),
     ):
         with pytest.raises(ConfigError):

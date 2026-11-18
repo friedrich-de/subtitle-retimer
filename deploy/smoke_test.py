@@ -211,15 +211,13 @@ def run_job(
     reference: tuple[str, str, Path],
     wait_s: float,
     needs_agent: bool = False,
-    extra_lines: bool = False,
     matched_reference: bool = False,
 ) -> None:
     """Send a target with one reference, wait for the job and judge what comes back.
 
     `target` is the subtitle and where its lines belong. `reference` is the
-    form field, the file name to send, and the file. `extra_lines` is for a
-    target with lines after the end that nobody removes. `matched_reference`
-    asks for the reference subtitle back, reduced to what the target says too.
+    form field, the file name to send, and the file. `matched_reference` asks
+    for the reference subtitle back, reduced to what the target says too.
     """
     subtitle, truth = target
     field, name, file = reference
@@ -276,7 +274,7 @@ def run_job(
             result = pysubs2.SSAFile.from_string(response.text)
             starts = [line.start for line in result]
             near = sum(abs(a - b) <= TOLERANCE_MS for a, b in zip(starts, truth, strict=False))
-            complete = len(starts) >= len(truth) if extra_lines else len(starts) == len(truth)
+            complete = len(starts) == len(truth)
             checks.check(
                 complete and near >= 0.9 * len(truth),
                 "the lines are back where they belong",
@@ -317,7 +315,7 @@ def run_choice(checks: Checks, client: httpx.Client, wait_s: float) -> None:
         ),
         ("tears-of-steel.ja.srt", (SEEDS / SEED / "ja.srt").read_bytes(), {"language": "jpn"}),
     ]
-    options = {"agent": "off", "reference_tracks": [label for _, _, label in tracks]}
+    options = {"reference_tracks": [label for _, _, label in tracks]}
     files = [("target", ("tears-of-steel.en.srt", subtitle))]
     files += [("reference_subtitle", (name, content)) for name, content, _ in tracks]
     response = client.post("/v1/jobs", files=files, data={"options": json.dumps(options)})
@@ -440,9 +438,6 @@ def main() -> int:
     )
     parser.add_argument("--no-job", action="store_true", help="check the gate only, at no cost")
     parser.add_argument("--large", action="store_true", help="also test around the size limit")
-    parser.add_argument(
-        "--no-agent", action="store_true", help="for a server that runs without the agent"
-    )
     parser.add_argument("--wait", type=float, default=300.0, help="seconds a job may take")
     args = parser.parse_args()
 
@@ -472,9 +467,8 @@ def main() -> int:
                 late_with_outro(),
                 ("reference_subtitle", "tears-of-steel.ja.srt", japanese),
                 args.wait,
-                needs_agent=not args.no_agent,
                 # The lines after the end are for the agent to remove.
-                extra_lines=args.no_agent,
+                needs_agent=True,
                 matched_reference=True,
             )
             run_choice(checks, client, args.wait)

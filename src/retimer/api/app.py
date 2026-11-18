@@ -33,7 +33,7 @@ from starlette.requests import ClientDisconnect
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from retimer.api.auth import bearer_key, verify
-from retimer.api.config import ApiSettings
+from retimer.api.config import ApiSettings, ConfigError
 from retimer.api.limits import SlidingWindow, Slots, address_name
 from retimer.api.schemas import FEATURES, JobOptions, OcrOptions, job_view
 from retimer.api.store import (
@@ -405,11 +405,10 @@ def _read_ocr_form(form: FormData) -> tuple[UploadFile, OcrOptions]:
 class _Intake:
     """Takes a submission in: stores the uploads, checks them, and queues the job."""
 
-    def __init__(self, settings: ApiSettings, store: JobStore, probe, agent_ready: bool) -> None:
+    def __init__(self, settings: ApiSettings, store: JobStore, probe) -> None:
         self.settings = settings
         self.store = store
         self.probe = probe
-        self.agent_ready = agent_ready
 
     def _save(
         self, upload: UploadFile, path: Path, limit: int, field: str, part: str | None = None
@@ -556,14 +555,6 @@ class _Intake:
     def accept(self, owner: str, parts: _Parts) -> Job:
         options = parts.options
         agent = options.agent or self.settings.agent
-        if agent != "off" and not self.agent_ready:
-            if options.agent is not None:
-                raise ApiError(
-                    422,
-                    "agent_unavailable",
-                    "This server has no key for the agent. Leave agent out or send off.",
-                )
-            agent = "off"
         job_id, directory = self.store.new_directory()
         try:
             request: dict[str, Any] = {
@@ -750,9 +741,13 @@ def create_app(
     if services is None:
         cache_dir = os.environ.get(CACHE_DIR_ENV) or settings.data_dir / "cache"
         services = Services(cache=Cache(cache_dir))
+    if services.model_client is None and not agent_available():
+        # A model is part of every deployment. There is no way to run jobs without one.
+        raise ConfigError(
+            "The key for the model is not set. The service does not run without a model."
+        )
     worker = Worker(store, settings, services)
-    agent_ready = services.model_client is not None or agent_available()
-    intake = _Intake(settings, store, probe, agent_ready)
+    intake = _Intake(settings, store, probe)
     submissions = SlidingWindow(settings.jobs_per_hour, 3600.0)
     uploads = Slots()
 

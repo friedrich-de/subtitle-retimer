@@ -1,11 +1,15 @@
 """The agent: a model that settles what the routine steps left open.
 
-The routine steps run first and need no model. When their draft stands on its
-own, the model is not asked at all. Otherwise it gets a dossier with the open
+The routine steps run first and draft a plan. When the draft stands on its
+own, the model is not asked. Otherwise it gets a dossier with the open
 questions and a handful of tools, and works until it submits or its budget is
 spent. Whatever it does, the result is a plan built and checked by the same
-code as the fixed pipeline's, and never one that puts fewer certain lines in
-place than the draft it started from.
+code as the draft, and never one that puts fewer certain lines in place than
+the draft it started from.
+
+A model is part of every deployment. A job whose questions the model could not
+be asked is not delivered on the draft alone: it fails with `ModelUnavailable`
+and can be sent again.
 """
 
 from __future__ import annotations
@@ -32,7 +36,7 @@ from retimer.pipeline import (
     propose,
     with_matched_reference,
 )
-from retimer.providers import OPENROUTER_KEY_ENV, OpenRouter
+from retimer.providers import OPENROUTER_KEY_ENV, ModelUnavailable, OpenRouter
 from retimer.views import Options
 
 # Where the model is called. OpenRouter is the default, so that one key covers
@@ -76,7 +80,7 @@ _SERVER_FALLBACK = {"claude-opus-5-5", "claude-sonnet-5-5"}
 _FALLBACK_BETA = "server-side-fallback-2026-07-01"
 
 Effort = Literal["low", "medium", "high", "xhigh", "max"]
-Finished = Literal["not_needed", "submitted", "no_submit", "budget", "declined", "error"]
+Finished = Literal["not_needed", "submitted", "no_submit", "budget", "declined"]
 
 
 def agent_provider() -> Provider:
@@ -94,7 +98,7 @@ def agent_key_env(provider: Provider | None = None) -> str:
 
 
 def agent_available() -> bool:
-    """Whether the key for the model is there. Without it jobs run the routine steps alone."""
+    """Whether the key for the model is there. Without it nothing runs: a service does not start."""
     try:
         return bool(os.environ.get(agent_key_env()))
     except ValueError:
@@ -143,6 +147,9 @@ class AgentTrace(BaseModel):
     # down to: its first and its last line.
     part_asked: dict[str, int] | None = None
     cover: list[int] | None = None
+    # Stretches given a timing of their own: the first and the last line of each.
+    stretches: list[list[int]] = Field(default_factory=list)
+    # Placed lines the agent opened again to pair them with other places.
     fit: str | None = None
     # Whether the plan is the agent's, or the draft it started from.
     changed: bool = False
@@ -151,7 +158,6 @@ class AgentTrace(BaseModel):
     tokens: dict[str, int] = Field(default_factory=dict)
     cost_usd: float = 0.0
     seconds: float = 0.0
-    error: str | None = None
 
 
 def resolve_model(name: str) -> str:
@@ -168,7 +174,7 @@ def make_client(provider: Provider | None = None) -> anthropic.Anthropic:
     name = agent_key_env(provider)
     key = os.environ.get(name)
     if not key:
-        raise RuntimeError(f"{name} is not set")
+        raise ModelUnavailable(f"{name} is not set")
     if provider == "openrouter":
         address = OPENROUTER_MESSAGES_URL
     else:
@@ -223,6 +229,8 @@ def _dispatch(bench: Workbench, name: str, args: dict) -> tuple[str, bool]:
             return bench.set_edge_lines(args.get("remove", []), args.get("keep", [])), False
         if name == "cut_to_reference":
             return bench.cut_to_reference(args["first_line"], args["last_line"]), False
+        if name == "retime_stretches":
+            return bench.retime_stretches(args["stretches"]), False
         if name == "find_counterparts":
             return bench.find_counterparts(args["lines"]), False
         if name == "read_lines":
@@ -362,6 +370,7 @@ def _conclude(bench: Workbench, trace: AgentTrace) -> SyncResult:
     trace.removed = sorted(bench.trim)
     trace.kept = sorted(bench.keep)
     trace.cover = list(bench.cover) if bench.cover else None
+    trace.stretches = [list(stretch) for stretch in bench.stretches]
     trace.fit = bench.fit_kind
 
     result = use.result
@@ -371,14 +380,11 @@ def _conclude(bench: Workbench, trace: AgentTrace) -> SyncResult:
         "budget": "The agent's budget ran out before it finished.",
         "no_submit": "The agent stopped without finishing.",
         "declined": "The model declined the request.",
-        "error": "The model could not be reached.",
     }.get(trace.finished)
     if unfinished:
+        # What the model was asked and did not settle is not passed off as settled.
         notes.append(unfinished + " The plan may leave parts of the file unsettled.")
-        if trace.finished in ("budget", "no_submit") and plan.outcome in (
-            "synced",
-            "already_in_sync",
-        ):
+        if plan.outcome in ("synced", "already_in_sync"):
             plan = plan.model_copy(update={"outcome": "partial"})
             report.outcome = "partial"
     if trace.note:
@@ -394,7 +400,10 @@ def _conclude(bench: Workbench, trace: AgentTrace) -> SyncResult:
 def run_agent(
     bench: Workbench, settings: AgentSettings | None = None, client: Any | None = None
 ) -> SyncResult:
-    """Decide a prepared job: with the model where something is open, without it otherwise."""
+    """Decide a prepared job: with the model where something is open, without it otherwise.
+
+    Raises `ModelUnavailable` when the model was needed and could not be asked.
+    """
     settings = settings or AgentSettings()
     settings = settings.model_copy(update={"model": resolve_model(settings.model)})
     trace = AgentTrace(model=settings.model, effort=settings.effort, provider=settings.provider)
@@ -408,11 +417,10 @@ def run_agent(
     try:
         _converse(bench, settings, client or make_client(settings.provider), trace)
     except anthropic.APIStatusError as error:
-        trace.finished = "error"
-        trace.error = f"{error.status_code}: {error.message}"[:300]
-    except (anthropic.APIConnectionError, RuntimeError) as error:
-        trace.finished = "error"
-        trace.error = str(error)[:300]
+        reason = f"{error.status_code}: {error.message}"[:300]
+        raise ModelUnavailable(reason, trace.cost_usd) from error
+    except anthropic.APIConnectionError as error:
+        raise ModelUnavailable(str(error)[:300], trace.cost_usd) from error
     trace.seconds = round(time.monotonic() - started, 2)
     return _conclude(bench, trace)
 

@@ -13,6 +13,7 @@ from retimer.fit import Pin
 from retimer.pipeline import Adjustments, prepare, propose, sync
 from retimer.plan import Shift
 
+from .agent_helpers import model_in_reach
 from .sync_helpers import (
     SENTENCES,
     FakeClient,
@@ -405,6 +406,8 @@ def test_a_model_is_not_asked_when_no_track_can_serve(run):
 def test_the_sync_command_takes_several_references(tmp_path, capsys, monkeypatch):
     monkeypatch.setattr("retimer.embed.OpenRouter", FakeClient)
     monkeypatch.setenv("RETIMER_CACHE_DIR", str(tmp_path / "cache"))
+    # The command does not run without a model. This job leaves it nothing to settle.
+    model_in_reach(monkeypatch)
     (tmp_path / "target.srt").write_text(dumps(target()))
     (tmp_path / "signs.ass").write_text(dumps(signs()))
     (tmp_path / "full.srt").write_text(dumps(full()))

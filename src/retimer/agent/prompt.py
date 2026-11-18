@@ -92,6 +92,15 @@ them with their places, as you would unplaced lines between two blocks.
 - A block that rests on little: read where its lines land. Pair the lines that \
 land on their counterpart, which confirms the block, or pair them with the right \
 places if they land wrong.
+- Placed lines that land beside their places: all lines of a block move by one \
+amount, and a block can hold a stretch that is timed a few tenths of a second \
+apart from the rest, too little for the routine tools to tell from scatter. The \
+question lists the stretches of the block with how far their placed lines land \
+early or late, and shows pairs from the stretches that lean. Read those pairs. If \
+each line and its place say the same thing, the lean is real: call retime_stretches \
+with the first and the last line of every stretch that leans, in one call. Each \
+stretch is then timed by its own pairs. If the pairs shown are not the same lines, \
+leave the block as it is.
 - Same content: if the lines of the two sides tell different scenes, the reference \
 is other content. Submit with verdict other_content. Two cuts or translations of \
 the same film are the same content. Two episodes of one series are not, and they \
@@ -110,8 +119,8 @@ How to work
 - The dossier shows what most questions need: the open lines next to the stretch \
 of the reference they can belong to. Act on it directly. Read more lines or more \
 of the reference only when a question cannot be settled from what is shown.
-- After pair_lines, set_edge_lines or cut_to_reference you get the new draft and \
-what is still open. Check that your pairs are reported as in place.
+- After pair_lines, set_edge_lines, cut_to_reference or retime_stretches you get \
+the new draft and what is still open. Check that your pairs are reported as in place.
 - When nothing more can be settled by reading, call submit. Every step costs money, \
 so do not check again what the tools already report.
 
@@ -191,6 +200,26 @@ TOOLS = [
         "the last line of the file takes a cut back.",
         {"first_line": _LINE, "last_line": _LINE},
         ["first_line", "last_line"],
+    ),
+    _tool(
+        "retime_stretches",
+        "Say that stretches of a block have a timing of their own, a little apart from "
+        "the lines around them, by naming the first and the last target line of each. "
+        "The block is cut there and every part is timed by its own lines that found "
+        "their counterpart. You get the new draft. It is taken only where it puts more "
+        "of those lines on their places. An empty list takes all stretches back.",
+        {
+            "stretches": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {"first_line": _LINE, "last_line": _LINE},
+                    "required": ["first_line", "last_line"],
+                    "additionalProperties": False,
+                },
+            }
+        },
+        ["stretches"],
     ),
     _tool(
         "find_counterparts",

@@ -2,10 +2,12 @@
 
 An API that synchronizes a subtitle file to a reference (audio, an in-sync
 subtitle, or both). An AI agent diagnoses the file and chooses the operations;
-deterministic tools do all the timing math.
+deterministic tools do all the timing math. A model is part of every
+deployment: the service does not start without the key for it, and no job is
+answered without it.
 
 The project is built in milestones. This repository holds the subtitle core,
-the benchmark harness, the fixed pipeline that syncs a file without an agent,
+the benchmark harness, the fixed pipeline that builds the draft of a sync,
 the agent that settles what the pipeline leaves open, the choice between the
 subtitle tracks of a video file, the matched reference for dual subtitles, the
 HTTP API with its deployment, and the reading of image subtitles.
@@ -32,8 +34,9 @@ HTTP API with its deployment, and the reading of image subtitles.
 ## What the fixed pipeline does
 
 It runs the routine steps in one set order and always takes the best-scoring
-answer. It is the floor of the service, and the benchmark's measure of what the
-agent adds.
+answer. Its plan is the draft of every job. On its own it is delivered to
+nobody: the benchmark runs it as the system `pipeline`, to show what the model
+adds.
 
 1. **Reference.** Audio is transcribed with word timestamps (Whisper large v3
    turbo, through OpenRouter, pinned to one upstream) and grouped into
@@ -71,8 +74,8 @@ loses, are in
 ## What the agent does
 
 The agent starts where the fixed pipeline stops. The routine steps run first,
-without a model, and their plan is the draft. A workbench then looks for what
-the draft rests on too little:
+and their plan is the draft. A workbench then looks for what the draft rests
+on too little:
 
 - lines between two blocks, or at the start or the end of the file, that found
   no counterpart;
@@ -82,17 +85,19 @@ the draft rests on too little:
 - no timing at all, because the parts that were placed cannot follow each
   other;
 - a target that holds clearly more than the reference covers, such as several
-  episodes in one file of which the reference is one.
+  episodes in one file of which the reference is one;
+- a stretch of a block whose placed lines land beside their places, early or
+  late by a few tenths of a second, while the rest of the block lands on them.
 
 When nothing is open, no model is called. On the benchmark that is two files in
 three. Otherwise the model gets a dossier: the job, what the routine steps
 found, and every open question with the lines concerned next to the stretch of
-the reference they can belong to. It has nine tools and never writes a time.
+the reference they can belong to. It has ten tools and never writes a time.
 It says which line begins at which place in the reference, what happens to a
 line at the edge of the file, which part of the file the reference covers,
-which fit to go with, and whether the two sides are the same content. Each
-answer is an adjustment to the pipeline, which then builds and validates the
-plan as it always does.
+which stretch has a timing of its own, which fit to go with, and whether the
+two sides are the same content. Each answer is an adjustment to the pipeline,
+which then builds and validates the plan as it always does.
 
 A file of several episodes is settled in one step. The routine steps find the
 episode of the reference and where its lines would land. The dossier shows the
@@ -102,6 +107,27 @@ anew, on its own. That matters because episodes of a series share lines, a
 narration or a recap, and one chain of pairs through the whole file gives some
 of the reference's places to the wrong episode. The report lists the removed
 lines as `cut`, and the summary of a job counts them as `cut_lines`.
+
+A stretch that is timed a little apart is settled in one step too. All lines of
+a block move by one amount, and a fit tells two timings apart only when they
+differ by more than its pairs scatter. Captions that run 0.4 s early for a
+third of an episode are below that: the block gets the middle of all its pairs,
+which suits neither part. The workbench measures it. It takes the lines that
+found their counterpart, looks how far each lands beside it under the draft,
+and cuts that row where its level changes by 0.15 s or more and clearly more
+than the pairs scatter. The dossier lists the stretches with how far they land
+early or late and shows pairs from those that lean. The model reads them and
+names the stretches with `retime_stretches`. The block is cut there and every
+piece is timed by its own pairs (`Adjustments.stretches`,
+`retimer.fit.with_stretches`). Where a stretch begins is read off the lines
+between its first pair and the last pair before it: each starts where a line
+of the reference starts under one of the two timings. Where they do not tell,
+it begins after the longest pause, because a timing changes between scenes.
+Only a reference subtitle is timed exactly enough for this. The times of a
+transcript wander by themselves, so against audio alone the question is not
+asked. On the benchmark this solves 12 of the 15 cases of caption drift
+against a reference subtitle, which nothing solved before:
+[bench/baselines/2026-11-18-stretches.md](bench/baselines/2026-11-18-stretches.md).
 
 What keeps a wrong answer from doing harm:
 
@@ -128,9 +154,16 @@ What keeps a wrong answer from doing harm:
   cannot be cut down to the lines the two have in common.
 - A line named to the edge tool that is no edge line is left as it is and
   reported. The other lines named with it are still decided.
-- A job has a budget of eight model calls and one dollar. When it runs out, the
-  plan so far is returned as `partial`. When the model declines or cannot be
-  reached, the job gets the plan of the fixed pipeline.
+- A stretch gets a timing of its own only where it holds at least four lines
+  that found their counterpart, and where more of those lines then land within
+  0.15 s of their places than before. A stretch that was tried and gained
+  nothing is not asked about again.
+- A job has a budget of eight model calls and one dollar. When it runs out, or
+  when the model stops without settling the job, the plan so far is returned
+  as `partial`.
+- When the model cannot be reached, the job fails with the code
+  `model_unavailable` and can be sent again. The draft of the routine steps is
+  never handed out in the place of a result the model was to settle.
 - The text of subtitles and transcripts is data. The model is told not to
   follow instructions in it, and none of its tools could do harm if it did.
 
@@ -139,7 +172,7 @@ On the 194 seed cases:
 | System | Files synced | At 500 ms | Decisions right | Cost per file |
 | --- | --- | --- | --- | --- |
 | Best existing tool | 43% | 45% | 16% | none |
-| Fixed pipeline | 87% | 89% | 66% | none |
+| Fixed pipeline alone (a diagnostic, not delivered) | 87% | 89% | 66% | none |
 | Agent on Claude Haiku 5.5 | 94% | 98% | 100% | 0.03 cents |
 | Agent on Claude Opus 5.5 | 95% | 98% | 100% | 0.6 cents |
 
@@ -356,7 +389,7 @@ Audio is taken in Ogg, Matroska or WebM, MP3, MP4 or M4A, FLAC, WAV and AAC.
 | `audio_language`, `reference_language` | detected | Hints such as `"ja"`. |
 | `reference_tracks` | none | What the video file says about each `reference_subtitle`, in the order they were sent: a list of `{"language": "eng", "title": "Signs & Songs", "default": false, "forced": true}`, every field optional. With it there has to be one entry for every track. The labels are hints that decide between tracks which fit equally well, and they come back in the summary. |
 | `output_format` | as the target | `"srt"` or `"ass"`. The matched reference keeps the format of the reference subtitle it was made from unless one is named here. |
-| `agent` | the server's | `"haiku"`, `"sonnet"`, `"opus"`, or `"off"` for the fixed pipeline. |
+| `agent` | the server's | `"haiku"`, `"sonnet"` or `"opus"`. A job cannot be run without a model. |
 
 An option the service does not know is refused, not ignored.
 
@@ -410,7 +443,7 @@ the job was synced against and what was found out about each, as shown under
 | `partial` | Some blocks could not be placed with confidence. The summary names them. | File, plan, report |
 | `rejected_no_match` | Reference and target are different content. | Plan and report, no file |
 | `transcribed` | An image subtitle was read into text. | File and report |
-| `failed` | A technical error. `error` holds a code and a sentence. | Nothing |
+| `failed` | A technical error. `error` holds a code and a sentence. The code `model_unavailable` means the model could not be asked: send the job again. | Nothing |
 
 A refusal is JSON as well, `{"error": {"code": "…", "message": "…"}}`, with
 the usual status: 401 without a valid key, 409 for a result that is not there
@@ -505,8 +538,8 @@ against the public address.
 The server needs `ffmpeg` and `OPENROUTER_API_KEY`. That one key pays for the
 transcripts, the embeddings and the agent's model, which is called through
 OpenRouter and served by Anthropic. With `RETIMER_AGENT_PROVIDER=anthropic`
-the model is called at Anthropic itself and needs `ANTHROPIC_RETIMER_API_KEY`;
-without that key jobs then run the fixed pipeline.
+the model is called at Anthropic itself and needs `ANTHROPIC_RETIMER_API_KEY`.
+Without the key for its model the service does not start.
 One process serves requests and runs the jobs, one at a time. Jobs are rows in
 a SQLite file and their files a directory each under `RETIMER_DATA_DIR`. A job
 that was running when the server stopped is started over once at the next
@@ -580,7 +613,7 @@ stranger.
 | `RETIMER_DAILY_BUDGET_USD` | 5 | Provider cost of all jobs of one day (UTC). |
 | `RETIMER_RETENTION_HOURS` | 24 | How long a finished job is kept. |
 | `RETIMER_CACHE_DAYS` | 30 | How long transcripts and embeddings are kept. |
-| `RETIMER_AGENT` | `haiku` | The model when a job names none, or `off`. |
+| `RETIMER_AGENT` | `haiku` | The model when a job names none: `haiku`, `sonnet` or `opus`. |
 | `RETIMER_AGENT_MAX_COST_USD` | 0.25 | What the agent may spend on one job. |
 | `RETIMER_AGENT_PROVIDER` | `openrouter` | Where the agent calls its model: `openrouter`, with the key the service has anyway, or `anthropic`, with `ANTHROPIC_RETIMER_API_KEY`. |
 | `RETIMER_OCR_MODEL` | `haiku` | The model that reads image subtitles when a request names none. |
@@ -613,7 +646,6 @@ retimer sync episode.ja.srt --audio episode.ogg -o synced.srt
 retimer sync episode.ja.srt --reference episode.en.srt -o synced.srt --plan plan.json
 retimer sync episode.ja.srt --reference episode.en.ass -o synced.srt --matched-reference pair.en.ass
 retimer sync episode.ja.srt --reference track2.ass --reference track3.ass -o synced.srt
-retimer sync episode.ja.srt --audio episode.ogg -o synced.srt --agent            # with the agent
 retimer sync episode.ja.srt --audio episode.ogg -o synced.srt --agent opus --report report.json
 ```
 
@@ -635,8 +667,9 @@ so a second subtitle for the same audio costs no second transcription. A
 quarter hour of audio costs about one cent to transcribe and takes about 20
 seconds; the embeddings cost a small fraction of a cent.
 
-`--agent` lets a model settle what the routine steps leave open. It takes
-`haiku` (the default), `sonnet`, `opus` or a full model id. The model is
+A model settles what the routine steps leave open, and `sync` does not run
+without the key for it. `--agent` names the model: `haiku` (the default),
+`sonnet`, `opus` or a full model id. The model is
 called through OpenRouter with the same `OPENROUTER_API_KEY`, or at Anthropic
 itself with `RETIMER_AGENT_PROVIDER=anthropic` and
 `ANTHROPIC_RETIMER_API_KEY`. `--agent-effort` sets how much
@@ -663,8 +696,9 @@ retimer bench soundcheck episode.ogg synced.srt   # do the lines start where a v
 
 `ffsubsync` and `alass-cli` are the baselines. Install them to include them
 (`pipx install ffsubsync`, `cargo install alass-cli`). `pipeline` is this
-project's fixed pipeline and needs `OPENROUTER_API_KEY`. `agent-haiku`,
-`agent-sonnet` and `agent-opus` are the agent on each model. They call the
+project's fixed pipeline alone, as a diagnostic, and needs
+`OPENROUTER_API_KEY`. `agent-haiku`, `agent-sonnet` and `agent-opus` are the
+retimer as it is delivered, on each model. They call the
 model the way the service does (`RETIMER_AGENT_PROVIDER`) and run only when
 named, because every run costs
 money: `retimer bench run --systems pipeline,agent-haiku --repeats 3`. A system

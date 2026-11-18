@@ -601,6 +601,78 @@ def _fit(
     )
 
 
+def _between(ms: int, low: int | None, high: int | None) -> bool:
+    return (low is None or ms >= low) and (high is None or ms < high)
+
+
+def with_stretches(
+    fit: Fit,
+    anchors: list[Anchor],
+    lines: list[tuple[int, int]],
+    cuts: list[int],
+) -> Fit:
+    """The fit with its blocks cut at `cuts`, and every piece timed by its own pairs.
+
+    A fit tells two timings apart when they differ by more than its pairs
+    scatter. A stretch that is a few tenths of a second off against the rest
+    of its block is below that: its pairs count as scatter, and the block gets
+    the middle of all of them, which suits neither part. Where a reader says
+    that a stretch has a timing of its own, the block is cut there. Each piece
+    then takes the middle of the offsets of the pairs it holds, of those the
+    fit puts in place. A piece with too few of them to be timed by is no piece:
+    it stays with the one before it. Pieces are not joined again because they
+    come out alike.
+
+    `lines` are the lines that were matched, as id and start time. `cuts` are
+    start times in the original target: a piece begins with the first line
+    that starts there.
+    """
+    in_place = [
+        anchor
+        for anchor in anchors
+        if anchor.ref_index >= 0 and abs(fit.residual(anchor)) <= fit.tolerance_ms
+    ]
+    found = set(fit.matched_ids)
+    blocks: list[Block] = []
+    for block in fit.blocks:
+        own = [(i, start) for i, start in lines if _between(start, block.from_ms, block.to_ms)]
+        starts = sorted(start for _, start in own)
+        # A cut makes two pieces only when lines of the block start on both sides of it.
+        inner = sorted({cut for cut in cuts if starts and starts[0] < cut <= starts[-1]})
+        edges = [block.from_ms, *inner, block.to_ms]
+        pieces: list[tuple[int | None, int | None, list[Anchor]]] = []
+        for low, high in zip(edges, edges[1:], strict=False):
+            pairs = [a for a in in_place if _between(a.target_start_ms, low, high)]
+            if pieces and (len(pairs) < MIN_ANCHORS or len(pieces[-1][2]) < MIN_ANCHORS):
+                before = pieces.pop()
+                pieces.append((before[0], high, before[2] + pairs))
+            else:
+                pieces.append((low, high, pairs))
+        if len(pieces) < 2:
+            blocks.append(block)
+            continue
+        for low, high, pairs in pieces:
+            offsets = [a.ref_start_ms - a.target_start_ms * fit.rate for a in pairs]
+            offset = statistics.median(offsets)
+            members = [i for i, start in own if _between(start, low, high)]
+            matched = sum(1 for i in members if i in found)
+            blocks.append(
+                Block(
+                    from_ms=low,
+                    to_ms=high,
+                    offset_ms=round(offset),
+                    lines=len(members),
+                    matched=matched,
+                    support=round(block.support * matched / max(1, block.matched), 2),
+                    spread_ms=round(statistics.median(abs(value - offset) for value in offsets), 1),
+                )
+            )
+    if len(blocks) == len(fit.blocks):
+        return fit
+    kind: FitKind = "rate_blocks" if fit.rate != 1.0 else "blocks"
+    return fit.model_copy(update={"blocks": blocks, "kind": kind})
+
+
 def fit_offsets(evidence: Evidence) -> list[Fit]:
     """The best fit of each kind that the evidence supports, best score first.
 

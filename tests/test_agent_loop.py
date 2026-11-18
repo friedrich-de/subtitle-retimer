@@ -7,6 +7,7 @@ import pytest
 from retimer import dumps, load
 from retimer.agent import (
     AgentSettings,
+    ModelUnavailable,
     Workbench,
     agent_available,
     agent_provider,
@@ -208,6 +209,7 @@ def test_the_tool_definitions_are_strict():
         "unpair_lines",
         "set_edge_lines",
         "cut_to_reference",
+        "retime_stretches",
         "find_counterparts",
         "read_lines",
         "read_reference",
@@ -232,6 +234,7 @@ def test_the_tool_definitions_are_strict():
         "last_line",
         "first_place",
         "last_place",
+        "stretches",
         "kind",
         "verdict",
         "note",
@@ -437,33 +440,44 @@ def test_the_cost_budget_leaves_one_step_for_the_submit(open_job):
     assert result.plan.outcome == "synced"
 
 
-def test_a_declined_request_leaves_the_plan_of_the_routine_steps(open_job):
+def test_a_declined_request_leaves_the_draft_and_does_not_call_it_synced(open_job):
     model = FakeModel(Reply(stop_reason="refusal"))
+    draft = open_job.baseline.result.plan
+    assert draft.outcome == "synced"
 
     result = run_agent(open_job, HAIKU, model)
 
     assert result.report.agent["finished"] == "declined"
-    assert result.plan == open_job.baseline.result.plan
+    # What the model was asked and did not settle is not passed off as settled.
+    assert result.plan == draft.model_copy(update={"outcome": "partial"})
+    assert result.report.outcome == "partial"
     assert "The model declined the request." in result.report.warnings[-1]
 
 
-def test_a_model_that_cannot_be_reached_leaves_the_plan_of_the_routine_steps(open_job):
+def test_a_model_that_cannot_be_reached_fails_the_job(open_job):
     request = httpx.Request("POST", f"{ANTHROPIC_URL}/v1/messages")
     overloaded = anthropic.APIStatusError(
         "Overloaded", response=httpx.Response(529, request=request), body=None
     )
 
-    result = run_agent(open_job, HAIKU, FakeModel(overloaded))
+    # The draft is not delivered in the model's place.
+    with pytest.raises(ModelUnavailable, match="529: Overloaded"):
+        run_agent(open_job, HAIKU, FakeModel(overloaded))
 
-    agent = result.report.agent
-    assert agent["finished"] == "error"
-    assert agent["error"] == "529: Overloaded"
-    assert result.plan == open_job.baseline.result.plan
-    assert "The model could not be reached." in result.report.warnings[-1]
+    with pytest.raises(ModelUnavailable):
+        run_agent(open_job, HAIKU, FakeModel(anthropic.APIConnectionError(request=request)))
 
-    offline = run_agent(open_job, HAIKU, FakeModel(anthropic.APIConnectionError(request=request)))
-    assert offline.report.agent["finished"] == "error"
-    assert offline.plan == open_job.baseline.result.plan
+
+def test_a_failure_after_the_first_turn_says_what_the_turns_before_it_cost(open_job):
+    request = httpx.Request("POST", f"{ANTHROPIC_URL}/v1/messages")
+    overloaded = anthropic.APIStatusError(
+        "Overloaded", response=httpx.Response(529, request=request), body=None
+    )
+
+    with pytest.raises(ModelUnavailable) as failure:
+        run_agent(open_job, HAIKU, FakeModel(PAIR_THE_MIDDLE, overloaded))
+
+    assert failure.value.cost_usd == pytest.approx(HAIKU_TURN_USD)
 
 
 def test_changes_that_lose_certain_lines_are_not_used(open_job):
@@ -540,17 +554,15 @@ def test_the_provider_is_a_setting_and_decides_which_key_counts(monkeypatch):
     assert not agent_available()
 
 
-def test_without_a_key_the_job_falls_back_to_the_routine_steps(open_job, monkeypatch):
-    with pytest.raises(RuntimeError, match="OPENROUTER_API_KEY is not set"):
+def test_without_a_key_a_job_that_needs_the_model_fails(open_job, monkeypatch):
+    with pytest.raises(ModelUnavailable, match="OPENROUTER_API_KEY is not set"):
         make_client()
-    with pytest.raises(RuntimeError, match="ANTHROPIC_RETIMER_API_KEY is not set"):
+    with pytest.raises(ModelUnavailable, match="ANTHROPIC_RETIMER_API_KEY is not set"):
         make_client("anthropic")
 
-    result = run_agent(open_job, HAIKU)
-
-    assert result.report.agent["finished"] == "error"
-    assert "OPENROUTER_API_KEY" in result.report.agent["error"]
-    assert result.plan == open_job.baseline.result.plan
+    # There is no fallback to the routine steps alone.
+    with pytest.raises(ModelUnavailable, match="OPENROUTER_API_KEY is not set"):
+        run_agent(open_job, HAIKU)
 
 
 def test_sync_with_agent_is_the_pipeline_plus_the_model(tmp_path):
@@ -657,31 +669,21 @@ def test_sync_command_with_the_agent(files, monkeypatch, capsys):
     assert report["agent"]["pairs"] == {"12": 12, "13": 13, "14": 14}
 
 
-def test_sync_command_with_the_agent_needs_its_key(files, monkeypatch, capsys):
+def test_the_sync_command_does_not_run_without_the_models_key(files, monkeypatch, capsys):
     folder, _ = files
-
-    code = main(
-        [
-            "sync",
-            str(folder / "target.srt"),
-            "--reference",
-            str(folder / "reference.srt"),
-            "-o",
-            str(folder / "out.srt"),
-            "--agent",
-            "opus",
-        ]
-    )
-
-    assert code == 1
-    assert "--agent needs OPENROUTER_API_KEY" in capsys.readouterr().err
-    assert not (folder / "out.srt").exists()
-
     command = ["sync", str(folder / "target.srt"), "--reference", str(folder / "reference.srt")]
-    command += ["-o", str(folder / "out.srt"), "--agent"]
+    command += ["-o", str(folder / "out.srt")]
+
+    # With a model named and with none: there is no sync without a model.
+    for named in (["--agent", "opus"], []):
+        assert main([*command, *named]) == 1
+        said = capsys.readouterr().err
+        assert "OPENROUTER_API_KEY is not set" in said and "without a model" in said
+        assert not (folder / "out.srt").exists()
+
     monkeypatch.setenv("RETIMER_AGENT_PROVIDER", "anthropic")
     assert main(command) == 1
-    assert "--agent needs ANTHROPIC_RETIMER_API_KEY" in capsys.readouterr().err
+    assert "ANTHROPIC_RETIMER_API_KEY is not set" in capsys.readouterr().err
 
     monkeypatch.setenv("RETIMER_AGENT_PROVIDER", "elsewhere")
     assert main(command) == 1
@@ -728,5 +730,54 @@ def test_a_cut_the_tools_refuse_leaves_the_plan_as_it_was(desk):
     agent = result.report.agent
     assert agent["cover"] is None and not agent["changed"]
     assert agent["calls"][0]["error"]
+    refusal = model.requests[1]["messages"][-1]["content"][0]
+    assert refusal["is_error"] and "Nothing was changed." in refusal["content"]
+
+
+def drifted():
+    """A target 3.5 s late whose second half is another 0.4 s late, and its reference."""
+    starts = spread(30)
+    late = [start + 3_500 + (400 if index >= 15 else 0) for index, start in enumerate(starts)]
+    return make_subtitle(late), make_subtitle(starts)
+
+
+def test_the_agent_gives_a_stretch_that_leans_a_timing_of_its_own(desk):
+    target, reference = drifted()
+    bench = desk(target, reference=reference)
+    assert starts_of(bench.baseline.result) != spread(30)
+    model = FakeModel(
+        [call("retime_stretches", stretches=[{"first_line": 0, "last_line": 14}])],
+        [submit(note="The first half is timed 0.4 s apart from the second.")],
+    )
+
+    result = run_agent(bench, HAIKU, model)
+
+    assert result.plan.outcome == "synced"
+    assert starts_of(result) == spread(30)
+    agent = result.report.agent
+    # The lean is what the model was asked about: nothing else was open.
+    assert agent["questions"] == [
+        "In block B1 the placed lines of 1 stretch land beside their places: "
+        "L0 to L14 0.40 s early."
+    ]
+    assert agent["stretches"] == [[0, 14]] and agent["changed"] and agent["accepted"]
+    assert [made["name"] for made in agent["calls"]] == ["retime_stretches", "submit"]
+    answer = model.requests[1]["messages"][-1]["content"][0]
+    assert "Timed by their own pairs: L0 to L14." in answer["content"]
+    assert "Nothing is open any more." in answer["content"]
+
+
+def test_a_stretch_the_tools_refuse_leaves_the_plan_as_it_was(desk):
+    target, reference = drifted()
+    bench = desk(target, reference=reference)
+    model = FakeModel(
+        [call("retime_stretches", stretches=[{"first_line": 3, "last_line": 4}])], [submit()]
+    )
+
+    result = run_agent(bench, HAIKU, model)
+
+    assert result.plan == bench.baseline.result.plan
+    agent = result.report.agent
+    assert agent["stretches"] == [] and not agent["changed"]
     refusal = model.requests[1]["messages"][-1]["content"][0]
     assert refusal["is_error"] and "Nothing was changed." in refusal["content"]

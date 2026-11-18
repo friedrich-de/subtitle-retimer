@@ -4,7 +4,7 @@ from retimer.agent import ToolError, Workbench
 from retimer.agent.prompt import SYSTEM
 from retimer.agent.workbench import clock, reference_units
 from retimer.cache import Cache
-from retimer.pipeline import prepare
+from retimer.pipeline import Adjustments, prepare, propose
 from retimer.plan import RemoveLines, Shift
 from retimer.reference import timeline_from_transcript
 from retimer.views import Options
@@ -815,3 +815,139 @@ def test_the_agent_is_told_what_a_file_of_several_episodes_is():
     assert "call cut_to_reference with the first and the last line of the part" in SYSTEM
     assert "Do not cut when the lines outside carry on" in SYSTEM
     assert "do not make them part of it" in SYSTEM
+
+
+def drifted(count: int = 30, first: int = 15, late: int = 400):
+    """A target 3.5 s late, in which the lines from `first` on are `late` ms later still."""
+    starts = spread(count)
+    target = [start + 3_500 + (late if index >= first else 0) for index, start in enumerate(starts)]
+    return make_subtitle(target), make_subtitle(starts)
+
+
+def test_a_stretch_timed_a_little_apart_is_measured_and_asked_about(desk):
+    target, reference = drifted()
+    bench = desk(target, reference=reference)
+
+    # The fit takes it all for one block: 0.4 s is within what its pairs scatter by.
+    # The block goes with one half, and the other half is off as a whole.
+    assert [block.shift_ms for block in bench.draft.blocks] == [-3_900]
+    assert bench.draft.result.plan.outcome == "synced"
+    found = bench.leans()
+    assert [(lean.first, lean.last, len(lean.pairs), lean.off_ms) for lean in found] == [
+        (0, 14, 15, -400),
+        (15, 29, 15, 0),
+    ]
+    assert [lean.leans for lean in found] == [True, False]
+    assert bench.open_questions() == [
+        "In block B1 the placed lines of 1 stretch land beside their places: "
+        "L0 to L14 0.40 s early."
+    ]
+    text = bench.render_questions()
+    assert "L0 to L14: 15 pairs, 0.40 s early  <- leans" in text
+    assert "L15 to L29: 15 pairs, on their places\n" in text
+    assert "Pairs from L0 to L14, each line with the place matching found for it:" in text
+    assert (
+        'L5 00:43.5 dialogue "my brother painted that fence last summer" = R5 00:40.0 '
+        '"my brother painted that fence last summer"  (lands 0.40 s early)'
+    ) in text
+    assert "name them to retime_stretches" in text
+
+
+def test_lines_without_a_counterpart_say_where_a_stretch_begins(desk):
+    # Four lines around the change say something the reference does not say. They
+    # found no counterpart, but each starts where a reference line starts under
+    # one of the two timings: L13 and L14 with the first half, L15 and L16 with
+    # the second. The pause before L15 is the shortest of all, so it is not the
+    # pauses that tell.
+    target, reference = drifted(late=-400)
+    texts = list(SENTENCES[:30])
+    texts[13:17] = ["zq13 zr13 zs13", "zq14 zr14 zs14", "zq15 zr15 zs15", "zq16 zr16 zs16"]
+    target = make_subtitle([line.start_ms for line in target.lines], texts)
+    bench = desk(target, reference=reference)
+
+    found = bench.leans()
+
+    assert [(lean.first, lean.last, len(lean.pairs)) for lean in found] == [
+        (0, 14, 13),
+        (15, 29, 13),
+    ]
+
+
+def test_a_stretch_gets_a_timing_of_its_own_from_its_own_pairs(desk):
+    target, reference = drifted()
+    bench = desk(target, reference=reference)
+    assert starts_of(bench) != spread(30)
+
+    said = bench.retime_stretches([{"first_line": 0, "last_line": 14}])
+
+    assert said.startswith(
+        "Timed by their own pairs: L0 to L14. 30 of 30 lines that found their counterpart "
+        "now land within 0.15 s of it (before: 15)."
+    )
+    assert "Nothing is open any more." in said
+    assert bench.changed
+    assert bench.stretches == [(0, 14)]
+    assert bench.adjustments().stretches == [(0, 14)]
+    assert [block.shift_ms for block in bench.draft.blocks] == [-3_500, -3_900]
+    assert starts_of(bench) == spread(30)
+    assert bench.leans() == []
+    assert bench.draft.result.plan.outcome == "synced"
+
+    # An empty list takes it back.
+    bench.retime_stretches([])
+    assert bench.stretches == []
+    assert len(bench.draft.blocks) == 1
+    assert not bench.changed
+
+
+def test_the_plan_for_a_stretch_is_the_pipelines_own_computation(desk):
+    target, reference = drifted()
+    bench = desk(target, reference=reference)
+
+    proposal = propose(bench.prepared, Adjustments(stretches=[(0, 14)]))
+
+    assert [line.start_ms for line in proposal.result.subtitle.lines] == spread(30)
+    assert proposal.result.report.chosen == "blocks"
+    assert not Adjustments(stretches=[(0, 14)]).empty
+    with pytest.raises(ValueError, match="not synced"):
+        propose(bench.prepared, Adjustments(stretches=[(12, 99)]))
+
+
+def test_a_stretch_that_gains_nothing_is_refused_and_not_asked_about_again(desk):
+    target, reference = drifted()
+    bench = desk(target, reference=reference)
+
+    with pytest.raises(ToolError, match="holds 2 lines that found their counterpart"):
+        bench.retime_stretches([{"first_line": 12, "last_line": 13}])
+    with pytest.raises(ToolError, match="L21 comes after L12"):
+        bench.retime_stretches([{"first_line": 21, "last_line": 12}])
+    with pytest.raises(ToolError, match="No stretch was named"):
+        bench.retime_stretches([])
+    assert bench.stretches == []
+    assert not bench.changed
+
+    bench.retime_stretches([{"first_line": 0, "last_line": 14}])
+    # Lines that are timed like the lines around them.
+    with pytest.raises(ToolError, match="The draft has 30. That is no gain, so the draft stays"):
+        bench.retime_stretches([{"first_line": 2, "last_line": 7}])
+    assert bench.stretches == [(0, 14)]
+
+    # A stretch that leans, was tried and gained nothing is no question any more.
+    again = desk(target, reference=reference)
+    assert len(again.open_questions()) == 1
+    again._no_gain.add(0)
+    assert again.open_questions() == []
+
+
+def test_a_transcript_is_not_exact_enough_to_time_a_stretch_by(desk):
+    target, _ = drifted()
+    store_transcript(desk.cache, desk.audio, make_transcript(spread(30)))
+    bench = desk(target, audio=desk.audio)
+
+    assert bench.leans() == []
+    with pytest.raises(ToolError, match="Against a transcript"):
+        bench.retime_stretches([{"first_line": 0, "last_line": 14}])
+
+
+def test_the_instructions_cover_the_stretches():
+    assert "retime_stretches" in SYSTEM

@@ -4,13 +4,14 @@ The routine steps have run before the agent starts. The workbench holds their
 result as a draft plan and finds the places where that draft rests on too
 little: lines the fits could not place, blocks with hardly anything behind
 them, lines at the edges that have no counterpart, a target that holds more
-than the reference covers, a doubtful verdict on whether both sides are the
-same content at all.
+than the reference covers, a stretch whose placed lines land beside their
+places, a doubtful verdict on whether both sides are the same content at all.
 
 The agent never writes a time. It says which line belongs to which place in
 the reference, what happens to a line without a counterpart, which part of
-the target the reference covers, which fit to go with, and whether the two
-sides are the same content. Every one of these is an
+the target the reference covers, which stretch has a timing of its own, which
+fit to go with, and whether the two sides are the same content. Every one of
+these is an
 adjustment to the fixed pipeline, which then computes the plan as it always
 does. So a plan from the agent passes the same engine checks as any other.
 """
@@ -77,6 +78,17 @@ TRAIL_SPAN_MS = 180_000
 BOUNDARY_SHOWN = 5
 # A stretch with a shift of its own needs more lines placed than a chance pair or two.
 MIN_STRETCH = 3
+# A stretch whose placed lines land this far beside their places, in the
+# middle, leans: it is off by more than two subtitles differ line by line.
+LEAN_MS = 150
+# Fewer certain pairs than this do not show how a stretch is timed.
+LEAN_MIN_PAIRS = 4
+# A step between two stretches counts when it is this many times as large as
+# the pairs around it leave it uncertain.
+LEAN_CERTAINTY = 4.0
+# The pairs that scatter least still differ by this much from one to the next.
+LEAN_MIN_SCATTER_MS = 20.0
+LEAN_SHOWN = 4
 # A reference that spans less than this is a song, a clip or a few signs, and no
 # episode: what the target holds beyond it is the rest of the video, which a
 # reference subtitle says nothing about.
@@ -161,6 +173,68 @@ class Excess:
     margin_ms: int = 0
 
 
+@dataclass
+class Lean:
+    """A stretch of one block, and how far its placed lines land beside their places.
+
+    `first` and `last` are the lines the stretch runs from and to. `pairs` are
+    the certain pairs in it: the line, the time of its counterpart, and how
+    far the line lands from that under the draft, late counted as positive.
+    `off_ms` is the middle of those.
+    """
+
+    block: int
+    first: int
+    last: int
+    pairs: list[tuple[int, int, int]]
+    off_ms: float
+
+    @property
+    def leans(self) -> bool:
+        return abs(self.off_ms) >= LEAN_MS
+
+
+def level_pieces(values: np.ndarray) -> list[tuple[int, int]]:
+    """Cut a row of measurements into pieces that each keep one level.
+
+    The row is cut where the mean before and the mean after differ most
+    clearly, and each part again, as long as the step is at least `LEAN_MS`
+    and stands out from the scatter. How much the values scatter is judged
+    from one value to the next, which a step in the level does not inflate.
+    Each piece is given as its first index and the one after its last.
+    """
+    if len(values) < 2 * LEAN_MIN_PAIRS:
+        return [(0, len(values))]
+    steps = np.abs(np.diff(values))
+    scatter = max(LEAN_MIN_SCATTER_MS, 1.4826 * float(np.median(steps)) / math.sqrt(2))
+    pieces: list[tuple[int, int]] = []
+
+    def cut(low: int, high: int) -> None:
+        count = high - low
+        best: tuple[float, int] | None = None
+        if count >= 2 * LEAN_MIN_PAIRS:
+            total = np.cumsum(values[low:high])
+            for size in range(LEAN_MIN_PAIRS, count - LEAN_MIN_PAIRS + 1):
+                left = total[size - 1] / size
+                right = (total[-1] - total[size - 1]) / (count - size)
+                step = abs(float(left - right))
+                certainty = step / (scatter * math.sqrt(1 / size + 1 / (count - size)))
+                if (
+                    step >= LEAN_MS
+                    and certainty >= LEAN_CERTAINTY
+                    and (best is None or certainty > best[0])
+                ):
+                    best = (certainty, size)
+        if best is None:
+            pieces.append((low, high))
+            return
+        cut(low, low + best[1])
+        cut(low + best[1], high)
+
+    cut(0, len(values))
+    return pieces
+
+
 def clock(ms: int | float) -> str:
     """A time for the agent to read: minutes, seconds and tenths."""
     total = round(ms / 100)
@@ -174,6 +248,13 @@ def clock(ms: int | float) -> str:
 
 def seconds(ms: int | float) -> str:
     return f"{ms / 1000:+.1f} s"
+
+
+def beside(ms: int | float) -> str:
+    """How far lines land from their places, for the agent to read."""
+    if abs(ms) < 50:
+        return "on their places"
+    return f"{abs(ms) / 1000:.2f} s {'late' if ms > 0 else 'early'}"
 
 
 def quote(text: str) -> str:
@@ -251,6 +332,10 @@ class Workbench:
         # file down to it, and the lines outside that part.
         self.cover: tuple[int, int] | None = None
         self._outside: set[int] = set()
+        # Stretches a reader gave a timing of their own: first and last line of each.
+        self.stretches: list[tuple[int, int]] = []
+        # Lines of stretches that were named and gained nothing. They are not asked about again.
+        self._no_gain: set[int] = set()
         # The plan of the routine steps for the file as it came.
         self.original = propose(prepared)
         self._rebase(self.original)
@@ -338,6 +423,7 @@ class Workbench:
             same_content=self.same_content,
             held=self._held if self.pairs else {},
             cover=self.cover,
+            stretches=list(self.stretches),
         )
 
     @property
@@ -735,6 +821,125 @@ class Workbench:
         bar = self.prepared.settings.min_block_confidence
         return [index for index, block in enumerate(self.draft.blocks) if block.confidence < bar]
 
+    def _offs(self, proposal: Proposal | None = None) -> list[tuple[int, int, int, int]]:
+        """How far the lines that found their counterpart land beside it under a plan.
+
+        One entry per certain pair that the fit puts in place: the position of
+        the line, the line, the time of its counterpart, and how far the line
+        lands from it, late counted as positive. A pair far off its block is a
+        wrong match or a question of its own, and says nothing about a lean.
+        """
+        proposal = proposal or self.draft
+        chosen = proposal.alignment.chosen
+        if chosen is None or not proposal.blocks:
+            return []
+        offs = []
+        for anchor in proposal.alignment.anchors:
+            line_id = anchor.target_id
+            times = proposal.new_times.get(line_id)
+            if (
+                anchor.ref_index < 0
+                or times is None
+                or line_id not in self._position
+                or line_id in self._outside
+                or line_id in proposal.removed
+                or abs(chosen.residual(anchor)) > chosen.tolerance_ms
+            ):
+                continue
+            off = times[0] - anchor.ref_start_ms
+            offs.append((self._position[line_id], line_id, anchor.ref_start_ms, off))
+        return sorted(offs)
+
+    def _near(self, proposal: Proposal | None = None) -> int:
+        """How many lines that found their counterpart land within `LEAN_MS` of it."""
+        return sum(1 for *_, off in self._offs(proposal) if abs(off) <= LEAN_MS)
+
+    def leans(self) -> list[Lean]:
+        """Blocks whose placed lines do not land beside their places by one amount all through.
+
+        Each such block is given as the stretches it falls into, in order, at
+        least one of which leans. Only a reference subtitle is timed exactly
+        enough to show this: the times of a transcript wander by themselves.
+        """
+        blocks = self.draft.blocks
+        if self.prepared.timeline.kind == "audio" or not blocks:
+            return []
+        lines = [line for line in self.prepared.lines if line.id not in self._outside]
+        members: list[list[int]] = [[] for _ in blocks]
+        for line in lines:
+            members[self.block_of(line.id) or 0].append(self._position[line.id])
+        pairs: list[list[tuple[int, int, int, int]]] = [[] for _ in blocks]
+        for point in self._offs():
+            pairs[self.block_of(point[1]) or 0].append(point)
+        found: list[Lean] = []
+        for index, points in enumerate(pairs):
+            pieces = level_pieces(np.array([off for *_, off in points], dtype=np.float64))
+            if len(pieces) < 2 or not members[index]:
+                continue
+            levels = [
+                statistics.median(off for *_, off in points[low:high]) for low, high in pieces
+            ]
+            starts = [members[index][0]]
+            for (_, end), (begin, _), before, after in zip(
+                pieces, pieces[1:], levels, levels[1:], strict=False
+            ):
+                starts.append(
+                    self._stretch_start(points[end - 1][0], points[begin][0], before, after)
+                )
+            ends = [*(start - 1 for start in starts[1:]), members[index][-1]]
+            stretches = [
+                Lean(
+                    block=index,
+                    first=self.prepared.lines[start].id,
+                    last=self.prepared.lines[end].id,
+                    pairs=[(line_id, ref_ms, off) for _, line_id, ref_ms, off in points[low:high]],
+                    off_ms=level,
+                )
+                for (low, high), start, end, level in zip(pieces, starts, ends, levels, strict=True)
+            ]
+            # A stretch that was tried and gained nothing is not a question any more.
+            if any(stretch.leans and stretch.first not in self._no_gain for stretch in stretches):
+                found += stretches
+        return found
+
+    def _stretch_start(self, low: int, high: int, before: float, after: float) -> int:
+        """Where a stretch begins, between the last pair of the one before it and its first.
+
+        `low` and `high` are the positions of those two lines, `before` and
+        `after` how far the pairs of the two stretches land beside their
+        places. The lines in between found no certain counterpart. Most of
+        them still start where a line of the reference starts under one of the
+        two timings and not under the other, so the stretch begins where that
+        changes. Where the lines do not tell, it begins after the longest
+        pause: a timing changes between scenes, not in one.
+        """
+        sides = []
+        for position in range(low + 1, high):
+            start = self.new_start(self.prepared.lines[position].id)
+            side = 0
+            if start is not None:
+                misses = [self._miss(start - before), self._miss(start - after)]
+                if abs(misses[0] - misses[1]) >= LEAN_MS / 2:
+                    side = -1 if misses[0] < misses[1] else 1
+            sides.append(side)
+
+        def agreeing(position: int) -> int:
+            index = position - low - 1
+            return sum(side < 0 for side in sides[:index]) + sum(side > 0 for side in sides[index:])
+
+        def pause(position: int) -> int:
+            lines = self.prepared.lines
+            return lines[position].start_ms - lines[position - 1].end_ms
+
+        return max(
+            range(low + 1, high + 1), key=lambda position: (agreeing(position), pause(position))
+        )
+
+    def _miss(self, ms: float) -> float:
+        """How far a time is from the nearest place of the reference."""
+        unit = self.nearest_unit(round(ms))
+        return math.inf if unit is None else abs(self.units[unit].start_ms - ms)
+
     def verdict_doubt(self) -> str | None:
         """Why the verdict on same content deserves a second look, if it does."""
         alignment = self.baseline.alignment
@@ -1037,6 +1242,7 @@ class Workbench:
             )
         for run in runs:
             questions.append(self._run_title(run))
+        questions += self._lean_titles()
         for index in self.weak_blocks():
             block = self.draft.blocks[index]
             questions.append(
@@ -1299,6 +1505,67 @@ class Workbench:
                 break
         return ways
 
+    def _leans_by_block(self) -> dict[int, list[Lean]]:
+        by_block: dict[int, list[Lean]] = {}
+        for stretch in self.leans():
+            by_block.setdefault(stretch.block, []).append(stretch)
+        return by_block
+
+    def _lean_titles(self) -> list[str]:
+        titles = []
+        for index, stretches in self._leans_by_block().items():
+            off = [stretch for stretch in stretches if stretch.leans]
+            spans = ", ".join(
+                f"L{stretch.first} to L{stretch.last} {beside(stretch.off_ms)}" for stretch in off
+            )
+            titles.append(
+                f"In block B{index + 1} the placed lines of {len(off)} "
+                f"{'stretch land' if len(off) == 1 else 'stretches land'} beside their "
+                f"places: {spans}."
+            )
+        return titles
+
+    def render_leans(self) -> list[str]:
+        """Per block: the stretches it falls into, and pairs to read from those that lean."""
+        parts = []
+        for index, stretches in self._leans_by_block().items():
+            out = [
+                f"In block B{index + 1} the lines that found their counterpart do not land "
+                "beside it by one amount all through. The block moves as one, so a stretch "
+                "of it that is timed a little differently is off as a whole. Stretch by "
+                "stretch, where those lines land:"
+            ]
+            for stretch in stretches:
+                mark = "  <- leans" if stretch.leans else ""
+                out.append(
+                    f"    L{stretch.first} to L{stretch.last}: {len(stretch.pairs)} pairs, "
+                    f"{beside(stretch.off_ms)}{mark}"
+                )
+            for stretch in stretches:
+                if not stretch.leans:
+                    continue
+                out.append(
+                    f"  Pairs from L{stretch.first} to L{stretch.last}, each line with the "
+                    "place matching found for it:"
+                )
+                step = max(1.0, len(stretch.pairs) / LEAN_SHOWN)
+                shown = sorted({int(step * (number + 0.5)) for number in range(LEAN_SHOWN)})
+                for number in shown:
+                    if number >= len(stretch.pairs):
+                        continue
+                    line_id, ref_ms, off = stretch.pairs[number]
+                    unit = self.nearest_unit(ref_ms)
+                    place = self._unit(unit) if unit is not None else clock(ref_ms)
+                    out.append(
+                        f"    {self._line(line_id, landing=False)} = {place}  (lands {beside(off)})"
+                    )
+            out.append(
+                "  If the pairs shown are the same lines, the stretches that lean have a "
+                "timing of their own: name them to retime_stretches."
+            )
+            parts.append("\n".join(out))
+        return parts
+
     def render_block(self, index: int) -> str:
         block = self.draft.blocks[index]
         out = [
@@ -1443,6 +1710,7 @@ class Workbench:
             if doubt:
                 parts.append(f"Same content? {doubt}\n{self.render_verdict()}")
         parts += [self.render_run(run) for run in runs]
+        parts += self.render_leans()
         parts += [self.render_block(index) for index in self.weak_blocks()]
         if not parts:
             return "Nothing is open."
@@ -1787,7 +2055,7 @@ class Workbench:
             )
         nothing = "Nothing was changed."
         span = f"L{first_line} to L{last_line}"
-        dropped = bool(self.pairs or self.trim or self.keep or self.fit_kind)
+        dropped = bool(self.pairs or self.trim or self.keep or self.fit_kind or self.stretches)
         if low == 0 and high == len(lines) - 1:
             if self.cover is None:
                 raise ToolError(f"{span} is the whole file, so there is nothing to cut. {nothing}")
@@ -1917,7 +2185,82 @@ class Workbench:
         self.keep = set()
         self.fit_kind = None
         self.edges_reviewed = False
+        self.stretches = []
+        self._no_gain = set()
         self._rebase(proposal)
+
+    def retime_stretches(self, stretches: list[dict]) -> str:
+        """Give stretches of a block a timing of their own, worked out from their own pairs.
+
+        The reader says where: the times come from the lines of each stretch
+        that found their counterpart. It is taken only against a reference
+        that is timed exactly, where every stretch holds enough such lines,
+        and where more of them land on their places for it than before.
+        """
+        nothing = "Nothing was changed."
+        if self.prepared.timeline.kind == "audio":
+            raise ToolError(
+                "Against a transcript the time of a place is not known closely enough to time "
+                f"a stretch by. {nothing}"
+            )
+        if not self.draft.blocks:
+            raise ToolError(f"The draft has no timing to cut into stretches. {nothing}")
+        wanted: list[tuple[int, int]] = []
+        for stretch in stretches:
+            first = self._check_line(int(stretch["first_line"]))
+            last = self._check_line(int(stretch["last_line"]))
+            if self._position[first] > self._position[last]:
+                raise ToolError(
+                    f"L{first} comes after L{last}. Name the first line of a stretch, then "
+                    f"the last. {nothing}"
+                )
+            if first in self._outside or last in self._outside:
+                raise ToolError(
+                    f"L{first} to L{last} reaches outside the part the reference covers. {nothing}"
+                )
+            wanted.append((first, last))
+        if not wanted:
+            if not self.stretches:
+                raise ToolError(f"No stretch was named. {nothing}")
+            self.stretches = []
+            self.refresh()
+            return self._after_change(["The stretches were taken back."])
+        offs = self._offs()
+        for first, last in wanted:
+            low, high = self._position[first], self._position[last]
+            pairs = sum(1 for position, *_ in offs if low <= position <= high)
+            if pairs < LEAN_MIN_PAIRS:
+                raise ToolError(
+                    f"L{first} to L{last} holds {pairs} lines that found their counterpart. "
+                    f"A stretch is timed by those, and needs at least {LEAN_MIN_PAIRS}. {nothing}"
+                )
+        together = sorted({*self.stretches, *wanted}, key=lambda item: self._position[item[0]])
+        candidate = propose(
+            self.prepared, self.adjustments().model_copy(update={"stretches": together})
+        )
+        before, after = self._near(), self._near(candidate)
+        slack = max(1, round(0.1 * self.draft.in_place))
+        if (
+            not candidate.blocks
+            or after < before + LEAN_MIN_PAIRS
+            or candidate.in_place < self.draft.in_place - slack
+        ):
+            self._no_gain |= {first for first, _ in wanted}
+            raise ToolError(
+                f"Timed by their own pairs, the stretches put {after} of {len(offs)} lines "
+                f"that found their counterpart within {LEAN_MS / 1000:.2f} s of it. The draft "
+                f"has {before}. That is no gain, so the draft stays. {nothing}"
+            )
+        self.stretches = together
+        self.refresh()
+        spans = ", ".join(f"L{first} to L{last}" for first, last in wanted)
+        return self._after_change(
+            [
+                f"Timed by their own pairs: {spans}. {after} of {len(offs)} lines that found "
+                f"their counterpart now land within {LEAN_MS / 1000:.2f} s of it (before: "
+                f"{before})."
+            ]
+        )
 
     def choose_fit(self, kind: str) -> str:
         available = [fit.kind for fit in self.baseline.alignment.fits]

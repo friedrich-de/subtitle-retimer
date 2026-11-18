@@ -1,4 +1,4 @@
-"""Command line access to the subtitle core, the fixed pipeline and the benchmark."""
+"""Command line access to the subtitle core, the sync and the benchmark."""
 
 from __future__ import annotations
 
@@ -64,7 +64,6 @@ def _cmd_clean(args: argparse.Namespace) -> int:
 def _cmd_sync(args: argparse.Namespace) -> int:
     # Imported here: the other commands do not need numpy and start faster without it.
     from retimer.choice import MAX_REFERENCES, Candidate
-    from retimer.pipeline import sync
 
     paths = args.reference or []
     if not args.audio and not paths:
@@ -84,31 +83,27 @@ def _cmd_sync(args: argparse.Namespace) -> int:
         "audio_language": args.audio_language,
         "matched_reference": bool(args.matched_reference),
     }
-    try:
-        if args.agent:
-            from retimer.agent import (
-                AgentSettings,
-                agent_available,
-                agent_key_env,
-                sync_with_agent,
-            )
+    # A model is part of every sync. There is no way to run one without it.
+    from retimer.agent import AgentSettings, agent_available, agent_key_env, sync_with_agent
 
-            try:
-                needed = agent_key_env()
-            except ValueError as error:
-                print(f"error: {error}", file=sys.stderr)
-                return 1
-            if not agent_available():
-                print(f"error: --agent needs {needed} to be set", file=sys.stderr)
-                return 1
-            settings = AgentSettings(
-                model=args.agent,
-                effort=args.agent_effort,
-                consult="always" if args.agent_always else "auto",
-            )
-            result = sync_with_agent(load(args.file), agent=settings, **job)
-        else:
-            result = sync(load(args.file), **job)
+    try:
+        needed = agent_key_env()
+    except ValueError as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 1
+    if not agent_available():
+        print(
+            f"error: {needed} is not set. retimer sync does not run without a model.",
+            file=sys.stderr,
+        )
+        return 1
+    settings = AgentSettings(
+        model=args.agent,
+        effort=args.agent_effort,
+        consult="always" if args.agent_always else "auto",
+    )
+    try:
+        result = sync_with_agent(load(args.file), agent=settings, **job)
     except (ProviderError, AudioError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 1
@@ -272,8 +267,9 @@ def build_parser() -> argparse.ArgumentParser:
         "--agent",
         nargs="?",
         const="haiku",
+        default="haiku",
         metavar="MODEL",
-        help="let a model settle what the routine steps leave open: haiku (the default), "
+        help="the model that settles what the routine steps leave open: haiku (the default), "
         "sonnet, opus, or a full model id",
     )
     syncer.add_argument(

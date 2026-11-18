@@ -27,6 +27,7 @@ from retimer.plan import RemoveLines, Scale, Shift
 from retimer.speech import Correlation
 from retimer.views import Options
 
+from .agent_helpers import model_in_reach
 from .bench_helpers import write_seeds
 from .sync_helpers import (
     SENTENCES,
@@ -543,6 +544,8 @@ def test_without_a_key_the_pipeline_says_why_it_cannot_run(monkeypatch):
 def offline(monkeypatch, tmp_path):
     monkeypatch.setattr("retimer.embed.OpenRouter", FakeClient)
     monkeypatch.setenv("RETIMER_CACHE_DIR", str(tmp_path / "cache"))
+    # The command does not run without a model. These jobs leave it nothing to settle.
+    model_in_reach(monkeypatch)
 
 
 def test_sync_command_writes_the_file_the_plan_and_the_report(offline, tmp_path, capsys):

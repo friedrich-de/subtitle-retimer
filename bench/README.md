@@ -242,8 +242,8 @@ may sort the file.
 | `ffsubsync` | ffsubsync with its defaults: one offset and a frame rate ratio for the whole file. |
 | `ffsubsync-split` | ffsubsync with `--split-penalty`, which also looks for breaks. |
 | `alass` | alass with its defaults: finds splits and guesses the frame rate ratio. |
-| `pipeline` | This project's fixed pipeline: transcript or reference subtitle, anchors by meaning, offset fits, plan. No agent. Needs `OPENROUTER_API_KEY`. |
-| `agent-haiku`, `agent-sonnet`, `agent-opus` | The pipeline with a model settling what its draft leaves open, on Claude Haiku 5.5, Sonnet 5.5 or Opus 5.5. The model is called through OpenRouter with the same key, or at Anthropic with `RETIMER_AGENT_PROVIDER=anthropic` and `ANTHROPIC_RETIMER_API_KEY`. |
+| `pipeline` | This project's fixed pipeline alone: transcript or reference subtitle, anchors by meaning, offset fits, plan. No model decides. It is a diagnostic that shows what the model adds, and nothing a client can get. Needs `OPENROUTER_API_KEY`. |
+| `agent-haiku`, `agent-sonnet`, `agent-opus` | The retimer as it is delivered: the pipeline with a model settling what its draft leaves open, on Claude Haiku 5.5, Sonnet 5.5 or Opus 5.5. The model is called through OpenRouter with the same key, or at Anthropic with `RETIMER_AGENT_PROVIDER=anthropic` and `ANTHROPIC_RETIMER_API_KEY`. |
 | `api` | A running service, reached over HTTP as a client reaches it. Needs `RETIMER_API_URL` and `RETIMER_API_KEY`. |
 
 The external tools take one reference. When a case has both audio and a

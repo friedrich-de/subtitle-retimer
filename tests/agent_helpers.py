@@ -90,6 +90,30 @@ class FakeModel:
         )
 
 
+class AgreeingModel(FakeModel):
+    """A model that settles nothing itself: asked about a job, it submits what is on the bench.
+
+    It stands in where a test is about something else than the model's part.
+    """
+
+    def _create(self, **params):
+        if not self.turns:
+            self.turns.append([submit()])
+        return super()._create(**params)
+
+
+def model_in_reach(monkeypatch, *turns) -> FakeModel:
+    """Set the key the sync command asks for and put a scripted model where it would connect.
+
+    With no turns the model fails the test that asks it anything, so a test
+    that expects the routine steps to settle the job says so by naming none.
+    """
+    model = FakeModel(*turns)
+    monkeypatch.setenv("OPENROUTER_API_KEY", "key-for-the-test")
+    monkeypatch.setattr("retimer.agent.loop.make_client", lambda provider=None: model)
+    return model
+
+
 def three_parts(
     offsets: tuple[int, int, int] = (2_000, 5_300, 7_700),
     first: int = 12,

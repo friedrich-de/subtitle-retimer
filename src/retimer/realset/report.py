@@ -258,9 +258,10 @@ def agent_rows(results: list[dict], systems: list[str]) -> list[list[object]]:
     The last two numbers are the jobs whose plan is the agent's, and those
     among them where it cut the file down to the part the reference covers.
 
-    An ending of `error` is a call to the model that failed. The job then
-    kept the fixed pipeline's plan, so many of them make the agent look like
-    the pipeline when it was never heard.
+    An ending of `error` is a call to the model that failed, in a run from
+    before the model became mandatory. The job then kept the fixed pipeline's
+    plan, so many of them make the agent look like the pipeline when it was
+    never heard. Since then such a job fails and is counted with the failed runs.
     """
     endings: dict[str, Counter[str]] = defaultdict(Counter)
     for record in results:
@@ -646,7 +647,8 @@ def render(
             "## What the agent did",
             "The model is asked only about what the fixed pipeline leaves open. The columns "
             "after that say how the agent's part of a job ended. `error` is a call to the "
-            "model that failed: the job then kept the fixed pipeline's plan. The last column "
+            "model that failed, in a run from before the model became mandatory: the job "
+            "then kept the fixed pipeline's plan. Since then such a job fails. The last column "
             "counts the files it cut down to the part the reference covers, as it does with "
             "a file of several episodes.",
             _table(["System", "Jobs", "Model asked", *_ENDINGS, "Plan changed", "Cut down"], asked),

@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from retimer.fit import KNOWN_RATES, Evidence, Fit, choose_fit, fit_offsets
+from retimer.fit import KNOWN_RATES, Evidence, Fit, choose_fit, fit_offsets, with_stretches
 from retimer.match import Anchor
 
 
@@ -328,3 +328,67 @@ def test_a_few_lines_at_the_end_with_their_own_offset_are_a_block():
     fit = choose_fit(fit_offsets(evidence(starts, refs)))
 
     assert [(block.lines, block.offset_ms) for block in fit.blocks] == [(115, 0), (5, 3_000)]
+
+
+def drifting(count: int = 40, first: int = 20, late: int = 400) -> tuple[Evidence, Fit]:
+    """Lines 2 s late as a whole, and from `first` on another `late` ms."""
+    refs = [10_000 + 5_000 * index for index in range(count)]
+    starts = [ref + 2_000 + (late if index >= first else 0) for index, ref in enumerate(refs)]
+    found = evidence(starts, refs)
+    return found, choose_fit(fit_offsets(found))
+
+
+def lines_of(found: Evidence) -> list[tuple[int, int]]:
+    pairs = zip(found.line_ids, found.line_starts, strict=True)
+    return [(line_id, int(start)) for line_id, start in pairs]
+
+
+def test_a_stretch_a_little_off_is_scatter_to_the_fit():
+    found, fit = drifting()
+
+    # Half the lines are 0.4 s off against the other half. That is within what
+    # the pairs of one block are taken to scatter by, so it stays one block.
+    assert fit.kind == "constant"
+    assert fit.tolerance_ms > 400
+
+
+def test_a_block_cut_at_a_stretch_times_each_piece_by_its_own_pairs():
+    found, fit = drifting()
+    cut = int(found.line_starts[20])
+
+    pieces = with_stretches(fit, found.anchors, lines_of(found), [cut])
+
+    assert pieces.kind == "blocks"
+    assert [(block.from_ms, block.to_ms) for block in pieces.blocks] == [(None, cut), (cut, None)]
+    assert [block.offset_ms for block in pieces.blocks] == [-2_000, -2_400]
+    assert [(block.lines, block.matched) for block in pieces.blocks] == [(20, 20), (20, 20)]
+    assert sum(block.support for block in pieces.blocks) == pytest.approx(fit.blocks[0].support)
+    # The fit that was cut is left as it was.
+    assert len(fit.blocks) == 1
+
+
+def test_a_piece_with_too_few_pairs_stays_with_its_neighbour():
+    found, fit = drifting()
+    starts = [int(start) for start in found.line_starts]
+
+    # Two lines between two cuts are no piece of their own.
+    pieces = with_stretches(fit, found.anchors, lines_of(found), [starts[20], starts[22]])
+    assert [(block.from_ms, block.to_ms) for block in pieces.blocks] == [
+        (None, starts[22]),
+        (starts[22], None),
+    ]
+    # Neither are two lines before the first cut.
+    pieces = with_stretches(fit, found.anchors, lines_of(found), [starts[2], starts[20]])
+    assert [(block.from_ms, block.to_ms) for block in pieces.blocks] == [
+        (None, starts[20]),
+        (starts[20], None),
+    ]
+
+
+def test_cuts_outside_the_lines_change_nothing():
+    found, fit = drifting()
+    starts = [int(start) for start in found.line_starts]
+
+    assert with_stretches(fit, found.anchors, lines_of(found), []) is fit
+    assert with_stretches(fit, found.anchors, lines_of(found), [starts[0]]) is fit
+    assert with_stretches(fit, found.anchors, lines_of(found), [starts[-1] + 1]) is fit

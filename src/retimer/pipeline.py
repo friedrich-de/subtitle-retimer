@@ -1,9 +1,9 @@
 """The fixed pipeline: the tools run in one set order, with no model deciding.
 
-It turns a target and a reference into a plan, the retimed file and a report.
-The agent will make the same calls and judge between the fits itself; this
-pipeline always takes the best-scoring fit. It is the service's floor, and the
-benchmark's measure of what the agent adds.
+It turns a target and a reference into a plan, the retimed file and a report,
+and always takes the best-scoring fit. Its plan is the draft of every job, which
+the agent settles with a model. On its own it is delivered to nobody: the
+benchmark runs it as a diagnostic that shows what the model adds.
 """
 
 from __future__ import annotations
@@ -24,7 +24,16 @@ from retimer.classify import LineLabel, classify_lines
 from retimer.counterpart import MatchedReferenceReport, match_reference
 from retimer.embed import Embedder
 from retimer.engine import PlanError, PlanIssue, apply_plan, moved_span, validate_plan
-from retimer.fit import KNOWN_RATES, Evidence, Fit, FitKind, Pin, choose_fit, fit_offsets
+from retimer.fit import (
+    KNOWN_RATES,
+    Evidence,
+    Fit,
+    FitKind,
+    Pin,
+    choose_fit,
+    fit_offsets,
+    with_stretches,
+)
 from retimer.match import Anchor, Coverage, Matching, match_content, match_lines
 from retimer.model import Line, Subtitle
 from retimer.plan import ContentOp, Outcome, Plan, RemoveLines, Scale, Shift, TimingOp
@@ -179,6 +188,11 @@ class Adjustments(BaseModel):
     # first and its last line. The lines outside it are other content. They
     # take no part in the timing and are removed.
     cover: tuple[int, int] | None = None
+    # Stretches of the target that have a timing of their own inside a block,
+    # a few tenths of a second off against the lines around them: the ids of
+    # the first and the last line of each. The block is cut there, and every
+    # piece is timed by the pairs it holds.
+    stretches: list[tuple[int, int]] = Field(default_factory=list)
 
     @property
     def empty(self) -> bool:
@@ -907,6 +921,30 @@ def _covered(lines: list[Line], cover: tuple[int, int]) -> list[Line]:
     return lines[low : high + 1]
 
 
+def _stretch_cuts(
+    lines: list[Line], matched: list[MatchLine], stretches: list[tuple[int, int]]
+) -> list[int]:
+    """Where the blocks of a fit are cut for stretches: the start times of the pieces.
+
+    A stretch begins with its first line and ends with its last. The fit knows
+    the lines that were matched, so a piece begins with the first of those at
+    or after the first line, and the next with the first after the last line.
+    """
+    position = {line.id: index for index, line in enumerate(lines)}
+    known = [(position[line.id], line.start_ms) for line in matched if line.id in position]
+    known.sort()
+    cuts: set[int] = set()
+    for stretch in stretches:
+        missing = [line_id for line_id in stretch if line_id not in position]
+        if missing:
+            raise ValueError(f"a stretch names lines that are not synced: {missing}")
+        low, high = sorted(position[line_id] for line_id in stretch)
+        first = next((start for index, start in known if index >= low), None)
+        after = next((start for index, start in known if index > high), None)
+        cuts |= {start for start in (first, after) if start is not None}
+    return sorted(cuts)
+
+
 def propose(prepared: Prepared, adjustments: Adjustments | None = None) -> Proposal:
     """Build the plan for a prepared job: fit, blocks, edge lines, score and outcome.
 
@@ -1061,6 +1099,13 @@ def propose(prepared: Prepared, adjustments: Adjustments | None = None) -> Propo
         report.rate, report.rate_name = rate, rate_name
     else:
         fit = alignment.chosen
+        if adjust.stretches:
+            fit = with_stretches(
+                fit,
+                alignment.anchors,
+                [(line.id, line.start_ms) for line in alignment.matching.lines],
+                _stretch_cuts(part, alignment.matching.lines, adjust.stretches),
+            )
         rate, rate_name = fit.rate, fit.rate_name
         matched = alignment.matched
         blocks = build_blocks(fit, part, dialogue_ids, timeline, settings)

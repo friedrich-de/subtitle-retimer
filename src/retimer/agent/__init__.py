@@ -15,6 +15,7 @@ from retimer.agent.loop import (
     sync_with_agent,
 )
 from retimer.agent.workbench import ToolError, Workbench
+from retimer.providers import ModelUnavailable
 
 __all__ = [
     "ANTHROPIC_KEY_ENV",
@@ -23,6 +24,7 @@ __all__ = [
     "PROVIDER_ENV",
     "AgentSettings",
     "AgentTrace",
+    "ModelUnavailable",
     "ToolError",
     "Workbench",
     "agent_available",
