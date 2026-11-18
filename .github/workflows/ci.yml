@@ -1,9 +1,9 @@
 name: CI
 
+# Started by hand only. No push and no pull request starts a run: whoever makes
+# a change runs the steps below on their own machine before it is merged.
 on:
-  push:
-    branches: [main]
-  pull_request:
+  workflow_dispatch:
 
 jobs:
   test:
