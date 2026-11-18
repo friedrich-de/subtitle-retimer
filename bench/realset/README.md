@@ -20,7 +20,8 @@ tracks/           every text subtitle track of every video, packed with xz
 audio/            one mono Opus file per video, 24 kbit/s, as a client uploads it
 targets/          the subtitle files from Jimaku, named by their content
 jimaku/           what Jimaku listed, so that a rebuild sees the same files
-cache/            the embeddings of every line (see below)
+cache/            the embeddings of every line and the transcripts (see below)
+speech.json       which videos' audio was transcribed, and what that cost
 tuning.json       the settings chosen for the tools
 runs/NAME/        results.jsonl, outputs/, judgments.jsonl, tracks.jsonl and report.md of a run
 .plain/           unpacked copies, made when needed, safe to delete
@@ -119,19 +120,56 @@ A run then reads every embedding from that cache. It asks no provider, costs
 nothing, and gives the same result every time. After a change to how lines
 are cleaned for matching, run `embed` again: it only adds what is new.
 
+## Transcripts
+
+Against audio the retimer does not read the sound but a transcript of it,
+which a speech model at a provider writes and bills by the second. So
+
+```
+retimer realset transcribe SET [--hours 20] [--limit-usd 0.90] [--key-file KEY_FILE]
+```
+
+has the audio of a sample of the videos transcribed, once. The sample is
+spread over the series: they take turns until the hours are full, and which
+video of a series is drawn follows from the ids alone. Only videos count that
+a main pair outside the tuning tenth is judged on. The speech model is told
+the language, Japanese, as a client does that reads the tag of the audio
+track.
+
+The limit is on everything the set's transcripts ever cost, over every start
+of the command. Before each video its price is worked out from its length, at
+the provider's list price or at what the provider charged per second so far
+when that is more, and the command stops at the first video that would pass
+the limit. Afterwards a video counts at the larger of that price and what the
+provider reported. An attempt that failed counts too, and ends the command, so
+that a wrong key does not use up the limit on paper. `speech.json` holds the
+record.
+
+The transcripts go into `SET/cache`, and what was heard is embedded with the
+local model like every other text. A run against the audio then asks no
+provider, costs nothing, and gives the same result every time.
+
 ## Systems
 
 | System | What it is |
 | --- | --- |
 | `retimer` | This project's fixed pipeline against the subtitle track |
+| `retimer-audio` | The fixed pipeline against the audio, on the videos that have a transcript |
+| `retimer-agent`, `retimer-agent-audio` | The same two with the agent: a model is asked about what the fixed pipeline leaves open |
 | `alass`, `ffsubsync` | The tools with their defaults against the subtitle track |
 | `alass-audio`, `ffsubsync-audio` | The tools with their defaults against the audio |
 | `...-tuned` | Each of the four with the setting chosen on the tuning pairs |
 
-The agent and the retimer's jobs against audio are not run: they need a model
-at a provider, and a run over the set calls none. Against the audio only the
-main and the wrong pairs differ from each other, so that is where it tells
-something.
+Against the audio only the main and the wrong pairs differ from each other, so
+that is where it tells something.
+
+The agent is the one system that is billed while it runs, so it is only run
+when it is named: `--systems retimer-agent --key-file KEY_FILE`. Its
+embeddings and transcripts come from the set like the pipeline's, and only
+the model is asked at the provider. `--agent-limit-usd` (5 unless given) is
+what the model may cost in one run: when that is reached, the agent's jobs
+that have not begun are dropped and the run can be continued later with a
+higher limit. A key file is read into the process and never shown.
 
 ```
 retimer realset tune SET
@@ -153,6 +191,7 @@ failed.
 
 ```
 retimer realset run SET [--run NAME] [--systems a,b] [--kinds main,wrong] [--again]
+                        [--key-file KEY_FILE] [--agent-limit-usd 5]
 retimer realset judge SET [--run NAME]
 retimer realset report SET [--run NAME]
 retimer realset tidy SET
@@ -197,4 +236,8 @@ main tracks the sound finds off.
 kind of target file and system, the head to head with the retimer, where the
 systems disagree, what each did with other tracks and wrong pairs, and the
 clearest disagreements between the retimer and alass as candidates for a look
-by a person.
+by a person. The retimer against the audio ran on a sample, so it has a
+section of its own in which every system is counted on the pairs of the
+transcribed videos. The report also says how often the agent's model was
+asked and how that ended, on which pairs the agent came to another outcome
+than the fixed pipeline, and what the model and the transcripts cost.

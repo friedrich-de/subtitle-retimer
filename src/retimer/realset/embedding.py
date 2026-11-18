@@ -26,8 +26,9 @@ from retimer.embed import Embedder
 from retimer.io import SubtitleError, load
 from retimer.match import context_texts
 from retimer.model import Subtitle
-from retimer.providers import DEFAULT_EMBEDDING_MODEL, Embeddings, ProviderError
-from retimer.reference import timeline_from_subtitle
+from retimer.providers import DEFAULT_EMBEDDING_MODEL, Embeddings, ProviderError, Transcription
+from retimer.reference import timeline_from_subtitle, timeline_from_transcript
+from retimer.transcribe import Transcript
 from retimer.views import build_match_view
 
 # The model the provider serves as `baai/bge-m3`, by its name where models are published.
@@ -79,13 +80,20 @@ class CachedOnly:
 
     A run over the set is meant to read every embedding from the cache. A
     text that is missing there is a reason to fill the cache first, not to
-    load a model in every worker.
+    load a model in every worker. The same goes for the transcript of a
+    video's audio, which is paid for by the second.
     """
 
     def embed(self, texts: list[str], *, model: str = DEFAULT_EMBEDDING_MODEL) -> Embeddings:
         raise ProviderError(
             f"{len(texts)} texts are not in the set's embedding cache: "
             "run `retimer realset embed` first"
+        )
+
+    def transcribe(self, audio: bytes, **request: object) -> Transcription:
+        raise ProviderError(
+            "this audio has no transcript in the set's cache: "
+            "run `retimer realset transcribe` first"
         )
 
 
@@ -146,6 +154,12 @@ def target_texts(subtitle: Subtitle) -> list[str]:
 def reference_texts(subtitle: Subtitle) -> list[str]:
     """Every text the pipeline embeds of a reference subtitle."""
     timeline = timeline_from_subtitle(subtitle, None, classify_lines(subtitle))
+    return _with_context([(event.start_ms, event.end_ms, event.text) for event in timeline.events])
+
+
+def transcript_texts(transcript: Transcript) -> list[str]:
+    """Every text the pipeline embeds of the transcript of a video's audio."""
+    timeline = timeline_from_transcript(transcript)
     return _with_context([(event.start_ms, event.end_ms, event.text) for event in timeline.events])
 
 

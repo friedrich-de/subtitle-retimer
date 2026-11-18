@@ -16,6 +16,7 @@ from retimer.realset.judge import INPUT, load_judgments, load_track_readings
 from retimer.realset.manifest import Manifest, load_manifest
 from retimer.realset.names import FILE_TYPES, is_broadcast
 from retimer.realset.run import RUN_FILE, load_results
+from retimer.realset.speech import Speech, load_speech
 from retimer.realset.systems import SYSTEMS, load_tuning
 from retimer.realset.windows import (
     DISAGREE_MS,
@@ -173,22 +174,124 @@ def two_witnesses(judgments: list[dict], systems: list[str], pairs: set[str]) ->
     return rows
 
 
-def head_to_head(judgments: list[dict], systems: list[str], pairs: set[str]) -> list[list[object]]:
-    """The retimer against every other system, on the same pairs."""
-    verified: dict[str, dict[str, bool]] = defaultdict(dict)
+def head_to_head(
+    judgments: list[dict],
+    systems: list[str],
+    pairs: set[str],
+    ours: str = OURS,
+    passed: Callable[[dict], bool] = verified,
+) -> list[list[object]]:
+    """One system against every other, on the pairs both have an output for.
+
+    It is the retimer against a subtitle track unless another is named, and
+    the files the window check verified are counted unless another check is.
+    """
+    good: dict[str, dict[str, bool]] = defaultdict(dict)
     for entry in judgments:
         if entry["pair"] in pairs:
-            verified[entry["system"]][entry["pair"]] = entry["verdict"] == "verified"
+            good[entry["system"]][entry["pair"]] = passed(entry)
     rows = []
     for system in systems:
-        if system in (OURS, INPUT):
+        if system in (ours, INPUT):
             continue
-        shared = set(verified[OURS]) & set(verified[system])
-        both = sum(verified[OURS][p] and verified[system][p] for p in shared)
-        ours = sum(verified[OURS][p] and not verified[system][p] for p in shared)
-        theirs = sum(verified[system][p] and not verified[OURS][p] for p in shared)
-        rows.append([system, len(shared), both, ours, theirs, len(shared) - both - ours - theirs])
+        shared = set(good[ours]) & set(good[system])
+        both = sum(good[ours][p] and good[system][p] for p in shared)
+        one = sum(good[ours][p] and not good[system][p] for p in shared)
+        other = sum(good[system][p] and not good[ours][p] for p in shared)
+        rows.append([system, len(shared), both, one, other, len(shared) - both - one - other])
     return rows
+
+
+def on_the_same_pairs(judgments: list[dict], systems: list[str], pairs: set[str]) -> list[list]:
+    """Both checks per system on one fixed list of pairs.
+
+    A system that ran on a sample cannot be held next to the others by the
+    tables over all pairs. Here every system is counted on the sample.
+    """
+    rows = []
+    for system in systems:
+        entries = [e for e in judgments if e["system"] == system and e["pair"] in pairs]
+        if not entries:
+            continue
+        verdicts = Counter(entry["verdict"] for entry in entries)
+        seconds = [entry["seconds"] for entry in entries if entry.get("seconds") is not None]
+        rows.append(
+            [
+                system,
+                len(entries),
+                _percent(verdicts["verified"], len(entries)),
+                _percent(sum(confirmed(entry) for entry in entries), len(entries)),
+                verdicts["off"],
+                verdicts["unjudged"],
+                verdicts["refused"],
+                verdicts["failed"],
+                f"{statistics.median(seconds):.1f}" if seconds else "-",
+            ]
+        )
+    return rows
+
+
+def cost_rows(results: list[dict], systems: list[str]) -> list[list[object]]:
+    """What the systems that ask a model were billed: pairs run, pairs it was asked on, the sum."""
+    costs: dict[str, list[float]] = defaultdict(list)
+    for record in results:
+        costs[record["system"]].append(record.get("cost_usd") or 0.0)
+    return [
+        [
+            system,
+            len(costs[system]),
+            sum(1 for cost in costs[system] if cost > 0),
+            f"{sum(costs[system]):.2f}",
+        ]
+        for system in systems
+        if sum(costs[system]) > 0
+    ]
+
+
+# How the agent's part of a job can end, as its trace names it.
+_ENDINGS = ("not_needed", "submitted", "no_submit", "budget", "declined", "error")
+
+
+def agent_rows(results: list[dict], systems: list[str]) -> list[list[object]]:
+    """What the agent did per system: how often the model was asked, and how that ended.
+
+    An ending of `error` is a call to the model that failed. The job then
+    kept the fixed pipeline's plan, so many of them make the agent look like
+    the pipeline when it was never heard.
+    """
+    endings: dict[str, Counter[str]] = defaultdict(Counter)
+    for record in results:
+        trace = ((record.get("details") or {}).get("report") or {}).get("agent")
+        if trace:
+            endings[record["system"]][str(trace.get("finished"))] += 1
+            endings[record["system"]]["asked"] += bool(trace.get("consulted"))
+            endings[record["system"]]["changed"] += bool(trace.get("changed"))
+    return [
+        [
+            system,
+            sum(endings[system][ending] for ending in _ENDINGS),
+            endings[system]["asked"],
+            *(endings[system][ending] for ending in _ENDINGS),
+            endings[system]["changed"],
+        ]
+        for system in systems
+        if endings[system]
+    ]
+
+
+def outcome_changes(results: list[dict], pipeline: str, agent: str) -> list[list[object]]:
+    """The pairs on which the agent came to another outcome than the fixed pipeline."""
+    said: dict[str, dict[str, dict]] = defaultdict(dict)
+    for record in results:
+        if record["system"] in (pipeline, agent):
+            said[record["pair"]][record["system"]] = record
+    changes: Counter[tuple[str, str, str]] = Counter()
+    for both in said.values():
+        if len(both) == 2 and both[pipeline]["outcome"] != both[agent]["outcome"]:
+            changes[
+                (both[agent]["kind"], str(both[pipeline]["outcome"]), str(both[agent]["outcome"]))
+            ] += 1
+    return [[*change, count] for change, count in sorted(changes.items())]
 
 
 def _shifts(entry: dict) -> dict[int, int]:
@@ -392,8 +495,12 @@ def render(
     run_info: dict,
     name: str,
     track_readings: list[dict] | None = None,
+    speech: Speech | None = None,
 ) -> str:
-    systems = system_order(judgments)
+    everyone = system_order(judgments)
+    # A system that ran on a sample of the videos has a section of its own.
+    sampled = {system.name for system in SYSTEMS if system.sampled}
+    systems = [system for system in everyone if system not in sampled]
     main = {pair.id for pair in manifest.pairs if pair.kind == "main"}
     held_out = {pair.id for pair in manifest.pairs if pair.kind == "main" and not pair.tuning}
     notes = {pair.id: pair.note for pair in manifest.pairs}
@@ -501,6 +608,7 @@ def render(
             disagreement_rows(judgments, systems, held_out),
         ),
     ]
+    parts += _sample_sections(manifest, judgments, everyone, sampled, held_out, speech)
     for role in ("full", "foreign", "signs", "wrong_episode"):
         rows = refusal_rows(judgments, systems, "other_track", role, notes)
         if rows:
@@ -509,17 +617,60 @@ def render(
         rows = refusal_rows(judgments, systems, "wrong", note, notes)
         if rows:
             parts += [f"## Deliberately wrong pairs: {note}", _table(refusal_header, rows)]
+    ours = [system.name for system in SYSTEMS if system.tool == OURS]
     outcomes = Counter(
-        (record["kind"], record["outcome"]) for record in results if record["system"] == OURS
+        (record["kind"], str(record["outcome"]), record["system"])
+        for record in results
+        if record["system"] in ours
     )
+    ran = [system for system in ours if any(key[2] == system for key in outcomes)]
     if outcomes:
         parts += [
             "## What the retimer reported",
             _table(
-                ["Kind of pair", "Outcome", "Pairs"],
-                [[kind, outcome, count] for (kind, outcome), count in sorted(outcomes.items())],
+                ["Kind of pair", "Outcome", *ran],
+                [
+                    [kind, outcome, *(outcomes[(kind, outcome, system)] for system in ran)]
+                    for kind, outcome in sorted({key[:2] for key in outcomes})
+                ],
             ),
         ]
+    asked = agent_rows(results, everyone)
+    if asked:
+        parts += [
+            "## What the agent did",
+            "The model is asked only about what the fixed pipeline leaves open. The columns "
+            "after that say how the agent's part of a job ended. `error` is a call to the "
+            "model that failed: the job then kept the fixed pipeline's plan.",
+            _table(["System", "Jobs", "Model asked", *_ENDINGS, "Plan changed"], asked),
+        ]
+    for system in SYSTEMS:
+        pipeline = system.name.replace("-agent", "")
+        changes = outcome_changes(results, pipeline, system.name) if system.agent else []
+        if changes:
+            parts += [
+                f"## Where `{system.name}` came to another outcome than `{pipeline}`",
+                "The pairs on which the model's answer changed what the job reports.",
+                _table(["Kind of pair", f"`{pipeline}`", f"`{system.name}`", "Pairs"], changes),
+            ]
+    billed = cost_rows(results, everyone)
+    heard = [speech.videos[video] for video in sorted(speech.transcribed())] if speech else []
+    if billed or heard:
+        parts.append("## What was billed")
+    if billed:
+        parts += [
+            "The model behind the agent, by what the provider counted for each job.",
+            _table(["System", "Pairs run", "Pairs the model was asked on", "USD"], billed),
+        ]
+    if heard:
+        parts.append(
+            f"The speech model `{speech.model}` at `{speech.provider}` wrote the transcripts of "
+            f"{len(heard)} videos, {sum(one.seconds for one in heard) / 3600:.1f} hours of audio. "
+            f"The provider reported {sum(one.reported_usd for one in heard):.2f} USD for them. "
+            f"Against the spending limit {speech.spent_usd:.2f} USD are counted: a video counts "
+            "at the list price of its length when that is more, and an attempt that failed "
+            "counts as well."
+        )
     if tuning:
         parts += [
             "## Settings chosen on the tuning pairs",
@@ -558,6 +709,70 @@ def render(
     return "\n\n".join(parts) + "\n"
 
 
+def _sample_sections(
+    manifest: Manifest,
+    judgments: list[dict],
+    systems: list[str],
+    sampled: set[str],
+    held_out: set[str],
+    speech: Speech | None,
+) -> list[str]:
+    """The retimer against the audio, next to every other system on the same pairs."""
+    ran = [system for system in systems if system in sampled]
+    if not ran:
+        return []
+    first = ran[0]
+    on_sample = {entry["pair"] for entry in judgments if entry["system"] in sampled}
+    pairs = on_sample & held_out
+    videos = {pair.video for pair in manifest.pairs if pair.id in on_sample}
+    hours = sum(manifest.video(video).duration_s for video in videos) / 3600
+    versus = ["Against", "Pairs", "Both", f"Only `{first}`", "Only the other", "Neither"]
+    parts = [
+        "## Against the audio, on the videos that were transcribed",
+        "The retimer does not read the sound itself but a transcript of it, which a speech "
+        "model at a provider writes and bills. So only a sample of the videos was transcribed, "
+        f"spread over the series: {len(videos)} videos, {hours:.1f} hours of audio. Every "
+        f"system is counted here on the same {len(pairs)} main pairs of those videos that no "
+        "setting was chosen on. The systems without `audio` in their name ran against the "
+        "subtitle track and stand here for comparison. The seconds of the retimer against "
+        "the audio leave out the transcription, which was done beforehand.",
+        _table(
+            [
+                "System",
+                "Pairs",
+                "Window check: verified",
+                "Sound check: confirmed",
+                "Off",
+                "Not judged",
+                "Refused",
+                "Failed",
+                "Median seconds",
+            ],
+            on_the_same_pairs(judgments, systems, pairs),
+        ),
+        f"Head to head with `{first}` on those pairs, counting files the window check verified.",
+        _table(versus, head_to_head(judgments, systems, pairs, first)),
+        "The same, counting files the sound check confirms.",
+        _table(versus, head_to_head(judgments, systems, pairs, first, confirmed)),
+    ]
+    wrong = [
+        entry for entry in judgments if entry["pair"] in on_sample and entry["kind"] == "wrong"
+    ]
+    against_audio = {system.name for system in SYSTEMS if system.reference == "audio"}
+    rows = refusal_rows(
+        wrong, [system for system in systems if system in against_audio], "wrong", None, {}
+    )
+    if rows:
+        parts += [
+            "Deliberately wrong pairs against the audio of those videos.",
+            _table(
+                ["System", "Pairs", "Refused", "Left alone", "Moved", "Failed", "Verified", "Off"],
+                rows,
+            ),
+        ]
+    return parts
+
+
 def write_report(root: Path, run_dir: Path) -> str:
     """Write the report of a run into its directory and return the text."""
     info_path = run_dir / RUN_FILE
@@ -570,6 +785,7 @@ def write_report(root: Path, run_dir: Path) -> str:
         info,
         run_dir.name,
         load_track_readings(run_dir),
+        load_speech(root),
     )
     (run_dir / REPORT_FILE).write_text(text, encoding="utf-8")
     return text

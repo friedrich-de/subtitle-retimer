@@ -274,6 +274,10 @@ class PipelineRunner:
     """This project's fixed pipeline: anchors, fits and scoring, with no agent deciding."""
 
     name = "pipeline"
+    # Whether the speech model is told the language of the audio. The
+    # benchmark leaves it to find out, as it must for a client that says
+    # nothing of the file.
+    names_audio_language = False
 
     def __init__(
         self,
@@ -296,6 +300,9 @@ class PipelineRunner:
     def supports(self, case: LoadedCase) -> bool:
         return True
 
+    def _audio_language(self, case: LoadedCase) -> str | None:
+        return case.case.reference.audio_language if self.names_audio_language else None
+
     def _sync(self, case: LoadedCase) -> SyncResult:
         # Imported here: the other systems do not need numpy and start faster without it.
         from retimer.pipeline import Settings, sync
@@ -304,6 +311,7 @@ class PipelineRunner:
             load(case.target_path),
             audio=case.audio_path,
             options=case.case.options,
+            audio_language=self._audio_language(case),
             settings=Settings(**self.settings),
             client=self.client,
             cache=self.cache,
@@ -394,6 +402,7 @@ class AgentRunner(PipelineRunner):
             load(case.target_path),
             audio=case.audio_path,
             options=case.case.options,
+            audio_language=self._audio_language(case),
             settings=Settings(**self.settings),
             agent=AgentSettings(model=self.model, effort=self.effort, consult=self.consult),
             client=self.client,

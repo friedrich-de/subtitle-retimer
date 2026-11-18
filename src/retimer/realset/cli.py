@@ -7,14 +7,30 @@ import os
 import sys
 from pathlib import Path
 
+from retimer.providers import OPENROUTER_KEY_ENV, ProviderError
 from retimer.realset.jimaku import KEY_ENV
 from retimer.realset.manifest import CACHE_DIR, RUNS_DIR
 
 DEFAULT_RUN = "main"
+# What the agent's model may cost in one run before the run stops asking it.
+DEFAULT_AGENT_LIMIT_USD = 5.0
 
 
 def _say(message: str) -> None:
     print(message, file=sys.stderr, flush=True)
+
+
+def _take_key(args: argparse.Namespace) -> None:
+    """Put the provider's key from a file into this process. It is never shown."""
+    if args.key_file is None:
+        return
+    try:
+        key = args.key_file.read_text(encoding="utf-8").strip()
+    except OSError as error:
+        raise ValueError(f"the key file cannot be read: {error}") from error
+    if not key:
+        raise ValueError(f"{args.key_file} is empty")
+    os.environ[OPENROUTER_KEY_ENV] = key
 
 
 def _cmd_build(args: argparse.Namespace) -> int:
@@ -63,12 +79,31 @@ def _pairs(args: argparse.Namespace):
     )
 
 
+def _cmd_transcribe(args: argparse.Namespace) -> int:
+    from retimer.realset.speech import transcribe_sample
+
+    try:
+        _take_key(args)
+        speech = transcribe_sample(args.root, hours=args.hours, limit_usd=args.limit_usd, say=_say)
+    except (ValueError, ProviderError) as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 1
+    heard = [speech.videos[video] for video in speech.transcribed()]
+    print(
+        f"{len(heard)} videos have a transcript, "
+        f"{sum(one.seconds for one in heard) / 3600:.1f} hours of audio. "
+        f"{speech.spent_usd:.4f} USD are counted against the limit of {args.limit_usd:.2f}."
+    )
+    return 0
+
+
 def _cmd_run(args: argparse.Namespace) -> int:
     from retimer.realset.run import run_systems
-    from retimer.realset.systems import SYSTEMS
+    from retimer.realset.systems import DEFAULT_SYSTEMS
 
-    names = args.systems.split(",") if args.systems else [system.name for system in SYSTEMS]
+    names = args.systems.split(",") if args.systems else list(DEFAULT_SYSTEMS)
     try:
+        _take_key(args)
         run_dir = run_systems(
             args.root,
             args.name,
@@ -77,6 +112,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
             workers=args.workers,
             retry_failed=args.retry_failed,
             again=args.again,
+            agent_limit_usd=args.agent_limit_usd,
             say=_say,
         )
     except ValueError as error:
@@ -139,8 +175,35 @@ def add_realset_commands(commands: argparse._SubParsersAction) -> None:
 
     add("embed", _cmd_embed, "embed every text of the set with the local model", workers=False)
 
+    key_help = f"a file with the provider's key (or set {OPENROUTER_KEY_ENV})"
+    transcribe = add(
+        "transcribe",
+        _cmd_transcribe,
+        "have the audio of a sample of the videos transcribed, within a spending limit",
+        workers=False,
+    )
+    transcribe.add_argument(
+        "--hours", type=float, default=20.0, help="how much audio the sample holds at most"
+    )
+    transcribe.add_argument(
+        "--limit-usd",
+        type=float,
+        default=0.90,
+        help="no request is made that could take what the set's transcripts cost past this",
+    )
+    transcribe.add_argument("--key-file", type=Path, help=key_help)
+
     run = add("run", _cmd_run, "run systems over the pairs and keep what they produce")
-    run.add_argument("--systems", help="comma separated, default: all")
+    run.add_argument(
+        "--systems", help="comma separated, default: all that are not billed while they run"
+    )
+    run.add_argument("--key-file", type=Path, help=f"for the agent: {key_help}")
+    run.add_argument(
+        "--agent-limit-usd",
+        type=float,
+        default=DEFAULT_AGENT_LIMIT_USD,
+        help="the run stops asking the agent's model when it has cost this much",
+    )
     run.add_argument("--run", dest="name", default=DEFAULT_RUN, help="the name of the run")
     run.add_argument("--kinds", help="only pairs of these kinds: main, other_track, wrong")
     run.add_argument("--only", help="only pairs whose id contains this text")

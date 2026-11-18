@@ -164,6 +164,32 @@ def _transcribe_chunks(
     return [part for part, _ in done], sum(cost for _, cost in done)
 
 
+def _cache_key(
+    path: Path, model: str, provider: str | None, language: str | None, max_chunk_ms: int
+) -> str:
+    return content_hash(path.read_bytes(), model, provider or "", language or "", str(max_chunk_ms))
+
+
+def cached_transcript(
+    path: Path,
+    cache: Cache,
+    *,
+    model: str = DEFAULT_SPEECH_MODEL,
+    provider: str | None = DEFAULT_SPEECH_PROVIDER,
+    language: str | None = None,
+    max_chunk_ms: int = DEFAULT_MAX_CHUNK_MS,
+) -> Transcript | None:
+    """The transcript of an audio file when it was made before with these settings."""
+    stored = cache.get(_CACHE_NAMESPACE, _cache_key(path, model, provider, language, max_chunk_ms))
+    if stored is None:
+        return None
+    transcript = Transcript.model_validate_json(stored)
+    transcript.from_cache = True
+    transcript.cost_usd = 0.0
+    transcript.seconds = 0.0
+    return transcript
+
+
 def transcribe_audio(
     path: Path,
     *,
@@ -177,14 +203,12 @@ def transcribe_audio(
 ) -> Transcript:
     """Transcribe an audio file. A cached transcript costs nothing and takes no time."""
     cache = cache if cache is not None else Cache()
-    key = content_hash(path.read_bytes(), model, provider or "", language or "", str(max_chunk_ms))
-    stored = cache.get(_CACHE_NAMESPACE, key)
-    if stored is not None:
-        transcript = Transcript.model_validate_json(stored)
-        transcript.from_cache = True
-        transcript.cost_usd = 0.0
-        transcript.seconds = 0.0
-        return transcript
+    key = _cache_key(path, model, provider, language, max_chunk_ms)
+    known = cached_transcript(
+        path, cache, model=model, provider=provider, language=language, max_chunk_ms=max_chunk_ms
+    )
+    if known is not None:
+        return known
 
     client = client or OpenRouter()
     started = time.monotonic()

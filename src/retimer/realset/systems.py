@@ -4,8 +4,14 @@ They are the benchmark's runners, given real pairs. Each tool is run with its
 defaults, and once more with settings chosen on a fixed tenth of the main
 pairs, so that a tool is not judged by defaults that happen not to suit this
 kind of file. Against a subtitle track every system gets the same file.
-Against the audio only the tools run: the retimer's audio path needs a speech
-model at a provider, and a run over the set calls none.
+
+Against the audio the tools read the sound itself. The retimer reads a
+transcript of it, which a speech model at a provider writes. That is billed,
+so it is done beforehand for a sample of the videos (`retimer.realset.speech`)
+and the retimer runs against the audio of those videos only.
+
+The agent is the one system that is billed while it runs: a model is asked
+about what the fixed pipeline leaves open. It is run when it is named.
 """
 
 from __future__ import annotations
@@ -18,6 +24,7 @@ from typing import Literal
 
 from retimer.bench.cases import Case, LoadedCase, Reference
 from retimer.bench.runners import (
+    AgentRunner,
     AlassRunner,
     FfsubsyncRunner,
     PipelineRunner,
@@ -41,6 +48,9 @@ ReferenceKind = Literal["subtitle", "audio"]
 
 # The longest a tool may take on one pair.
 TIMEOUT_S = 600
+# The language the speech model is told. The set takes the Japanese audio
+# track of every video, and a client that reads the track's tag names it.
+AUDIO_LANGUAGE = "ja"
 
 
 @dataclass(frozen=True)
@@ -51,19 +61,31 @@ class System:
     args: tuple[str, ...] = ()
     # The settings come from the set's tuning file.
     tuned: bool = False
+    # A model at a provider decides what the fixed pipeline leaves open.
+    agent: bool = False
+
+    @property
+    def sampled(self) -> bool:
+        """Whether the system only runs on the videos whose audio was transcribed."""
+        return self.tool == "retimer" and self.reference == "audio"
 
 
 SYSTEMS = (
     System("retimer", "retimer", "subtitle"),
+    System("retimer-agent", "retimer", "subtitle", agent=True),
     System("alass", "alass", "subtitle"),
     System("alass-tuned", "alass", "subtitle", tuned=True),
     System("ffsubsync", "ffsubsync", "subtitle"),
     System("ffsubsync-tuned", "ffsubsync", "subtitle", tuned=True),
+    System("retimer-audio", "retimer", "audio"),
+    System("retimer-agent-audio", "retimer", "audio", agent=True),
     System("alass-audio", "alass", "audio"),
     System("alass-audio-tuned", "alass", "audio", tuned=True),
     System("ffsubsync-audio", "ffsubsync", "audio"),
     System("ffsubsync-audio-tuned", "ffsubsync", "audio", tuned=True),
 )
+# What a run takes when no system is named: everything that is not billed while it runs.
+DEFAULT_SYSTEMS = tuple(system.name for system in SYSTEMS if not system.agent)
 
 # The settings that are tried for each tool. The first of each is the default.
 _ALASS = {
@@ -232,9 +254,13 @@ class SecondTry:
 
 def make_runner(system: System, root: Path) -> Runner:
     if system.tool == "retimer":
-        return PipelineRunner(
-            system.name, client=CachedOnly(), cache=CompactCache(root / CACHE_DIR)
-        )
+        # Embeddings and transcripts come from the set's cache and from nowhere
+        # else. The agent's model is not behind this client: it is asked with
+        # the key in the environment.
+        kind = AgentRunner if system.agent else PipelineRunner
+        runner = kind(system.name, client=CachedOnly(), cache=CompactCache(root / CACHE_DIR))
+        runner.names_audio_language = True
+        return runner
     tool = AlassRunner if system.tool == "alass" else FfsubsyncRunner
     runner = tool(system.name, system.args, TIMEOUT_S)
     return SecondTry(runner) if system.tuned else runner
@@ -247,7 +273,9 @@ def as_case(manifest: Manifest, pair: Pair, root: Path, reference: ReferenceKind
         audio = manifest.video(pair.video).audio
         if audio is None:
             raise ValueError(f"the video of {pair.id} has no audio in the set")
-        described = Reference(kind="audio", audio=str(root / audio.file), audio_language="ja")
+        described = Reference(
+            kind="audio", audio=str(root / audio.file), audio_language=AUDIO_LANGUAGE
+        )
     else:
         track = plain_path(root, manifest.track(pair.track).file)
         described = Reference(kind="subtitle", subtitle=str(track))

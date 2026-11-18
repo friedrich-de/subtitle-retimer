@@ -670,6 +670,7 @@ the repository, because it names releases.
 retimer realset build SET --videos VIDEOS --jimaku-key-file KEY   # tracks, audio, targets, pairs
 retimer realset embed SET     # every line's embedding, with a local model, into the set's cache
 retimer realset tune SET      # choose settings for alass and ffsubsync on a tenth of the pairs
+retimer realset transcribe SET --key-file KEY   # transcripts for a sample of the videos, within a spending limit
 retimer realset run SET       # the retimer, alass and ffsubsync over every pair
 retimer realset judge SET     # window check, sound check, and how far each system moved the lines
 retimer realset report SET
@@ -678,8 +679,10 @@ retimer realset report SET
 No output of a real file has a known truth, so each is held against three
 witnesses: lines that clearly mean the same in the output and in the video's
 own subtitle track, the sound check, and the places where the systems disagree
-with each other. [bench/realset/README.md](bench/realset/README.md) has the
-details.
+with each other. A run reads its embeddings and transcripts from the set and
+asks no provider. The agent is the exception: it is run when it is named,
+`--systems retimer-agent`, and stops asking its model at a limit.
+[bench/realset/README.md](bench/realset/README.md) has the details.
 
 ## The plan
 
@@ -765,6 +768,7 @@ Rules the engine enforces:
 | `retimer.realset.pairs` | The roles of tracks, which file is for which video, and the pairs |
 | `retimer.realset.manifest` | The manifest of a set, its overrides, and its packed tracks |
 | `retimer.realset.embedding` | A local stand-in for the embedding provider, and the set's cache |
+| `retimer.realset.speech` | Has a sample of a set's audio transcribed, once and within a spending limit |
 | `retimer.realset.systems` | The systems run over a set, and the settings tried for the tools |
 | `retimer.realset.run` | Runs systems over the pairs, keeps the outputs, continues a run |
 | `retimer.realset.tune` | Chooses the tools' settings on a tenth of the main pairs |
