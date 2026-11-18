@@ -496,6 +496,7 @@ retimer bench run             # generate the cases, run every system, print the 
 retimer bench run --systems pipeline --only tears-of-steel.ja --repeats 3
 retimer bench report data/bench/results/<run>
 retimer bench systems         # which systems can run on this machine
+retimer bench soundcheck episode.ogg synced.srt   # do the lines start where a voice sets in?
 ```
 
 `ffsubsync` and `alass-cli` are the baselines. Install them to include them
@@ -506,6 +507,14 @@ model the way the service does (`RETIMER_AGENT_PROVIDER`) and run only when
 named, because every run costs
 money: `retimer bench run --systems pipeline,agent-haiku --repeats 3`. A system
 that cannot run is skipped and named in the summary.
+
+`soundcheck` is a yardstick for files that have no known-correct timing. It
+compares the starts of the dialogue lines with the sound itself, without a
+speech model, a transcript or a reference subtitle, and says for the whole
+file and for every three minutes how far the lines are off and how far that
+reading stands above chance. It tells whether lines are within about half a
+second of the voices, which is enough to compare tools on real files, and not
+more. [bench/README.md](bench/README.md#the-sound-check) has what was measured.
 
 ## The plan
 
@@ -582,5 +591,6 @@ Rules the engine enforces:
 | `retimer.bench.runners` | The systems under test: ffsubsync, alass, the pipeline, the agent, input and oracle |
 | `retimer.bench.harness` | Runs systems over cases and stores the results |
 | `retimer.bench.report` | Summary tables |
+| `retimer.bench.soundcheck` | The sound check: line starts against the voices in the audio, without a model |
 | `bench/seeds` | Seed material: two open films with English and Japanese subtitles |
 | `deploy` | The system service, the keys tool, releases and the smoke test for the server |

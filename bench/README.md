@@ -128,6 +128,63 @@ A new system is a class with `name`, `unavailable()`, `supports(case)` and
 `run(case, work_dir)` that returns a `RunOutput`, added in
 `retimer.bench.cli.all_runners`.
 
+## The sound check
+
+The cases above know the true start of every line. A real file that nobody
+timed by hand does not, and what this project reports about its own result is
+no independent witness. `retimer bench soundcheck` is one: it asks the sound
+itself whether the lines start where somebody starts to speak.
+
+```
+retimer bench soundcheck episode.ogg synced.srt
+whole file      76 lines   offset    +60 ms   strength  3.41   clear
+0:00-3:00       14 lines   offset    +50 ms   strength  1.66   clear
+3:00-6:00       32 lines   offset    -10 ms   strength  2.36   clear
+6:00-9:00       27 lines   offset   +300 ms   strength  2.12   clear
+9:00-12:00       3 lines   too few to tell
+```
+
+It takes an audio or video file and a subtitle, in any state: the output of
+this retimer, of another tool, or the file as it was. `--json` prints the same
+as data. No speech model, no transcript and no reference subtitle are used,
+only `ffmpeg` and arithmetic, so the check costs nothing and takes a few
+seconds per episode.
+
+- **How.** For every hundredth of a second it works out how much a voice
+  stands out of the sound around it: loud in the band a telephone carries,
+  louder than the seconds before and after, and with a pitch. Then it moves
+  the dialogue lines back and forth and looks for the offset at which the most
+  lines begin just where a voice rises.
+- **Offset.** How far the lines would have to move to sit on the sound,
+  positive when they come too early. It is searched within 5 s either way
+  (`--reach`). Lines further off than that come out as not clear.
+- **Strength.** The best offset near zero, measured against the best one that
+  turns up a minute and more away, where the lines lie on other people's
+  sentences and only chance can fit them. Above 1 the lines beat every chance
+  offset. From 1.4 on the check calls the offset `clear`.
+- **Stretches.** The file is read as a whole and in stretches of three minutes
+  (`--window`), because a file can be right before a break and wrong after it.
+  A stretch with fewer than 8 dialogue lines says nothing.
+
+What it can and cannot tell, measured on the two seed films:
+
+- A known shift is found again exactly, on the whole file and on every
+  stretch. With the lines after minute three moved by 2 s, the stretches read
+  +50, -2020 and -1700 ms where they read +50, -10 and +300 ms before.
+- The lines of the other film come out at a strength of 0.8, and of 48
+  stretches whose lines were moved far away the highest is 1.18. Every stretch
+  that is in sync has 1.45 or more. On generated sound, about one stretch of
+  unrelated lines in 70 gets over 1.4: one clear stretch alone is a strong
+  hint and no proof.
+- The offset of a file that is in sync is not zero. A person who times
+  subtitles lets a line appear a little before or after the voice, and that
+  habit differs by file: +60 ms on Tears of Steel, -200 ms on Sintel. Between
+  the stretches of one file the reading wanders by up to a quarter of a second.
+  So the check tells whether lines are within about half a second of the
+  sound. It does not rank two results that are both that close.
+- Both films are in English and have few lines. Japanese speech and the
+  denser dialogue of a series episode are not measured here.
+
 ## Results
 
 Each run writes a directory under `data/bench/results`:

@@ -7,11 +7,20 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
+from retimer.audio import AudioError
 from retimer.bench.cases import CASE_FILE, generate_cases, load_cases
 from retimer.bench.harness import SUMMARY_MD, load_results, run_benchmark
 from retimer.bench.report import build_summary, render_markdown
 from retimer.bench.runners import DEFAULT_SYSTEMS, Runner, builtin_runners
 from retimer.bench.seeds import SeedError, fetch_seed_audio
+from retimer.bench.soundcheck import (
+    REACH_MS,
+    WINDOW_MS,
+    SoundCheckError,
+    check_files,
+    render_text,
+)
+from retimer.io import SubtitleError, load
 
 DEFAULT_SEEDS = Path("bench/seeds")
 DEFAULT_MEDIA = Path("data/bench/media")
@@ -87,6 +96,18 @@ def _cmd_report(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_soundcheck(args: argparse.Namespace) -> int:
+    try:
+        check = check_files(
+            args.audio, load(args.subtitle), round(args.window * 1000), round(args.reach * 1000)
+        )
+    except (AudioError, SoundCheckError, SubtitleError, OSError) as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 1
+    print(check.model_dump_json(indent=2) if args.json else render_text(check))
+    return 0
+
+
 def add_bench_commands(commands: argparse._SubParsersAction) -> None:
     bench = commands.add_parser("bench", help="generate benchmark cases and run systems on them")
     actions = bench.add_subparsers(dest="bench_command", required=True)
@@ -121,3 +142,17 @@ def add_bench_commands(commands: argparse._SubParsersAction) -> None:
     report = actions.add_parser("report", help="print the summary of a stored run")
     report.add_argument("results", type=Path)
     report.set_defaults(run=_cmd_report)
+
+    soundcheck = actions.add_parser(
+        "soundcheck", help="check where the lines of a subtitle start against the sound itself"
+    )
+    soundcheck.add_argument("audio", type=Path, help="audio or video file")
+    soundcheck.add_argument("subtitle", type=Path)
+    soundcheck.add_argument(
+        "--window", type=float, default=WINDOW_MS / 1000, help="seconds per stretch"
+    )
+    soundcheck.add_argument(
+        "--reach", type=float, default=REACH_MS / 1000, help="seconds searched either way"
+    )
+    soundcheck.add_argument("--json", action="store_true", help="print the check as JSON")
+    soundcheck.set_defaults(run=_cmd_soundcheck)
