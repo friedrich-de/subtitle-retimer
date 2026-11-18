@@ -3,7 +3,10 @@
     {
       "id": "tears-of-steel",
       "title": "Tears of Steel",
-      "subtitles": {"en": "tears-of-steel/en.srt", "ja": "tears-of-steel/ja.srt"},
+      "subtitles": {
+        "en": "tears-of-steel/en.srt",
+        "ja": "tears-of-steel/ja.srt"
+      },
       "audio": {
         "file": "tears-of-steel.ogg",
         "language": "en",
@@ -15,7 +18,10 @@
     {
       "id": "sintel",
       "title": "Sintel",
-      "subtitles": {"en": "sintel/en.srt", "ja": "sintel/ja.srt"},
+      "subtitles": {
+        "en": "sintel/en.srt",
+        "ja": "sintel/ja.srt"
+      },
       "audio": {
         "file": "sintel.ogg",
         "language": "en",
@@ -23,6 +29,36 @@
       },
       "license": "CC BY 3.0",
       "attribution": "(CC) Blender Foundation | durian.blender.org"
+    },
+    {
+      "id": "rooftop-tomato-club-01",
+      "title": "The Rooftop Tomato Club, episode 1: The First One",
+      "subtitles": {
+        "en": "rooftop-tomato-club/01/en.srt",
+        "ja": "rooftop-tomato-club/01/ja.srt"
+      },
+      "series": "rooftop-tomato-club",
+      "attribution": "Made up for this benchmark: the lines were written by a language model and timed by rule. Not taken from any show."
+    },
+    {
+      "id": "rooftop-tomato-club-02",
+      "title": "The Rooftop Tomato Club, episode 2: Too Many Leaves",
+      "subtitles": {
+        "en": "rooftop-tomato-club/02/en.srt",
+        "ja": "rooftop-tomato-club/02/ja.srt"
+      },
+      "series": "rooftop-tomato-club",
+      "attribution": "Made up for this benchmark: the lines were written by a language model and timed by rule. Not taken from any show."
+    },
+    {
+      "id": "rooftop-tomato-club-03",
+      "title": "The Rooftop Tomato Club, episode 3: The Day It Turned Red",
+      "subtitles": {
+        "en": "rooftop-tomato-club/03/en.srt",
+        "ja": "rooftop-tomato-club/03/ja.srt"
+      },
+      "series": "rooftop-tomato-club",
+      "attribution": "Made up for this benchmark: the lines were written by a language model and timed by rule. Not taken from any show."
     }
   ]
 }

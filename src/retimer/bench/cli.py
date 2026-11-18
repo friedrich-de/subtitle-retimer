@@ -13,6 +13,16 @@ from retimer.bench.harness import SUMMARY_MD, load_results, run_benchmark
 from retimer.bench.report import build_summary, render_markdown
 from retimer.bench.runners import DEFAULT_SYSTEMS, Runner, builtin_runners
 from retimer.bench.seeds import SeedError, fetch_seed_audio
+from retimer.bench.series import (
+    SCRIPT_FILE,
+    Series,
+    SeriesError,
+    Writer,
+    lay_out,
+    load_series,
+    save_series,
+    write_series,
+)
 from retimer.bench.soundcheck import (
     REACH_MS,
     WINDOW_MS,
@@ -66,7 +76,7 @@ def _cmd_systems(args: argparse.Namespace) -> int:
 def _cmd_run(args: argparse.Namespace) -> int:
     if not any(args.cases.glob(f"*/{CASE_FILE}")):
         _generate(args)
-    cases = load_cases(args.cases, args.only)
+    cases = load_cases(args.cases, args.only, args.family.split(",") if args.family else None)
     if not cases:
         print("error: no cases to run", file=sys.stderr)
         return 1
@@ -108,6 +118,38 @@ def _cmd_soundcheck(args: argparse.Namespace) -> int:
     return 0
 
 
+def _saved_series(series: Series, args: argparse.Namespace) -> None:
+    seeds = save_series(series, args.seeds, args.seed)
+    for seed, episode in zip(seeds, series.episodes, strict=True):
+        spoken = lay_out(series, episode, args.seed)
+        _say(f"{seed.id}: {len(spoken)} beats, {spoken[-1].end_ms / 60_000:.1f} minutes")
+
+
+def _cmd_write_series(args: argparse.Namespace) -> int:
+    try:
+        writer = Writer()
+        series = write_series(writer, args.episodes, _say)
+    except (SeriesError, RuntimeError, ValueError) as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 1
+    _saved_series(series, args)
+    _say(
+        f"wrote {args.seeds / series.slug} for ${writer.cost_usd:.3f} "
+        f"({writer.tokens['input']} tokens in, {writer.tokens['output']} out)"
+    )
+    return 0
+
+
+def _cmd_time_series(args: argparse.Namespace) -> int:
+    try:
+        series = load_series(args.seeds / args.series / SCRIPT_FILE)
+    except (OSError, ValueError) as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 1
+    _saved_series(series, args)
+    return 0
+
+
 def add_bench_commands(commands: argparse._SubParsersAction) -> None:
     bench = commands.add_parser("bench", help="generate benchmark cases and run systems on them")
     actions = bench.add_subparsers(dest="bench_command", required=True)
@@ -126,6 +168,20 @@ def add_bench_commands(commands: argparse._SubParsersAction) -> None:
     add_dirs(generate)
     generate.set_defaults(run=_cmd_generate)
 
+    written = actions.add_parser(
+        "write-series", help="have the model write a made-up series as seed material"
+    )
+    written.add_argument("--seeds", type=Path, default=DEFAULT_SEEDS, help="seed material")
+    written.add_argument("--episodes", type=int, default=3)
+    written.add_argument("--seed", type=int, default=0, help="what the times are drawn from")
+    written.set_defaults(run=_cmd_write_series)
+
+    timed = actions.add_parser("time-series", help="time the script of a made-up series again")
+    timed.add_argument("series", help="its directory name under the seed material")
+    timed.add_argument("--seeds", type=Path, default=DEFAULT_SEEDS, help="seed material")
+    timed.add_argument("--seed", type=int, default=0, help="what the times are drawn from")
+    timed.set_defaults(run=_cmd_time_series)
+
     systems = actions.add_parser("systems", help="list the systems and whether they can run here")
     systems.set_defaults(run=_cmd_systems)
 
@@ -133,6 +189,7 @@ def add_bench_commands(commands: argparse._SubParsersAction) -> None:
     add_dirs(run)
     run.add_argument("--systems", help=f"comma separated, default: {','.join(DEFAULT_SYSTEMS)}")
     run.add_argument("--only", help="run only the cases whose id contains this text")
+    run.add_argument("--family", help="run only these families of cases, comma separated")
     run.add_argument("--repeats", type=int, default=1, help="runs per case, for stability")
     run.add_argument("--workers", type=int, default=2, help="cases run at the same time")
     run.add_argument("--label", help="a name added to the results directory")

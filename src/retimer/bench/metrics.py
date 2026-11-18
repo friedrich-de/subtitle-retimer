@@ -25,6 +25,12 @@ LOOSE_TOLERANCE_MS = 500
 # A system that reports no outcome is taken to have left the file alone when no
 # line moved further than the tightest tolerance.
 UNMOVED_MS = TOLERANCES_MS[0]
+# Cases in which nothing may be retimed. A wrong reference has to be refused.
+# A reference that says nothing about speech, such as a track of signs, may be
+# refused or the file may come back as it was.
+REFUSED = "rejected_no_match"
+LEFT_ALONE = "left_alone"
+NO_TIMING = (REFUSED, LEFT_ALONE)
 
 _SPACE = re.compile(r"\s+")
 
@@ -76,8 +82,8 @@ def match_output_ids(target: Subtitle, output: Subtitle) -> list[int | None]:
         by_text[_key(line.text)].append(line.id)
     taken: dict[str, int] = defaultdict(int)
     ids: list[int | None] = [None] * len(output)
-    order = sorted(range(len(output)), key=lambda i: (output.lines[i].start_ms, i))
     lines = output.lines
+    order = sorted(range(len(lines)), key=lambda i: (lines[i].start_ms, i))
     for index in order:
         key = _key(lines[index].text)
         position = taken[key]
@@ -87,17 +93,20 @@ def match_output_ids(target: Subtitle, output: Subtitle) -> list[int | None]:
     return ids
 
 
-def infer_outcome(target: Subtitle, output: Subtitle, output_ids: Sequence[int | None]) -> str:
-    """The outcome of a tool that does not report one: did it move anything?"""
+def _unmoved(target: Subtitle, output: Subtitle, output_ids: Sequence[int | None]) -> bool:
+    """Whether every line of the output that came from the target is where it was."""
     original = {line.id: line.start_ms for line in target.lines}
     moved = [
         abs(line.start_ms - original[line_id])
         for line, line_id in zip(output.lines, output_ids, strict=True)
         if line_id is not None
     ]
-    if moved and max(moved) <= UNMOVED_MS:
-        return "already_in_sync"
-    return "synced"
+    return bool(moved) and max(moved) <= UNMOVED_MS
+
+
+def infer_outcome(target: Subtitle, output: Subtitle, output_ids: Sequence[int | None]) -> str:
+    """The outcome of a tool that does not report one: did it move anything?"""
+    return "already_in_sync" if _unmoved(target, output, output_ids) else "synced"
 
 
 def _shares(errors: Sequence[float], total: int) -> dict[str, float]:
@@ -131,8 +140,10 @@ def evaluate(
     if outcome is None:
         outcome = "failed" if output is None else infer_outcome(target, output, output_ids or [])
 
-    if expected_outcome == "rejected_no_match":
-        correct = outcome == "rejected_no_match"
+    if expected_outcome in NO_TIMING:
+        correct = outcome == REFUSED
+        if expected_outcome == LEFT_ALONE and output is not None and outcome != "failed":
+            correct = correct or _unmoved(target, output, output_ids or [])
         return FileMetrics(
             outcome=outcome,
             expected_outcome=expected_outcome,
@@ -148,7 +159,9 @@ def evaluate(
 
     timed = [line for line in truth if line.true_start_ms is not None]
     dialogue = [line for line in timed if line.kind == "base" and line.label == "dialogue"]
-    absent = [line for line in truth if line.true_start_ms is None]
+    # A line of no length is shown to nobody, so nobody has to remove it.
+    seen = {line.id for line in target.lines if line.duration_ms > 0}
+    absent = [line for line in truth if line.true_start_ms is None and line.id in seen]
     remove_kinds = set(remove_kinds)
 
     signed = [starts[line.id] - line.true_start_ms for line in dialogue if line.id in starts]
@@ -223,7 +236,7 @@ def summarize(results: Sequence[dict], system: str, group: str) -> Summary:
     the rest. The tolerance shares are pooled over all dialogue lines.
     """
     metrics = [FileMetrics.model_validate(result["metrics"]) for result in results]
-    timing = [m for m in metrics if m.expected_outcome != "rejected_no_match"]
+    timing = [m for m in metrics if m.expected_outcome not in NO_TIMING]
     medians = [m.median_error_ms for m in timing if m.median_error_ms is not None]
     p90s = [m.p90_error_ms for m in timing if m.p90_error_ms is not None]
     lines = sum(m.lines_scored for m in timing)

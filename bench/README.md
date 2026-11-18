@@ -29,6 +29,89 @@ cut is shortened to fit.
 Every seed is synced against its audio, against a subtitle in another language,
 and (for the first language) against both.
 
+## Cases that replicate real files
+
+A run over 1,600 real pairs of subtitles showed where syncing goes wrong or
+gets hard. Those files are other people's work and cannot be published. So
+every problem found there is rebuilt from the seed material, with the same
+shape and with known-correct timing. Nothing in these cases is taken from a
+real episode: song words, signs and speaker names are made up.
+
+| Family | What real files did | The case | Expected outcome |
+| --- | --- | --- | --- |
+| `loose_reference` | No two subtitles of a film share their timing | Offset, rate and breaks as in the plain families, against a reference that was timed anew | `synced`, and one `already_in_sync` |
+| `cold_open` | A short scene, then a sponsor card or a longer opening that the other version does not have | Two to six lines, a break of 4 s or 10 s, then the rest. One case is a recording from television with two commercial breaks as well | `synced` |
+| `caption_drift` | Broadcast captions sit a fraction of a second early for minutes | One or two stretches of the file are 0.35 s to 0.5 s early | `synced` |
+| `pack` | Several episodes in one file | The episode with another one before it, after it, or half of it on either side | `synced`, with the other episode removed |
+| `mid_scene` | Two versions differ by a few seconds in the middle of a scene | A cut of 3 s or an insert of 5 s where the lines are dense, not in a pause | `synced` |
+| `next_episode` | The next episode was sent by mistake, and episodes of a series share lines | Another episode as the target. It shares its opening lines with the reference, or short phrases all over the file | `rejected_no_match` |
+| `signs_reference` | The reference track holds only signs and songs | A reference without one line of dialogue: a typeset script of signs and songs, or a plain file of sign texts | `left_alone` |
+| `karaoke` | A typeset script is mostly karaoke and signs | The target, the reference or both carry an opening, an ending and moving signs the way a karaoke template writes them: thousands of lines around the dialogue, up to 14,000 | `synced` |
+| `captions` | Captions name the speaker and describe sounds | Speaker names, marks, sound descriptions and music notes in the target, with and without the request to clean them | `synced`, cleaned as the options say |
+| `bilingual` | Two languages in one file, or reading aids above the lines | Both languages in every line, both as lines of their own, or small kana above some of the lines | `synced` |
+| `odd_times` | A tool cut a script into parts and wrote times only players read | Times such as `0:2:-96.50`, and the lines of the part before it at times before zero, where no player shows them | `synced` |
+
+The target is the last language of a seed and the reference its first, so
+Japanese captions are synced to an English subtitle, as in the real files.
+Where the problem lies in the target and not in the reference, the case is
+built against the audio as well. Where a case needs another episode it takes
+the next seed of the same series. The two films stand in for each other.
+
+One thing differs from the plain families throughout. There, the two languages
+of a seed are used as they are, and for the films that means timing shared to
+the millisecond, which no two subtitles of a real film have. Here every case
+gets a reference of its own, timed anew the way a second translator would
+have: each line start moved by about 150 ms (500 ms at most), some neighbours
+joined into one line, some long lines cut in two, a few short ones left out.
+Taken over all its lines the reference stays where it was, so its timing is
+still the true one. It is stored in the case directory.
+
+`left_alone` is an outcome of its own. A track of signs says nothing about
+where a spoken line belongs. Refusing the job is right, and so is handing the
+file back unmoved. Moving the lines is wrong.
+
+## The made-up series
+
+The two films are short and sparse: 76 and 26 lines in 12 and 15 minutes, and
+nothing follows them. An episode of a series has some 390 lines in 22
+minutes, opens and closes with the same words every week, and is followed by
+another one with the same people in it. Real episodes cannot be published, so
+the benchmark has a series that was written for it: *The Rooftop Tomato Club*,
+three episodes about a school garden club, in Japanese and English.
+
+The lines were written by the model the agent runs on, Claude Haiku 5.5, scene
+by scene from an outline it made first. It writes a scene as beats. A beat is
+one thing one character says, as the Japanese captions show it and as an
+English subtitle shows it, and either side may show it in one line or in two.
+One beat in six is cut differently in the two languages, so the files do not
+pair line for line. More than a fifth of the beats are reactions of a few
+characters.
+Every episode opens with the same three lines of narration, and its preview
+of the next episode closes with the same line.
+
+The times are made by rule from a seeded generator. How long a line takes to
+say follows from its sounds, at about eight a second. Pauses are short within
+an exchange and long between scenes. An episode is laid out like a broadcast:
+the narration, a scene, 90 seconds for the opening song, two halves with a
+card between them, 90 seconds for the ending song, and the preview. Both
+languages are timed against the same speech. The captions start with it. The
+subtitles start within 80 ms of it and stay up longer.
+
+There is no sound, so the series only gives cases against a reference
+subtitle. And it is a model's idea of dialogue with a rule's idea of timing:
+it has the density, the line lengths and the repetition of an episode, and
+not the habits of a real captioner. For those, real files stay the measure.
+
+```bash
+retimer bench write-series                              # a new series from the model
+retimer bench time-series rooftop-tomato-club --seed 1  # draw the times of a script again
+```
+
+`write-series` needs the key the agent needs, and took six minutes and 10
+cents for three episodes. It adds the episodes to `seeds.json` under the name
+of their series and stores the script as `series.json` beside the subtitles,
+so the times can be drawn again without the model.
+
 ## Case format
 
 A case is a directory with the target subtitle and a `case.json`:
@@ -47,8 +130,13 @@ A case is a directory with the target subtitle and a `case.json`:
 ```
 
 `truth` has one entry per line of the target, by position in the file. A line
-with no `true_start_ms` has no place in the reference (a trailing ad, say) and
-is expected to be trimmed. Paths are relative to the case directory.
+with no `true_start_ms` has no place in the reference (a trailing ad, say, or
+a line of another episode) and is expected to be trimmed. Paths are relative
+to the case directory. A case that replicates a real file has its reference
+subtitle beside the target, as `reference.srt` or `reference.ass`.
+
+`expected_outcome` is `synced`, `already_in_sync`, `rejected_no_match` or
+`left_alone`.
 
 A naturally mistimed file becomes a case the same way: write the directory by
 hand, with `truth` taken from a hand-checked copy. Generated cases live under
@@ -61,9 +149,9 @@ rebuilds them and always produces the same set.
 | --- | --- |
 | Line error | Distance between the start of a dialogue line after syncing and its true start. Median and 90th percentile per file. |
 | Within tolerance | Share of dialogue lines within 100 ms, 250 ms and 500 ms. A dialogue line the system removed counts as outside. |
-| File success | At least 95% of a file's dialogue lines within 250 ms. For a wrong-content case: the system rejected it. |
+| File success | At least 95% of a file's dialogue lines within 250 ms. For a case that is to be rejected: the system rejected it. For a case that is to be left alone: it rejected it, or no line moved. |
 | At 500 ms | The same with 500 ms. See the note on audio below. |
-| Decisions right | Correct outcome on the in-sync and wrong-content cases, and trailing lines trimmed without losing dialogue. |
+| Decisions right | Correct outcome on the cases that are in sync, to be rejected or to be left alone, and lines without a place in the reference trimmed without losing dialogue. |
 | Time and cost | Wall-clock seconds and provider cost per file. |
 | Stability | With `--repeats`, how often repeated runs agree and how far their median errors spread. |
 
@@ -193,3 +281,7 @@ Each run writes a directory under `data/bench/results`:
 - `summary.md` and `summary.json`: the tables.
 - `run.json`: when it ran and the tool versions.
 - `outputs/<system>/<case>/`: the file each system produced.
+
+Runs worth keeping are written up in [baselines/](baselines/). The one over all
+535 cases, with alass and ffsubsync next to the pipeline and the agent, is
+[baselines/2026-11-18-real-file-problems.md](baselines/2026-11-18-real-file-problems.md).

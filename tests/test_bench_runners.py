@@ -66,7 +66,12 @@ def test_the_oracle_solves_every_generated_case(cases, tmp_path):
     assert rows["input"]["file_success"] < 0.2
     assert {row["group"] for row in summary["by_family"]} >= {"constant", "blocks", "noise"}
     assert (tmp_path / "results" / "summary.md").read_text().startswith("# Benchmark results")
-    assert len(load_results(tmp_path / "results")) == 2 * len(list(cases.glob("*/case.json")))
+    # The oracle sits out the two cases that have no plan to undo them: the odd times.
+    assert len(load_results(tmp_path / "results")) == 2 * len(list(cases.glob("*/case.json"))) - 2
+    families = {row["group"]: row for row in summary["by_family"] if row["system"] == "oracle"}
+    # A case that is to be refused or left alone is judged by the decision alone.
+    for family in ("next_episode", "signs_reference", "wrong_content"):
+        assert families[family]["decision_accuracy"] == 1.0
 
 
 def test_a_command_tool_is_run_and_scored(cases, tmp_path, fake_tool):

@@ -21,6 +21,7 @@ from pydantic import BaseModel, Field
 
 from retimer.audio import AudioError
 from retimer.bench.cases import LoadedCase
+from retimer.bench.metrics import LEFT_ALONE, NO_TIMING, REFUSED
 from retimer.cache import Cache
 from retimer.engine import PlanError, apply_plan
 from retimer.io import dumps, load, save
@@ -96,11 +97,15 @@ class OracleRunner:
         return None
 
     def supports(self, case: LoadedCase) -> bool:
-        return case.case.ideal_plan is not None or case.case.family == "wrong_content"
+        return case.case.ideal_plan is not None or case.case.expected_outcome in NO_TIMING
 
     def run(self, case: LoadedCase, work_dir: Path) -> RunOutput:
-        if case.case.family == "wrong_content":
-            return RunOutput(outcome="rejected_no_match")
+        if case.case.expected_outcome == REFUSED:
+            return RunOutput(outcome=REFUSED)
+        if case.case.expected_outcome == LEFT_ALONE:
+            output = work_dir / case.case.target
+            shutil.copyfile(case.target_path, output)
+            return RunOutput(outcome="partial", output_path=output)
         plan = case.case.ideal_plan
         try:
             result = apply_plan(load(case.target_path), plan)

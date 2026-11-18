@@ -17,7 +17,26 @@ from retimer.bench.metrics import (
     summarize,
 )
 
-_FAMILY_ORDER = ("none", "constant", "rate", "blocks", "mixed", "noise", "wrong_content")
+_FAMILY_ORDER = (
+    "none",
+    "constant",
+    "rate",
+    "blocks",
+    "mixed",
+    "noise",
+    "wrong_content",
+    "loose_reference",
+    "cold_open",
+    "caption_drift",
+    "pack",
+    "mid_scene",
+    "next_episode",
+    "signs_reference",
+    "karaoke",
+    "captions",
+    "bilingual",
+    "odd_times",
+)
 _REFERENCE_ORDER = ("audio", "subtitle", "both")
 
 

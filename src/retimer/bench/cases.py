@@ -11,19 +11,40 @@ import json
 import os
 import random
 import zlib
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel, Field
 
 from retimer.bench.distort import Break, Distortion, DistortionError, Noise, TruthLine, distort
+from retimer.bench.realfile import Material, RealRecipe, real_file_recipes
 from retimer.io import dumps, load
 from retimer.model import Subtitle
 from retimer.plan import Plan
 from retimer.views import Options
 
-Family = Literal["constant", "rate", "blocks", "mixed", "noise", "none", "wrong_content"]
+Family = Literal[
+    "constant",
+    "rate",
+    "blocks",
+    "mixed",
+    "noise",
+    "none",
+    "wrong_content",
+    # What real files did, rebuilt from the seeds. See `retimer.bench.realfile`.
+    "loose_reference",
+    "cold_open",
+    "caption_drift",
+    "pack",
+    "mid_scene",
+    "next_episode",
+    "signs_reference",
+    "karaoke",
+    "captions",
+    "bilingual",
+    "odd_times",
+]
 ReferenceKind = Literal["audio", "subtitle", "both"]
 
 CASE_FILE = "case.json"
@@ -54,6 +75,9 @@ class Seed(BaseModel):
     title: str
     subtitles: dict[str, str]
     audio: SeedAudio | None = None
+    # Episodes of one series name it. Another episode of it is what a case
+    # takes when it needs "the wrong episode".
+    series: str | None = None
     license: str | None = None
     attribution: str | None = None
 
@@ -239,13 +263,27 @@ def load_seeds(directory: Path) -> SeedSet:
     return SeedSet.model_validate_json((directory / SEEDS_FILE).read_text(encoding="utf-8"))
 
 
+def other_episode(seeds: list[Seed], seed: Seed) -> Seed | None:
+    """The seed that stands in for the wrong episode: the next one of the same series.
+
+    Seeds that name no series count as one group, so the films pair with each other.
+    """
+    group = [item for item in seeds if item.series == seed.series]
+    if len(group) < 2:
+        return None
+    return group[(group.index(seed) + 1) % len(group)]
+
+
 def _relative(path: Path, start: Path) -> str:
     return os.path.relpath(path.resolve(), start.resolve())
 
 
-def _write_case(directory: Path, case: Case, target: Subtitle) -> None:
+def _write_case(
+    directory: Path, case: Case, target: Subtitle, target_text: str | None = None
+) -> None:
+    """Write a case. `target_text` is the target as it is, where the writer would tidy it."""
     directory.mkdir(parents=True, exist_ok=True)
-    (directory / case.target).write_text(dumps(target), encoding="utf-8")
+    (directory / case.target).write_text(target_text or dumps(target), encoding="utf-8")
     (directory / CASE_FILE).write_text(
         json.dumps(case.model_dump(mode="json", by_alias=True), ensure_ascii=False, indent=1),
         encoding="utf-8",
@@ -277,12 +315,16 @@ def generate_cases(
     out_dir: Path,
     recipes: list[Recipe] | None = None,
     progress: Callable[[str], None] | None = None,
+    real_recipes: list[RealRecipe] | None = None,
 ) -> list[str]:
     """Write the case set for every seed and return the case ids.
 
     Cases that need audio are skipped for seeds whose audio has not been fetched.
+    The cases that replicate real files are written too, unless `recipes`
+    names the plain ones to write and `real_recipes` names none.
     """
     say = progress or (lambda message: None)
+    with_real_files = recipes is None or real_recipes is not None
     recipes = recipes if recipes is not None else seed_recipes()
     seeds = load_seeds(seeds_dir).seeds
     written: list[str] = []
@@ -293,7 +335,7 @@ def generate_cases(
         path = media_dir / seed.audio.file
         return path if path.exists() else None
 
-    for position, seed in enumerate(seeds):
+    for seed in seeds:
         audio = audio_of(seed)
         if seed.audio is not None and audio is None:
             say(f"{seed.id}: no audio at {media_dir / seed.audio.file}, audio cases are left out")
@@ -341,10 +383,10 @@ def generate_cases(
                 _write_case(directory, case, result.subtitle)
                 written.append(case_id)
 
-        # Wrong content: this seed's subtitle against the next seed's reference.
-        if len(seeds) < 2:
+        # Wrong content: this seed's subtitle against the reference of another episode.
+        other_seed = other_episode(seeds, seed)
+        if other_seed is None:
             continue
-        other_seed = seeds[(position + 1) % len(seeds)]
         other_audio = audio_of(other_seed)
         language = next(iter(seed.subtitles))
         base = load(seeds_dir / seed.subtitles[language])
@@ -377,6 +419,92 @@ def generate_cases(
             )
             _write_case(directory, case, base)
             written.append(case_id)
+    if with_real_files:
+        written += _generate_real_file_cases(seeds, seeds_dir, out_dir, audio_of, real_recipes, say)
+    return written
+
+
+def _generate_real_file_cases(
+    seeds: list[Seed],
+    seeds_dir: Path,
+    out_dir: Path,
+    audio_of: Callable[[Seed], Path | None],
+    recipes: list[RealRecipe] | None,
+    say: Callable[[str], None],
+) -> list[str]:
+    """The cases that replicate what real files did.
+
+    They are built for the pairing real files come in: a target in the
+    second language of a seed, against a reference subtitle in its first
+    language or against its audio. They need a second seed, which stands in
+    for another episode.
+    """
+    recipes = recipes if recipes is not None else real_file_recipes()
+    written: list[str] = []
+    for seed in seeds:
+        languages = list(seed.subtitles)
+        other_seed = other_episode(seeds, seed)
+        if other_seed is None or len(languages) < 2:
+            continue
+        reference_language, language = languages[0], languages[-1]
+        if language not in other_seed.subtitles:
+            continue
+        audio = audio_of(seed)
+        target = load(seeds_dir / seed.subtitles[language])
+        reference = load(seeds_dir / seed.subtitles[reference_language])
+        other_target = load(seeds_dir / other_seed.subtitles[language])
+        for recipe in recipes:
+            kinds: list[ReferenceKind] = ["subtitle"]
+            if recipe.audio and audio is not None:
+                kinds.append("audio")
+            for kind in kinds:
+                tail = f"-{reference_language}" if kind == "subtitle" else ""
+                case_id = f"{seed.id}.{language}.{kind}{tail}.{recipe.label}"
+                directory = out_dir / case_id
+                material = Material(
+                    seed_id=seed.id,
+                    language=language,
+                    reference_language=reference_language,
+                    target=target,
+                    reference=reference,
+                    other_target=other_target,
+                    case_seed=_stable_seed(case_id),
+                )
+                try:
+                    built = recipe.build(material, kind == "audio")
+                except DistortionError as error:
+                    say(f"skipped {case_id}: {error}")
+                    continue
+                if kind == "audio":
+                    described = Reference(
+                        kind="audio",
+                        audio=_relative(audio, directory),
+                        audio_language=seed.audio.language if seed.audio else None,
+                    )
+                else:
+                    made = built.reference if built.reference is not None else reference
+                    name = f"reference.{made.format}"
+                    directory.mkdir(parents=True, exist_ok=True)
+                    (directory / name).write_text(dumps(made), encoding="utf-8")
+                    described = Reference(
+                        kind="subtitle", subtitle=name, subtitle_language=reference_language
+                    )
+                case = Case(
+                    id=case_id,
+                    seed=seed.id,
+                    family=recipe.family,
+                    recipe=recipe.label,
+                    target=f"target.{built.target.format}",
+                    target_language=language,
+                    reference=described,
+                    options=built.options,
+                    expected_outcome=built.expected_outcome,
+                    distortion=built.distortion,
+                    truth=built.truth,
+                    ideal_plan=built.ideal_plan,
+                )
+                _write_case(directory, case, built.target, built.target_text)
+                written.append(case_id)
     return written
 
 
@@ -385,11 +513,16 @@ def load_case(directory: Path) -> LoadedCase:
     return LoadedCase(case=case, directory=directory)
 
 
-def load_cases(directory: Path, pattern: str | None = None) -> list[LoadedCase]:
-    """Every case under `directory`, in name order. `pattern` keeps ids that contain it."""
+def load_cases(
+    directory: Path, pattern: str | None = None, families: Sequence[str] | None = None
+) -> list[LoadedCase]:
+    """Every case under `directory`, in name order.
+
+    `pattern` keeps the ids that contain it, `families` the cases of those families.
+    """
     cases = [
         load_case(path.parent)
         for path in sorted(directory.glob(f"*/{CASE_FILE}"))
         if pattern is None or pattern in path.parent.name
     ]
-    return cases
+    return [case for case in cases if families is None or case.case.family in families]

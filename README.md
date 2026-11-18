@@ -58,6 +58,14 @@ On the 194 seed cases the pipeline syncs 87% of the files, against 43% for the
 best existing tool. How it got there is in
 [bench/baselines/2026-11-16-fixed-pipeline.md](bench/baselines/2026-11-16-fixed-pipeline.md).
 
+On 535 cases, with a made-up series and the problems of real files among them,
+the pipeline solves 86%, the agent 88%, alass 58% and ffsubsync 50% at best.
+With a reference subtitle and nothing to refuse, alass is level with the
+retimer (310 of 345, against 306 and 318). The lead comes from audio, from
+scripts full of karaoke and signs, and from knowing when not to sync. The
+tables, and where the retimer loses, are in
+[bench/baselines/2026-11-18-real-file-problems.md](bench/baselines/2026-11-18-real-file-problems.md).
+
 ## What the agent does
 
 The agent starts where the fixed pipeline stops. The routine steps run first,
@@ -619,6 +627,7 @@ decided. Details are in [bench/README.md](bench/README.md).
 retimer bench fetch-seeds     # download the audio of the two seed films (once)
 retimer bench run             # generate the cases, run every system, print the summary
 retimer bench run --systems pipeline --only tears-of-steel.ja --repeats 3
+retimer bench run --family pack,next_episode,karaoke   # only some kinds of cases
 retimer bench report data/bench/results/<run>
 retimer bench systems         # which systems can run on this machine
 retimer bench soundcheck episode.ogg synced.srt   # do the lines start where a voice sets in?
@@ -713,10 +722,12 @@ Rules the engine enforces:
 | `retimer.cli` | Command line entry point |
 | `retimer.bench.distort` | Distortion generator with ground truth and the ideal plan |
 | `retimer.bench.cases` | Case format, seed recipes and case generation |
+| `retimer.bench.realfile` | The cases that replicate what real files did: packs, the next episode, karaoke scripts, captions and more |
+| `retimer.bench.series` | The made-up series: a model writes the lines, a rule makes the times |
 | `retimer.bench.metrics` | Line error, tolerance shares, file success, decisions, stability |
 | `retimer.bench.runners` | The systems under test: ffsubsync, alass, the pipeline, the agent, input and oracle |
 | `retimer.bench.harness` | Runs systems over cases and stores the results |
 | `retimer.bench.report` | Summary tables |
 | `retimer.bench.soundcheck` | The sound check: line starts against the voices in the audio, without a model |
-| `bench/seeds` | Seed material: two open films with English and Japanese subtitles |
+| `bench/seeds` | Seed material: two open films and a made-up series, each with English and Japanese subtitles |
 | `deploy` | The system service, the keys tool, releases and the smoke test for the server |

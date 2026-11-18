@@ -1,7 +1,7 @@
 import pytest
 
 from retimer import Plan, apply_plan, loads
-from retimer.bench.distort import Distortion, Noise, distort
+from retimer.bench.distort import Distortion, Extra, Noise, distort
 from retimer.bench.metrics import (
     agent_use,
     evaluate,
@@ -102,6 +102,61 @@ def test_wrong_content_is_judged_by_the_decision_alone():
     assert rejected.success and rejected.decision_correct
     synced = evaluate([], base, base, outcome=None, expected_outcome="rejected_no_match")
     assert not synced.success and synced.decision_correct is False
+
+
+def test_a_reference_without_dialogue_is_judged_by_what_happens_to_the_file():
+    # Nothing in such a reference says where the lines belong. Refusing is
+    # right, and so is handing the file back as it came. Moving it is not.
+    base = make_base()
+
+    def judge(output, outcome=None):
+        return evaluate([], base, output, outcome=outcome, expected_outcome="left_alone")
+
+    refused = judge(None, "rejected_no_match")
+    assert refused.success and refused.decision_correct
+    untouched = judge(shifted(base, 40))
+    assert untouched.outcome == "already_in_sync"
+    assert untouched.success and untouched.decision_correct
+    reported = judge(shifted(base, 0), "partial")
+    assert reported.success and reported.decision_correct
+    moved = judge(shifted(base, 8_000))
+    assert not moved.success and moved.decision_correct is False
+    failed = judge(None)
+    assert failed.outcome == "failed" and not failed.success
+    no_file = judge(None, "synced")
+    assert not no_file.success
+
+
+def test_a_line_of_no_length_does_not_have_to_be_removed():
+    extras = [
+        Extra(300_000, 300_000, "shown to nobody", "other_content", timed=False),
+        Extra(310_000, 312_000, "from another episode", "other_content", timed=False),
+    ]
+    case = distort(make_base(), Distortion(), extras=extras)
+    kept = evaluate(
+        case.truth, case.subtitle, case.subtitle, outcome=None, expected_outcome="synced"
+    )
+    assert (kept.absent_lines, kept.absent_removed) == (1, 0)
+    cleaned = apply_plan(
+        case.subtitle,
+        Plan.model_validate(
+            {
+                "content_ops": [
+                    {"op": "remove_lines", "reason": "absent_from_reference", "ids": [41]}
+                ]
+            }
+        ),
+    )
+    done = evaluate(
+        case.truth,
+        case.subtitle,
+        cleaned.subtitle,
+        outcome="synced",
+        expected_outcome="synced",
+        output_ids=cleaned.subtitle.ids,
+    )
+    assert (done.absent_lines, done.absent_removed) == (1, 1)
+    assert done.decision_correct and done.success
 
 
 def test_in_sync_cases_expect_the_file_to_be_left_alone():

@@ -1,0 +1,9061 @@
+{
+ "slug": "rooftop-tomato-club",
+ "title_ja": "屋上のトマト組",
+ "title_en": "The Rooftop Tomato Club",
+ "premise": "At Kisaragi Middle School, a small garden club tends a few pots of tomatoes on the rooftop. When the principal announces that the roof will be turned into solar panels unless the club can prove it grows something worthwhile, the members must save their only dying plant. Their scrambled, argumentative efforts over three weeks pull in a grumpy former member and a sleepy advisor who knows more than he admits.",
+ "characters": [
+  {
+   "name_ja": "真白ハル",
+   "name_en": "Mashiro Haru",
+   "role": "The club president, bright and blunt, who speaks in short, determined sentences and never gives up on a plant."
+  },
+  {
+   "name_ja": "大和田リク",
+   "name_en": "Owada Riku",
+   "role": "A former club member who quit after a failed harvest, sarcastic and dry, hiding his care behind jokes."
+  },
+  {
+   "name_ja": "小泉みのり",
+   "name_en": "Koizumi Minori",
+   "role": "A second-year who measures everything and speaks in numbers, often starting sentences with 'technically'."
+  },
+  {
+   "name_ja": "鳥居トモエ",
+   "name_en": "Torii Tomoe",
+   "role": "A cheerful first-year who names every plant and container, speaking in exclamations and cheerful nonsense."
+  },
+  {
+   "name_ja": "宮下先生",
+   "name_en": "Miyashita-sensei",
+   "role": "The lazy-seeming club advisor who speaks in calm, philosophical remarks and will do almost anything for melon bread."
+  },
+  {
+   "name_ja": "三橋校長",
+   "name_en": "Principal Mitsuhashi",
+   "role": "A strict, formal principal who speaks in rules and deadlines but is secretly fond of good tomatoes."
+  }
+ ],
+ "narration": [
+  {
+   "ja": [
+    "屋上の小さな畑に、今日も風が吹きます。"
+   ],
+   "en": [
+    "On the small rooftop garden, the wind blows again today."
+   ]
+  },
+  {
+   "ja": [
+    "トマトは、まだ赤くなっていません。"
+   ],
+   "en": [
+    "The tomatoes have not turned red yet."
+   ]
+  },
+  {
+   "ja": [
+    "さあ、今日のお話を始めましょう。"
+   ],
+   "en": [
+    "Well then, let's begin today's story."
+   ]
+  }
+ ],
+ "sign_off": {
+  "ja": [
+   "つづきは、また屋上で。"
+  ],
+  "en": [
+   "Continued on the rooftop, next time."
+  ]
+ },
+ "episodes": [
+  {
+   "number": 1,
+   "title_ja": "最初の一つ",
+   "title_en": "The First One",
+   "scenes": [
+    {
+     "part": "cold_open",
+     "summary": "Haru stands alone on the roof at dawn, watering a single wilting tomato plant. She tells the plant out loud that the club will not let it die.",
+     "beats": [
+      {
+       "ja": [
+        "おはよう。"
+       ],
+       "en": [
+        "Morning."
+       ]
+      },
+      {
+       "ja": [
+        "水、もう少しだからね。"
+       ],
+       "en": [
+        "Just a little more water, okay?"
+       ]
+      },
+      {
+       "ja": [
+        "しおれてる。"
+       ],
+       "en": [
+        "You're drooping."
+       ]
+      },
+      {
+       "ja": [
+        "聞こえてる？"
+       ],
+       "en": [
+        "Can you hear me?"
+       ]
+      },
+      {
+       "ja": [
+        "……うん。"
+       ],
+       "en": [
+        "...Yeah."
+       ]
+      },
+      {
+       "ja": [
+        "昨日より、ちょっと葉が硬い。"
+       ],
+       "en": [
+        "Your leaves are stiffer than yesterday."
+       ]
+      },
+      {
+       "ja": [
+        "枯らさない。"
+       ],
+       "en": [
+        "I won't let you die."
+       ]
+      },
+      {
+       "ja": [
+        "絶対に、枯らさないから。"
+       ],
+       "en": [
+        "I mean it. You're not dying on me."
+       ]
+      },
+      {
+       "ja": [
+        "聞いて。"
+       ],
+       "en": [
+        "Listen."
+       ]
+      },
+      {
+       "ja": [
+        "三週間しかないの。",
+        "今日から、ちゃんと世話する。"
+       ],
+       "en": [
+        "We only have three weeks. Starting today, I'll take proper care of you."
+       ]
+      },
+      {
+       "ja": [
+        "校長先生が言ったでしょ。"
+       ],
+       "en": [
+        "The principal said it himself."
+       ]
+      },
+      {
+       "ja": [
+        "屋上がソーラーパネルになるって。"
+       ],
+       "en": [
+        "That this roof is becoming solar panels."
+       ]
+      },
+      {
+       "ja": [
+        "嫌だ。"
+       ],
+       "en": [
+        "No way."
+       ]
+      },
+      {
+       "ja": [
+        "私たちの場所だもん。"
+       ],
+       "en": [
+        "It's our place."
+       ]
+      },
+      {
+       "ja": [
+        "がんばる。"
+       ],
+       "en": [
+        "I'll keep at it."
+       ]
+      },
+      {
+       "ja": [
+        "水やり、終わったよ。"
+       ],
+       "en": [
+        "Watering's done.",
+        "Hang in there."
+       ]
+      },
+      {
+       "ja": [
+        "朝日、来た。"
+       ],
+       "en": [
+        "Sun's up."
+       ]
+      },
+      {
+       "ja": [
+        "ほら、ちょっと明るい。"
+       ],
+       "en": [
+        "See? It's getting brighter."
+       ]
+      },
+      {
+       "ja": [
+        "私も、リクも、トモエも、みのりも。",
+        "誰も、諦めてない。"
+       ],
+       "en": [
+        "Nobody in the club has given up, not me, not Riku, not anyone."
+       ]
+      },
+      {
+       "ja": [
+        "あんたも、まだ諦めないでよね。"
+       ],
+       "en": [
+        "And you'd better not give up either.",
+        "Got it?"
+       ]
+      }
+     ]
+    },
+    {
+     "part": "a",
+     "summary": "Riku and Tomoe argue on the stairs about whether the plant is dead. Riku calls it a lost cause, while Tomoe insists it is only thirsty.",
+     "beats": [
+      {
+       "ja": [
+        "また行くの？"
+       ],
+       "en": [
+        "You're going up there again?"
+       ]
+      },
+      {
+       "ja": [
+        "行くよ！ あの子、待ってるもん。"
+       ],
+       "en": [
+        "Of course! She's waiting for me."
+       ]
+      },
+      {
+       "ja": [
+        "待ってない。もう死んでる。"
+       ],
+       "en": [
+        "She isn't waiting. She's dead."
+       ]
+      },
+      {
+       "ja": [
+        "死んでない！"
+       ],
+       "en": [
+        "She is not!"
+       ]
+      },
+      {
+       "ja": [
+        "葉っぱ、全部しおれてるじゃん。"
+       ],
+       "en": [
+        "Look at her leaves. Every single one is limp."
+       ]
+      },
+      {
+       "ja": [
+        "しおれてるだけ！ 喉かわいてるんだよ。"
+       ],
+       "en": [
+        "They're just droopy. She's parched, that's all."
+       ]
+      },
+      {
+       "ja": [
+        "三日前から水やってんだろ。"
+       ],
+       "en": [
+        "We've been watering her for three days."
+       ]
+      },
+      {
+       "ja": [
+        "じゃあ、もっとあげればいいの！"
+       ],
+       "en": [
+        "Then we give her more!"
+       ]
+      },
+      {
+       "ja": [
+        "根っこが腐ってたら、水やっても意味ないの。"
+       ],
+       "en": [
+        "If the roots are rotting, more water makes it worse.",
+        "Trust me."
+       ]
+      },
+      {
+       "ja": [
+        "えー……。"
+       ],
+       "en": [
+        "Ehh..."
+       ]
+      },
+      {
+       "ja": [
+        "根っこ、見たの？"
+       ],
+       "en": [
+        "Did you actually look at the roots?"
+       ]
+      },
+      {
+       "ja": [
+        "見なくても分かる。"
+       ],
+       "en": [
+        "I don't need to. I can tell."
+       ]
+      },
+      {
+       "ja": [
+        "分かんないくせに！"
+       ],
+       "en": [
+        "You can't tell!"
+       ]
+      },
+      {
+       "ja": [
+        "去年も同じだった。",
+        "同じ形で枯れたんだよ。"
+       ],
+       "en": [
+        "Last year was the same. Same way, same wilt."
+       ]
+      },
+      {
+       "ja": [
+        "去年は去年！"
+       ],
+       "en": [
+        "Last year is last year!"
+       ]
+      },
+      {
+       "ja": [
+        "去年も、今年も、枯れるもんは枯れるの。"
+       ],
+       "en": [
+        "Every year it's the same. What dies, dies.",
+        "Nothing's changed."
+       ]
+      },
+      {
+       "ja": [
+        "リク、ひどい。"
+       ],
+       "en": [
+        "Riku, that's mean."
+       ]
+      },
+      {
+       "ja": [
+        "事実だろ。"
+       ],
+       "en": [
+        "It's a fact."
+       ]
+      },
+      {
+       "ja": [
+        "事実じゃない！",
+        "まだ息してる！"
+       ],
+       "en": [
+        "It isn't! She's still breathing!"
+       ]
+      },
+      {
+       "ja": [
+        "植物は息しないけどな。"
+       ],
+       "en": [
+        "Plants don't breathe, you know."
+       ]
+      },
+      {
+       "ja": [
+        "するもん！"
+       ],
+       "en": [
+        "They do!"
+       ]
+      },
+      {
+       "ja": [
+        "……はいはい。"
+       ],
+       "en": [
+        "Yeah, yeah."
+       ]
+      },
+      {
+       "ja": [
+        "ねえ、茎、触ってみた？ 硬いよ。"
+       ],
+       "en": [
+        "Did you touch the stem? It's still firm."
+       ]
+      },
+      {
+       "ja": [
+        "硬いのは、乾いてるからだ。"
+       ],
+       "en": [
+        "It's firm because it's dried out.",
+        "Dead wood feels like that."
+       ]
+      },
+      {
+       "ja": [
+        "乾いてるなら、まだ戻るってことでしょ！"
+       ],
+       "en": [
+        "Then it can come back, right?"
+       ]
+      },
+      {
+       "ja": [
+        "戻らない。"
+       ],
+       "en": [
+        "It won't."
+       ]
+      },
+      {
+       "ja": [
+        "戻る！ 絶対戻る！"
+       ],
+       "en": [
+        "It will! Absolutely will!"
+       ]
+      },
+      {
+       "ja": [
+        "なんでそう言い切れるんだよ。"
+       ],
+       "en": [
+        "Why are you so sure?"
+       ]
+      },
+      {
+       "ja": [
+        "だって、ハルちゃんが諦めてないもん。",
+        "私たちも、諦めないの。"
+       ],
+       "en": [
+        "Because Haru hasn't given up, so neither will we."
+       ]
+      },
+      {
+       "ja": [
+        "……。"
+       ],
+       "en": [
+        "..."
+       ]
+      },
+      {
+       "ja": [
+        "ほら、リクも手伝って。"
+       ],
+       "en": [
+        "Come on, help us out."
+       ]
+      },
+      {
+       "ja": [
+        "行かねえって言っただろ。"
+       ],
+       "en": [
+        "I told you, I'm not coming."
+       ]
+      },
+      {
+       "ja": [
+        "ふーん、じゃあ、ひとりでやる。"
+       ],
+       "en": [
+        "Fine. I'll do it alone, then."
+       ]
+      },
+      {
+       "ja": [
+        "勝手にしろ。"
+       ],
+       "en": [
+        "Do what you want."
+       ]
+      }
+     ]
+    },
+    {
+     "part": "a",
+     "summary": "Principal Mitsuhashi tells the club that the roof becomes solar panels after the spring festival unless they can prove the garden grows something useful. He states the rule flatly and walks away.",
+     "beats": [
+      {
+       "ja": [
+        "全員、集まってください。"
+       ],
+       "en": [
+        "Everyone, please gather."
+       ]
+      },
+      {
+       "ja": [
+        "校長先生？"
+       ],
+       "en": [
+        "Principal?"
+       ]
+      },
+      {
+       "ja": [
+        "春の文化祭のあと、屋上は太陽光パネルになります。"
+       ],
+       "en": [
+        "After the spring festival, the roof becomes solar panels."
+       ]
+      },
+      {
+       "ja": [
+        "えっ？"
+       ],
+       "en": [
+        "Huh?"
+       ]
+      },
+      {
+       "ja": [
+        "屋上は、私たちの畑です！"
+       ],
+       "en": [
+        "The roof is our garden!"
+       ]
+      },
+      {
+       "ja": [
+        "決定事項だ。"
+       ],
+       "en": [
+        "It's decided."
+       ]
+      },
+      {
+       "ja": [
+        "例外はない。"
+       ],
+       "en": [
+        "There are no exceptions."
+       ]
+      },
+      {
+       "ja": [
+        "ただし、園芸部が役に立つ作物を育てていると",
+        "証明できれば、計画は白紙に戻す。"
+       ],
+       "en": [
+        "Unless the club proves it grows something useful, the plan is scrapped."
+       ]
+      },
+      {
+       "ja": [
+        "証明……？"
+       ],
+       "en": [
+        "Prove it?"
+       ]
+      },
+      {
+       "ja": [
+        "役に立つって、どういう基準ですか。"
+       ],
+       "en": [
+        "What counts as useful? What's the standard?"
+       ]
+      },
+      {
+       "ja": [
+        "人が食べられて、収穫できるもの。"
+       ],
+       "en": [
+        "Something people can eat.",
+        "Something you can actually harvest."
+       ]
+      },
+      {
+       "ja": [
+        "期限は文化祭の前日まで。"
+       ],
+       "en": [
+        "The deadline is the day before the spring festival."
+       ]
+      },
+      {
+       "ja": [
+        "待ってください！"
+       ],
+       "en": [
+        "Wait!"
+       ]
+      },
+      {
+       "ja": [
+        "三週間しかないんですよ！",
+        "苗から育てたら間に合いません！"
+       ],
+       "en": [
+        "We only have three weeks! Starting from seedlings won't make it in time."
+       ]
+      },
+      {
+       "ja": [
+        "三週間で何ができるかは、君たちが考えることだ。"
+       ],
+       "en": [
+        "What you can do in three weeks is for you to work out."
+       ]
+      },
+      {
+       "ja": [
+        "話は以上だ。"
+       ],
+       "en": [
+        "That's all I have to say."
+       ]
+      },
+      {
+       "ja": [
+        "トマト、お好きなんですか？"
+       ],
+       "en": [
+        "Do you like tomatoes?"
+       ]
+      },
+      {
+       "ja": [
+        "……仕事の話をしている。"
+       ],
+       "en": [
+        "...We're discussing work."
+       ]
+      },
+      {
+       "ja": [
+        "なるほど。"
+       ],
+       "en": [
+        "I see."
+       ]
+      },
+      {
+       "ja": [
+        "水やりは、時間を守って。"
+       ],
+       "en": [
+        "Water on schedule.",
+        "Keep your voices down up here."
+       ]
+      },
+      {
+       "ja": [
+        "声が大きいと苦情が来る。"
+       ],
+       "en": [
+        "Complaints come in when it's loud."
+       ]
+      },
+      {
+       "ja": [
+        "はい。"
+       ],
+       "en": [
+        "Yes."
+       ]
+      },
+      {
+       "ja": [
+        "……でも、校長先生。"
+       ],
+       "en": [
+        "...But, Principal."
+       ]
+      },
+      {
+       "ja": [
+        "何だ。"
+       ],
+       "en": [
+        "What is it?"
+       ]
+      },
+      {
+       "ja": [
+        "必ず残してみせます。"
+       ],
+       "en": [
+        "We'll keep it.",
+        "I promise."
+       ]
+      },
+      {
+       "ja": [
+        "期待はしていない。"
+       ],
+       "en": [
+        "I'm not expecting much."
+       ]
+      },
+      {
+       "ja": [
+        "待って！"
+       ],
+       "en": [
+        "Wait!"
+       ]
+      },
+      {
+       "ja": [
+        "期限を過ぎれば、パネルは設置される。",
+        "例外はない。"
+       ],
+       "en": [
+        "After the deadline, the panels go up. No exceptions."
+       ]
+      },
+      {
+       "ja": [
+        "失礼する。"
+       ],
+       "en": [
+        "Excuse me."
+       ]
+      },
+      {
+       "ja": [
+        "待って……"
+       ],
+       "en": [
+        "Hey..."
+       ]
+      }
+     ]
+    },
+    {
+     "part": "a",
+     "summary": "Minori tests the soil and reports to the club that it is packed too tightly and drains badly. She explains the numbers while Tomoe asks what 'drains' means.",
+     "beats": [
+      {
+       "ja": [
+        "土、測ってみた。"
+       ],
+       "en": [
+        "I tested the soil."
+       ]
+      },
+      {
+       "ja": [
+        "結果を言うね。"
+       ],
+       "en": [
+        "Here are the results."
+       ]
+      },
+      {
+       "ja": [
+        "技術的に言うと、良くない。",
+        "土に問題がある。"
+       ],
+       "en": [
+        "Technically, it's not good.",
+        "The soil is the problem."
+       ]
+      },
+      {
+       "ja": [
+        "数値から言うね。"
+       ],
+       "en": [
+        "I'll start with the numbers."
+       ]
+      },
+      {
+       "ja": [
+        "ペーハーは六・八。"
+       ],
+       "en": [
+        "The pH is 6.8."
+       ]
+      },
+      {
+       "ja": [
+        "ペーハーって何！？ おいしいの？"
+       ],
+       "en": [
+        "What's pH? Is it tasty?"
+       ]
+      },
+      {
+       "ja": [
+        "食べ物じゃない。酸性かアルカリ性かの数字。"
+       ],
+       "en": [
+        "It's not food. It's a number for acid or alkaline."
+       ]
+      },
+      {
+       "ja": [
+        "それ、みのりの一番好きな話題だろ。"
+       ],
+       "en": [
+        "That's your favorite topic, isn't it?"
+       ]
+      },
+      {
+       "ja": [
+        "好きじゃない。必要な情報。"
+       ],
+       "en": [
+        "It's not a favorite. It's necessary data."
+       ]
+      },
+      {
+       "ja": [
+        "問題は水はけ。",
+        "百ミリリットルの水が染み込むのに、十一分かかった。"
+       ],
+       "en": [
+        "The real problem is drainage. Pouring a hundred milliliters took eleven minutes to soak in."
+       ]
+      },
+      {
+       "ja": [
+        "水はけって何？"
+       ],
+       "en": [
+        "What does \"drains\" mean?"
+       ]
+      },
+      {
+       "ja": [
+        "水が土から抜けていくこと。"
+       ],
+       "en": [
+        "How fast water runs out of the soil."
+       ]
+      },
+      {
+       "ja": [
+        "抜けていく……ぬけがら？"
+       ],
+       "en": [
+        "Run out... like a snake shedding?",
+        "Like skin falling off, right?"
+       ]
+      },
+      {
+       "ja": [
+        "そういう意味じゃない。"
+       ],
+       "en": [
+        "That's not what it means."
+       ]
+      },
+      {
+       "ja": [
+        "適正は一分から三分。十一分は遅すぎる。"
+       ],
+       "en": [
+        "Healthy soil takes one to three minutes. Eleven is far too slow."
+       ]
+      },
+      {
+       "ja": [
+        "根はどうなってるの？"
+       ],
+       "en": [
+        "What's happening to the roots?"
+       ]
+      },
+      {
+       "ja": [
+        "土が固い。指で押すと十二センチ下で止まる。",
+        "根が伸びられない。"
+       ],
+       "en": [
+        "The soil is packed hard. My finger stopped at twelve centimeters.",
+        "The roots can't grow through it."
+       ]
+      },
+      {
+       "ja": [
+        "技術的には、根が酸素を取り込めない状態。"
+       ],
+       "en": [
+        "Technically, the roots can't get enough oxygen."
+       ]
+      },
+      {
+       "ja": [
+        "酸素！ 息ができないの？ トマトさん、ごめんね！"
+       ],
+       "en": [
+        "Oxygen! It can't breathe? Sorry, Tomato-san!"
+       ]
+      },
+      {
+       "ja": [
+        "名前つけるなって。"
+       ],
+       "en": [
+        "Don't name it."
+       ]
+      },
+      {
+       "ja": [
+        "じゃあ、どうすればいい？"
+       ],
+       "en": [
+        "So what do we do?"
+       ]
+      },
+      {
+       "ja": [
+        "まず砂と腐葉土を混ぜて、土を崩す。",
+        "鉢の底の穴も、三つは必要。"
+       ],
+       "en": [
+        "First we break up the soil with sand and compost. We need at least three drainage holes too."
+       ]
+      },
+      {
+       "ja": [
+        "穴なんか、あけりゃいいだろ。"
+       ],
+       "en": [
+        "Just poke some holes, how hard can it be?"
+       ]
+      },
+      {
+       "ja": [
+        "穴の位置と数を決めないと、水が溜まる。"
+       ],
+       "en": [
+        "The position and number matter, or water pools at the bottom."
+       ]
+      },
+      {
+       "ja": [
+        "はいはい、計算屋さん。"
+       ],
+       "en": [
+        "Yes, Miss Calculator."
+       ]
+      },
+      {
+       "ja": [
+        "計算は趣味じゃない。責任。"
+       ],
+       "en": [
+        "It's not a hobby. It's responsibility."
+       ]
+      },
+      {
+       "ja": [
+        "穴あけるの、ちょっとかわいそう！"
+       ],
+       "en": [
+        "Making holes in them seems mean!"
+       ]
+      },
+      {
+       "ja": [
+        "やろう。今日中に。"
+       ],
+       "en": [
+        "Let's do it today."
+       ]
+      },
+      {
+       "ja": [
+        "うん。",
+        "数字は、あとで記録する。"
+       ],
+       "en": [
+        "Right, I'll log the numbers later."
+       ]
+      },
+      {
+       "ja": [
+        "記録！ ノート、一番かわいいやつ使う！"
+       ],
+       "en": [
+        "A log! I'll use my cutest notebook!"
+       ]
+      },
+      {
+       "ja": [
+        "……まあ、好きにしろ。"
+       ],
+       "en": [
+        "...Do whatever you want."
+       ]
+      },
+      {
+       "ja": [
+        "技術的に、それが一番いい案。"
+       ],
+       "en": [
+        "Technically, that's the best idea anyone's had today."
+       ]
+      }
+     ]
+    },
+    {
+     "part": "a",
+     "summary": "Miyashita-sensei lounges by the fence and says the plant has a root problem, not a water problem. He jokes that he will only help for melon bread.",
+     "beats": [
+      {
+       "ja": [
+        "宮下先生、いるなら手伝って！"
+       ],
+       "en": [
+        "Sensei, if you're there, help us!"
+       ]
+      },
+      {
+       "ja": [
+        "いるよ。ずっとここにいる。"
+       ],
+       "en": [
+        "I'm here. I've been here the whole time."
+       ]
+      },
+      {
+       "ja": [
+        "えっ、いつから！？"
+       ],
+       "en": [
+        "Since when?!"
+       ]
+      },
+      {
+       "ja": [
+        "君が水をやり始めたときから。"
+       ],
+       "en": [
+        "Since you started watering it at dawn."
+       ]
+      },
+      {
+       "ja": [
+        "……声かけてよ。"
+       ],
+       "en": [
+        "...You could've said something."
+       ]
+      },
+      {
+       "ja": [
+        "声かけたら、手伝わされるでしょ。"
+       ],
+       "en": [
+        "If I said something, you'd make me help."
+       ]
+      },
+      {
+       "ja": [
+        "当たり前！ 先生の仕事だよ！"
+       ],
+       "en": [
+        "Obviously! It's your job!"
+       ]
+      },
+      {
+       "ja": [
+        "仕事、ねえ。"
+       ],
+       "en": [
+        "Job, huh."
+       ]
+      },
+      {
+       "ja": [
+        "根っこ、見てくれた？"
+       ],
+       "en": [
+        "Did you look at the roots?"
+       ]
+      },
+      {
+       "ja": [
+        "見たよ。見なくても分かる。"
+       ],
+       "en": [
+        "I did. You don't need to look to know."
+       ]
+      },
+      {
+       "ja": [
+        "水ならあげてる！",
+        "毎日！"
+       ],
+       "en": [
+        "We've been watering it every day!"
+       ]
+      },
+      {
+       "ja": [
+        "水の問題じゃない。根っこの問題。"
+       ],
+       "en": [
+        "It's not a water problem. It's a root problem."
+       ]
+      },
+      {
+       "ja": [
+        "根？"
+       ],
+       "en": [
+        "Roots?"
+       ]
+      },
+      {
+       "ja": [
+        "だから、根が息できてない。"
+       ],
+       "en": [
+        "That's exactly it. The roots can't breathe."
+       ]
+      },
+      {
+       "ja": [
+        "息……？"
+       ],
+       "en": [
+        "Breathe...?"
+       ]
+      },
+      {
+       "ja": [
+        "土が固すぎる。水が溜まって、根が溺れてる。"
+       ],
+       "en": [
+        "The soil's too packed. Water pools and the roots drown.",
+        "Nothing can grow in that."
+       ]
+      },
+      {
+       "ja": [
+        "溺れてる……"
+       ],
+       "en": [
+        "Drowning..."
+       ]
+      },
+      {
+       "ja": [
+        "技術的に、それで合ってる。"
+       ],
+       "en": [
+        "Technically, that's correct."
+       ]
+      },
+      {
+       "ja": [
+        "小泉、どこから聞いてたの。"
+       ],
+       "en": [
+        "Koizumi, how long were you listening?"
+       ]
+      },
+      {
+       "ja": [
+        "報告に来たら、先生がもう喋ってた。"
+       ],
+       "en": [
+        "I came to report, and Sensei was already talking.",
+        "He beat me to it."
+       ]
+      },
+      {
+       "ja": [
+        "ふうん。じゃあ、どうすればいいの。"
+       ],
+       "en": [
+        "Hmm. So what do we do?"
+       ]
+      },
+      {
+       "ja": [
+        "土を崩して、鉢を替える。根は傷つけずに。"
+       ],
+       "en": [
+        "Break up the soil, then repot it.",
+        "Be careful not to hurt the roots."
+       ]
+      },
+      {
+       "ja": [
+        "地味な作業だね。"
+       ],
+       "en": [
+        "Boring work."
+       ]
+      },
+      {
+       "ja": [
+        "地味なのが一番大事。"
+       ],
+       "en": [
+        "The boring part matters most."
+       ]
+      },
+      {
+       "ja": [
+        "……先生、それ前にも言ってたよね。"
+       ],
+       "en": [
+        "...You said that before, didn't you?"
+       ]
+      },
+      {
+       "ja": [
+        "言ったよ。何回でも言う。"
+       ],
+       "en": [
+        "I did. I'll keep saying it."
+       ]
+      },
+      {
+       "ja": [
+        "手伝ってくれる？"
+       ],
+       "en": [
+        "Will you help?"
+       ]
+      },
+      {
+       "ja": [
+        "んー。",
+        "条件がある。"
+       ],
+       "en": [
+        "Hmm. I have one condition."
+       ]
+      },
+      {
+       "ja": [
+        "条件？"
+       ],
+       "en": [
+        "Condition?"
+       ]
+      },
+      {
+       "ja": [
+        "メロンパン。",
+        "一個じゃ足りない。"
+       ],
+       "en": [
+        "Melon bread, and one won't be enough."
+       ]
+      },
+      {
+       "ja": [
+        "はい出た、メロンパン商法。"
+       ],
+       "en": [
+        "There it is, the melon bread racket."
+       ]
+      },
+      {
+       "ja": [
+        "商法って言うな。対価だよ、対価。"
+       ],
+       "en": [
+        "Don't call it a racket. It's a fair trade."
+       ]
+      },
+      {
+       "ja": [
+        "待って。"
+       ],
+       "en": [
+        "Wait."
+       ]
+      },
+      {
+       "ja": [
+        "買うのは僕らでいい。先生は見てて。"
+       ],
+       "en": [
+        "We'll buy it. You just watch from there."
+       ]
+      },
+      {
+       "ja": [
+        "見てるだけでも、ちょっと疲れるからさ。"
+       ],
+       "en": [
+        "Even watching wears me out, you know."
+       ]
+      }
+     ]
+    },
+    {
+     "part": "a",
+     "summary": "Riku admits to Haru that he quit last year after the last tomato failed. He agrees to help if the club keeps his secret, and Haru promises.",
+     "beats": [
+      {
+       "ja": [
+        "大和田くん、どうして辞めたの？"
+       ],
+       "en": [
+        "Owada, why did you quit?"
+       ]
+      },
+      {
+       "ja": [
+        "なんだよ、急に。"
+       ],
+       "en": [
+        "Where's that coming from all of a sudden?"
+       ]
+      },
+      {
+       "ja": [
+        "去年の話。"
+       ],
+       "en": [
+        "It's about last year."
+       ]
+      },
+      {
+       "ja": [
+        "別に。飽きただけ。"
+       ],
+       "en": [
+        "No reason. I just got bored."
+       ]
+      },
+      {
+       "ja": [
+        "嘘。"
+       ],
+       "en": [
+        "Liar."
+       ]
+      },
+      {
+       "ja": [
+        "うるさいな。"
+       ],
+       "en": [
+        "Don't be annoying."
+       ]
+      },
+      {
+       "ja": [
+        "最後のトマト、覚えてる？"
+       ],
+       "en": [
+        "Do you remember the last tomato?"
+       ]
+      },
+      {
+       "ja": [
+        "……覚えてるよ。"
+       ],
+       "en": [
+        "...Yeah, I remember."
+       ]
+      },
+      {
+       "ja": [
+        "実が赤くなる前に、全部割れた。",
+        "水やりは僕の担当だった。"
+       ],
+       "en": [
+        "They all split before they ripened. Watering was my job."
+       ]
+      },
+      {
+       "ja": [
+        "毎日見てたのに、気づけなかった。"
+       ],
+       "en": [
+        "I checked them every day and still missed it."
+       ]
+      },
+      {
+       "ja": [
+        "それで辞めたの？"
+       ],
+       "en": [
+        "So that's why you quit?"
+       ]
+      },
+      {
+       "ja": [
+        "辞めたっていうか、逃げた。"
+       ],
+       "en": [
+        "\"Quit\" is a nice word for it. I ran."
+       ]
+      },
+      {
+       "ja": [
+        "え……"
+       ],
+       "en": [
+        "Oh..."
+       ]
+      },
+      {
+       "ja": [
+        "逃げたとは、違うと思う。"
+       ],
+       "en": [
+        "I don't think running is the right word."
+       ]
+      },
+      {
+       "ja": [
+        "慰めはいらない。"
+       ],
+       "en": [
+        "Don't bother comforting me."
+       ]
+      },
+      {
+       "ja": [
+        "慰めてないよ。事実。"
+       ],
+       "en": [
+        "I'm not.",
+        "Just stating facts."
+       ]
+      },
+      {
+       "ja": [
+        "……ふん。"
+       ],
+       "en": [
+        "...Hmph."
+       ]
+      },
+      {
+       "ja": [
+        "一個も食べられなかった。"
+       ],
+       "en": [
+        "We didn't get to eat a single one."
+       ]
+      },
+      {
+       "ja": [
+        "それが一番きつかった。"
+       ],
+       "en": [
+        "That was the worst part."
+       ]
+      },
+      {
+       "ja": [
+        "大和田くん、今もトマト好きなんだね。"
+       ],
+       "en": [
+        "You still like tomatoes, don't you, Owada?"
+       ]
+      },
+      {
+       "ja": [
+        "好きじゃない。気になるだけ。"
+       ],
+       "en": [
+        "I don't like them.",
+        "I just can't stop caring."
+       ]
+      },
+      {
+       "ja": [
+        "じゃあ、手伝ってくれる？"
+       ],
+       "en": [
+        "So will you help me?"
+       ]
+      },
+      {
+       "ja": [
+        "……手伝ってもいい。"
+       ],
+       "en": [
+        "...Fine. I'll help."
+       ]
+      },
+      {
+       "ja": [
+        "ただし、お願いがある。"
+       ],
+       "en": [
+        "But I have a request."
+       ]
+      },
+      {
+       "ja": [
+        "このこと、誰にも言わないで。"
+       ],
+       "en": [
+        "Don't tell anyone about this."
+       ]
+      },
+      {
+       "ja": [
+        "特に、トモエには。",
+        "あいつ、すぐ騒ぐから。"
+       ],
+       "en": [
+        "Especially Tomoe. She'll make a huge deal out of it."
+       ]
+      },
+      {
+       "ja": [
+        "え、なんで？"
+       ],
+       "en": [
+        "Why her?"
+       ]
+      },
+      {
+       "ja": [
+        "僕が割ったって、知られたくない。"
+       ],
+       "en": [
+        "I don't want anyone to know I'm the one who lost them.",
+        "Please."
+       ]
+      },
+      {
+       "ja": [
+        "わかった。約束する。"
+       ],
+       "en": [
+        "Okay. I promise."
+       ]
+      },
+      {
+       "ja": [
+        "誰にも言わない。",
+        "絶対。"
+       ],
+       "en": [
+        "I won't tell anyone. Never."
+       ]
+      },
+      {
+       "ja": [
+        "でも、リクもちゃんと来てね。"
+       ],
+       "en": [
+        "But you have to show up too, okay?"
+       ]
+      },
+      {
+       "ja": [
+        "来なかったら、私が屋上まで引っ張ってく。"
+       ],
+       "en": [
+        "If you don't come, I'll drag you up to the roof myself."
+       ]
+      },
+      {
+       "ja": [
+        "分かった、分かった。"
+       ],
+       "en": [
+        "Fine, fine."
+       ]
+      }
+     ]
+    },
+    {
+     "part": "b",
+     "summary": "The members carry bags of soil up the stairs, and Tomoe tries to name each container while Riku mocks the names. Minori tells them to stop and lift properly.",
+     "beats": [
+      {
+       "ja": [
+        "うわ、重っ！"
+       ],
+       "en": [
+        "Whoa, these are heavy!"
+       ]
+      },
+      {
+       "ja": [
+        "ちょっと、一人で二袋はダメ。"
+       ],
+       "en": [
+        "Hey, you're not carrying two bags alone."
+       ]
+      },
+      {
+       "ja": [
+        "大丈夫、いける。"
+       ],
+       "en": [
+        "I'm fine. I can handle it."
+       ]
+      },
+      {
+       "ja": [
+        "階段で転んだら、土まみれだよ。",
+        "本当にやめて。"
+       ],
+       "en": [
+        "If you trip on these stairs, you'll be covered in soil. Seriously, stop."
+       ]
+      },
+      {
+       "ja": [
+        "えっ、うん。"
+       ],
+       "en": [
+        "Oh. Okay."
+       ]
+      },
+      {
+       "ja": [
+        "ねえ見て、この鉢！"
+       ],
+       "en": [
+        "Hey, look at this pot!"
+       ]
+      },
+      {
+       "ja": [
+        "名前はもうつけた。ポットン。"
+       ],
+       "en": [
+        "I already named it. Pottun."
+       ]
+      },
+      {
+       "ja": [
+        "ポットンって何。"
+       ],
+       "en": [
+        "Pottun? What kind of name is that?"
+       ]
+      },
+      {
+       "ja": [
+        "かわいいでしょ！"
+       ],
+       "en": [
+        "Isn't it cute?"
+       ]
+      },
+      {
+       "ja": [
+        "鉢にかわいいって、どうなの。"
+       ],
+       "en": [
+        "Cute for a pot? That's a stretch."
+       ]
+      },
+      {
+       "ja": [
+        "じゃあリクはなんて呼ぶの。"
+       ],
+       "en": [
+        "Then what would you call it, Riku?"
+       ]
+      },
+      {
+       "ja": [
+        "割れ鉢。",
+        "絶対に割れてるやつ。"
+       ],
+       "en": [
+        "Broken Pot.",
+        "Because it's definitely broken."
+       ]
+      },
+      {
+       "ja": [
+        "最低。"
+       ],
+       "en": [
+        "Rude."
+       ]
+      },
+      {
+       "ja": [
+        "事実を言っただけだろ。"
+       ],
+       "en": [
+        "I'm just stating facts."
+       ]
+      },
+      {
+       "ja": [
+        "この土の袋はモグモグ。"
+       ],
+       "en": [
+        "And this soil bag is Mogu-mogu."
+       ]
+      },
+      {
+       "ja": [
+        "土が食べられるわけないじゃん。"
+       ],
+       "en": [
+        "Soil can't eat anything, Riku."
+       ]
+      },
+      {
+       "ja": [
+        "名前の意味は、まだ考えてない。",
+        "今は運ぶ。"
+       ],
+       "en": [
+        "I haven't figured out what the name means yet.",
+        "Let's just get these up first."
+       ]
+      },
+      {
+       "ja": [
+        "ふふ、モグモグ。"
+       ],
+       "en": [
+        "Hehe, Mogu-mogu."
+       ]
+      },
+      {
+       "ja": [
+        "鳥居、階段で喋るな。"
+       ],
+       "en": [
+        "Torii, stop talking on the stairs."
+       ]
+      },
+      {
+       "ja": [
+        "全員、止まって。"
+       ],
+       "en": [
+        "Everyone, stop right where you are."
+       ]
+      },
+      {
+       "ja": [
+        "腰で持つから、腰を痛めるの。",
+        "膝を曲げて。"
+       ],
+       "en": [
+        "You're lifting with your back, which is how people get hurt. Bend your knees."
+       ]
+      },
+      {
+       "ja": [
+        "袋は体に寄せて。"
+       ],
+       "en": [
+        "Pull the bag in close to your body."
+       ]
+      },
+      {
+       "ja": [
+        "理屈では、腰の負担が半分になる。"
+       ],
+       "en": [
+        "In theory, that cuts the strain on your lower back roughly in half."
+       ]
+      },
+      {
+       "ja": [
+        "半分……本当？"
+       ],
+       "en": [
+        "Half? Really?"
+       ]
+      },
+      {
+       "ja": [
+        "測ったわけじゃないけど。",
+        "大体そのくらい。"
+       ],
+       "en": [
+        "I didn't measure it, but it's roughly that.",
+        "Give or take."
+       ]
+      },
+      {
+       "ja": [
+        "測ってないのに、数字言うな。"
+       ],
+       "en": [
+        "You haven't measured anything and you're still throwing out numbers."
+       ]
+      },
+      {
+       "ja": [
+        "技術的には、正しい。"
+       ],
+       "en": [
+        "Technically, I'm still right."
+       ]
+      },
+      {
+       "ja": [
+        "……わかった。やってみる。"
+       ],
+       "en": [
+        "...Fine. I'll try it."
+       ]
+      },
+      {
+       "ja": [
+        "うわ、確かに楽！"
+       ],
+       "en": [
+        "Whoa, that really is easier!"
+       ]
+      },
+      {
+       "ja": [
+        "ほら、言ったでしょ。"
+       ],
+       "en": [
+        "See? Told you."
+       ]
+      },
+      {
+       "ja": [
+        "楽なの、ちょっと悔しい。",
+        "でも本当に楽。"
+       ],
+       "en": [
+        "It's easier, and I'm a little annoyed about it.",
+        "But it really is easier."
+       ]
+      },
+      {
+       "ja": [
+        "残り十袋、一人二袋ずつ。"
+       ],
+       "en": [
+        "Ten bags left. Two each.",
+        "No more arguing about it."
+       ]
+      },
+      {
+       "ja": [
+        "鉢は一列に並べて。"
+       ],
+       "en": [
+        "Line the pots up in a row over there."
+       ]
+      },
+      {
+       "ja": [
+        "やった、ポットンが一番上！"
+       ],
+       "en": [
+        "Yes! Pottun gets the top spot!"
+       ]
+      },
+      {
+       "ja": [
+        "同じ鉢だよ。"
+       ],
+       "en": [
+        "They're all the same pot, Tomoe."
+       ]
+      }
+     ]
+    },
+    {
+     "part": "b",
+     "summary": "Minori and Haru debate the plan, with Minori saying one harvest in two months is impossible from this plant. Haru argues they need seedlings, and Minori cites the number of growing days.",
+     "beats": [
+      {
+       "ja": [
+        "二か月で一回の収穫、この株じゃ無理。"
+       ],
+       "en": [
+        "One harvest in two months from this plant? Impossible."
+       ]
+      },
+      {
+       "ja": [
+        "無理って言わないで。"
+       ],
+       "en": [
+        "Don't say impossible."
+       ]
+      },
+      {
+       "ja": [
+        "事実を言ってるの。"
+       ],
+       "en": [
+        "I'm stating facts, Haru."
+       ]
+      },
+      {
+       "ja": [
+        "根が詰まってて、水もはけてない。"
+       ],
+       "en": [
+        "The roots are packed in, and the water isn't draining at all."
+       ]
+      },
+      {
+       "ja": [
+        "根が詰まってても、まだ生きてる。"
+       ],
+       "en": [
+        "Even with cramped roots, it's still alive."
+       ]
+      },
+      {
+       "ja": [
+        "生きてるのと、実をつけるのは別の話。"
+       ],
+       "en": [
+        "Staying alive and bearing fruit are different things.",
+        "We don't have enough days for that."
+       ]
+      },
+      {
+       "ja": [
+        "じゃあ、苗を買おう。"
+       ],
+       "en": [
+        "Then let's buy seedlings."
+       ]
+      },
+      {
+       "ja": [
+        "苗でも、植え替えで一週間は止まる。"
+       ],
+       "en": [
+        "Even seedlings stall for about a week after transplanting."
+       ]
+      },
+      {
+       "ja": [
+        "一週間？"
+       ],
+       "en": [
+        "A week?"
+       ]
+      },
+      {
+       "ja": [
+        "植えたら花が咲いて、受粉して、実が膨らむ。"
+       ],
+       "en": [
+        "Then it flowers, gets pollinated, and the fruit swells."
+       ]
+      },
+      {
+       "ja": [
+        "一段ずつ、時間がかかるの。"
+       ],
+       "en": [
+        "Each step takes its own time."
+       ]
+      },
+      {
+       "ja": [
+        "早い品種でも、植えてから五十五日くらい。"
+       ],
+       "en": [
+        "Even an early variety needs about fifty-five days after planting."
+       ]
+      },
+      {
+       "ja": [
+        "二か月は六十日。",
+        "差は五日しかない。"
+       ],
+       "en": [
+        "Two months is sixty days, so the margin is only five days."
+       ]
+      },
+      {
+       "ja": [
+        "五日あれば十分でしょ。"
+       ],
+       "en": [
+        "Five days should be plenty."
+       ]
+      },
+      {
+       "ja": [
+        "十分じゃない。"
+       ],
+       "en": [
+        "It isn't."
+       ]
+      },
+      {
+       "ja": [
+        "天気が崩れて、雨が続いたら、それでおしまい。"
+       ],
+       "en": [
+        "One stretch of rain and it's over. Pollen won't set when it's wet like that."
+       ]
+      },
+      {
+       "ja": [
+        "雨が続くと、花粉がくっつかないの。"
+       ],
+       "en": [
+        "Keep raining and the pollen won't stick."
+       ]
+      },
+      {
+       "ja": [
+        "そこまで計算してるの？"
+       ],
+       "en": [
+        "You worked all that out?"
+       ]
+      },
+      {
+       "ja": [
+        "うん。ずっと前から。"
+       ],
+       "en": [
+        "Yes. For a long time."
+       ]
+      },
+      {
+       "ja": [
+        "じゃあ、ゼロって言わないで。"
+       ],
+       "en": [
+        "Then don't call it zero."
+       ]
+      },
+      {
+       "ja": [
+        "ゼロとは言ってない。"
+       ],
+       "en": [
+        "I never said zero. I said the margin is tight."
+       ]
+      },
+      {
+       "ja": [
+        "……ゼロじゃないなら、やる。"
+       ],
+       "en": [
+        "...If it's not zero, then we do it."
+       ]
+      },
+      {
+       "ja": [
+        "小泉、それ数字で出して。"
+       ],
+       "en": [
+        "Minori, put that in numbers."
+       ]
+      },
+      {
+       "ja": [
+        "植え付けの日から五十五日。"
+       ],
+       "en": [
+        "Planting day plus fifty-five days is harvest.",
+        "So the planting date is the number that matters."
+       ]
+      },
+      {
+       "ja": [
+        "植えるのは、遅くとも十八日。"
+       ],
+       "en": [
+        "We plant by the eighteenth at the latest."
+       ]
+      },
+      {
+       "ja": [
+        "十八日？"
+       ],
+       "en": [
+        "The eighteenth?"
+       ]
+      },
+      {
+       "ja": [
+        "来週の土曜日。"
+       ],
+       "en": [
+        "Next week's Saturday. Technically, that's the eighteenth."
+       ]
+      },
+      {
+       "ja": [
+        "なるほど。決まり。"
+       ],
+       "en": [
+        "Got it. That's settled."
+       ]
+      },
+      {
+       "ja": [
+        "待って。苗はどこで買うの？"
+       ],
+       "en": [
+        "Wait. Where are we buying the seedlings?"
+       ]
+      },
+      {
+       "ja": [
+        "商店街の園芸店。でも高いの。"
+       ],
+       "en": [
+        "The garden shop on the shopping street. But they're expensive."
+       ]
+      },
+      {
+       "ja": [
+        "お金は、なんとかする。"
+       ],
+       "en": [
+        "We'll figure out the money."
+       ]
+      },
+      {
+       "ja": [
+        "運に頼るのはやめて。"
+       ],
+       "en": [
+        "Stop relying on luck."
+       ]
+      },
+      {
+       "ja": [
+        "運じゃない。努力。"
+       ],
+       "en": [
+        "It's not luck. It's effort."
+       ]
+      },
+      {
+       "ja": [
+        "……それ、どっちでもいい。"
+       ],
+       "en": [
+        "...Honestly, either one works for me."
+       ]
+      }
+     ]
+    },
+    {
+     "part": "b",
+     "summary": "Tomoe finds an old seed packet in the shed and reads the faded label aloud, asking what it means. Riku says it is from a variety nobody sells anymore.",
+     "beats": [
+      {
+       "ja": [
+        "ねえ、これ見て！"
+       ],
+       "en": [
+        "Hey, look at this!"
+       ]
+      },
+      {
+       "ja": [
+        "物置の奥にあったの。",
+        "紙袋に入ってた。"
+       ],
+       "en": [
+        "It was at the back of the shed, in a paper bag."
+       ]
+      },
+      {
+       "ja": [
+        "えっ？"
+       ],
+       "en": [
+        "Huh?"
+       ]
+      },
+      {
+       "ja": [
+        "字がかすれてて、読みにくい。"
+       ],
+       "en": [
+        "The writing's so faded it's hard to read."
+       ]
+      },
+      {
+       "ja": [
+        "「あけぼの小玉」？"
+       ],
+       "en": [
+        "\"Akebono Kodama\"? Is that right?"
+       ]
+      },
+      {
+       "ja": [
+        "何それ、どういう意味？"
+       ],
+       "en": [
+        "What does that mean? Is it a name?"
+       ]
+      },
+      {
+       "ja": [
+        "意味があるの、それ？"
+       ],
+       "en": [
+        "Does that even mean anything?"
+       ]
+      },
+      {
+       "ja": [
+        "なるほど。"
+       ],
+       "en": [
+        "I see."
+       ]
+      },
+      {
+       "ja": [
+        "勝手に漁るなよ。"
+       ],
+       "en": [
+        "Don't go digging through other people's stuff."
+       ]
+      },
+      {
+       "ja": [
+        "埃まみれの袋、よく見つけたな。"
+       ],
+       "en": [
+        "Find a dusty bag like that, and you still managed to find it."
+       ]
+      },
+      {
+       "ja": [
+        "発芽率、書いてないかな。"
+       ],
+       "en": [
+        "I wonder if it lists a germination rate."
+       ]
+      },
+      {
+       "ja": [
+        "そんな品種、もう誰も売ってない。"
+       ],
+       "en": [
+        "Nobody sells that variety anymore.",
+        "Not for years, not even the big nurseries."
+       ]
+      },
+      {
+       "ja": [
+        "売ってない？"
+       ],
+       "en": [
+        "Nobody sells it?"
+       ]
+      },
+      {
+       "ja": [
+        "昔、商店街の店で扱ってたやつだよ。"
+       ],
+       "en": [
+        "The shop on the shopping street used to carry it."
+       ]
+      },
+      {
+       "ja": [
+        "じゃあ、めずらしいんだ！"
+       ],
+       "en": [
+        "So it's rare!"
+       ]
+      },
+      {
+       "ja": [
+        "めずらしいことと、育つことは別。"
+       ],
+       "en": [
+        "Rare and growable are different things. Technically."
+       ]
+      },
+      {
+       "ja": [
+        "種、まだ生きてる？"
+       ],
+       "en": [
+        "Are the seeds still alive?"
+       ]
+      },
+      {
+       "ja": [
+        "乾燥して保存されてたなら、可能性はある。"
+       ],
+       "en": [
+        "If they were kept dry, there's a chance.",
+        "But old seeds lose vigor every year."
+       ]
+      },
+      {
+       "ja": [
+        "十年以上前のだぞ。"
+       ],
+       "en": [
+        "That's over ten years old, you know."
+       ]
+      },
+      {
+       "ja": [
+        "十年！"
+       ],
+       "en": [
+        "Ten years!"
+       ]
+      },
+      {
+       "ja": [
+        "長生きの問題じゃない。",
+        "発芽するかどうかだ。"
+       ],
+       "en": [
+        "It's not about how long they last.",
+        "It's whether they sprout."
+       ]
+      },
+      {
+       "ja": [
+        "植える。"
+       ],
+       "en": [
+        "We're planting them."
+       ]
+      },
+      {
+       "ja": [
+        "本気か。"
+       ],
+       "en": [
+        "Seriously?"
+       ]
+      },
+      {
+       "ja": [
+        "本気。",
+        "ほかにないなら、試す。"
+       ],
+       "en": [
+        "Serious. If there's no other option, we try it."
+       ]
+      },
+      {
+       "ja": [
+        "一粒ずつ数えて、蒔きましょう。"
+       ],
+       "en": [
+        "Let's count them out and sow them one at a time."
+       ]
+      },
+      {
+       "ja": [
+        "名前もつける！"
+       ],
+       "en": [
+        "And we're giving them names too!"
+       ]
+      },
+      {
+       "ja": [
+        "やめろよ、それ。",
+        "恥ずかしいだろ。"
+       ],
+       "en": [
+        "Don't. That's embarrassing."
+       ]
+      },
+      {
+       "ja": [
+        "もう決めた！一号はルビーちゃん！"
+       ],
+       "en": [
+        "Already decided! Number one is Ruby-chan!"
+       ]
+      },
+      {
+       "ja": [
+        "好きにしろ。"
+       ],
+       "en": [
+        "Do what you want."
+       ]
+      },
+      {
+       "ja": [
+        "手伝ってくれるでしょ？"
+       ],
+       "en": [
+        "You'll help us, right?"
+       ]
+      },
+      {
+       "ja": [
+        "考える。"
+       ],
+       "en": [
+        "I'll think about it."
+       ]
+      }
+     ]
+    },
+    {
+     "part": "b",
+     "summary": "Mitsuhashi passes the roof and hears Haru shouting at the pots. He tells her to keep her voice down and reminds her of the deadline.",
+     "beats": [
+      {
+       "ja": [
+        "何をしているんですか、真白さん。"
+       ],
+       "en": [
+        "What exactly are you doing up here, Mashiro?"
+       ]
+      },
+      {
+       "ja": [
+        "えっ？"
+       ],
+       "en": [
+        "Oh! Principal!"
+       ]
+      },
+      {
+       "ja": [
+        "声が屋上から三階まで届いています。"
+       ],
+       "en": [
+        "Your voice is carrying all the way down to the third floor."
+       ]
+      },
+      {
+       "ja": [
+        "植物に話しかけてただけです！"
+       ],
+       "en": [
+        "I was only talking to the plants!"
+       ]
+      },
+      {
+       "ja": [
+        "大声で？"
+       ],
+       "en": [
+        "At full volume?"
+       ]
+      },
+      {
+       "ja": [
+        "はい。聞こえるように。"
+       ],
+       "en": [
+        "Yes. So they can hear me."
+       ]
+      },
+      {
+       "ja": [
+        "植物は、叫んでも育ちません。"
+       ],
+       "en": [
+        "Plants don't grow faster because you shout at them."
+       ]
+      },
+      {
+       "ja": [
+        "あきらめないって伝えたくて。",
+        "大きいほうが届く気がするんです。"
+       ],
+       "en": [
+        "I want them to know we won't give up. Loud just feels like it reaches them."
+       ]
+      },
+      {
+       "ja": [
+        "届きません。ただの騒音です。"
+       ],
+       "en": [
+        "It doesn't reach them. It's just noise."
+       ]
+      },
+      {
+       "ja": [
+        "騒音じゃない！"
+       ],
+       "en": [
+        "It's not noise!"
+       ]
+      },
+      {
+       "ja": [
+        "騒音と言われたくなければ、静かにしなさい。"
+       ],
+       "en": [
+        "If you don't want it called noise, then be quiet."
+       ]
+      },
+      {
+       "ja": [
+        "文化祭のあと、この屋上はソーラーパネルになります。"
+       ],
+       "en": [
+        "After the spring festival, this roof becomes solar panels."
+       ]
+      },
+      {
+       "ja": [
+        "分かってます。",
+        "だから今、育ててるんです。"
+       ],
+       "en": [
+        "I know. That's why we're growing it now."
+       ]
+      },
+      {
+       "ja": [
+        "残り三週間ほどです。"
+       ],
+       "en": [
+        "That leaves about three weeks."
+       ]
+      },
+      {
+       "ja": [
+        "期限は動きません。"
+       ],
+       "en": [
+        "The deadline doesn't move."
+       ]
+      },
+      {
+       "ja": [
+        "はい。"
+       ],
+       "en": [
+        "Yes."
+       ]
+      },
+      {
+       "ja": [
+        "植物を証明に使うなら、まず実を見せなさい。"
+       ],
+       "en": [
+        "If you're using plants as proof, show me fruit first."
+       ]
+      },
+      {
+       "ja": [
+        "実がなったら、見せます！"
+       ],
+       "en": [
+        "When it fruits, I'll show you!"
+       ]
+      },
+      {
+       "ja": [
+        "今は葉しかありません。"
+       ],
+       "en": [
+        "Right now there's nothing but leaves.",
+        "Leaves mean it's still alive, at least."
+       ]
+      },
+      {
+       "ja": [
+        "なるほど。"
+       ],
+       "en": [
+        "I see."
+       ]
+      },
+      {
+       "ja": [
+        "校長先生も、トマト好きなんですか？"
+       ],
+       "en": [
+        "Do you like tomatoes too, Principal?"
+       ]
+      },
+      {
+       "ja": [
+        "質問の意図が分かりません。"
+       ],
+       "en": [
+        "I don't see what that has to do with anything."
+       ]
+      },
+      {
+       "ja": [
+        "さっき、赤いのを見てましたよね。"
+       ],
+       "en": [
+        "Earlier you were looking at the red one, weren't you?"
+       ]
+      },
+      {
+       "ja": [
+        "見ていません。",
+        "通りかかっただけです。"
+       ],
+       "en": [
+        "I wasn't looking. I was just passing by."
+       ]
+      },
+      {
+       "ja": [
+        "真白さん、声を落としなさい。"
+       ],
+       "en": [
+        "Mashiro, keep your voice down."
+       ]
+      },
+      {
+       "ja": [
+        "はい……。"
+       ],
+       "en": [
+        "Yes..."
+       ]
+      },
+      {
+       "ja": [
+        "えっ、怒ってないんですか？"
+       ],
+       "en": [
+        "Wait, you're not angry?"
+       ]
+      },
+      {
+       "ja": [
+        "規則は、全員が同じ条件で動くためにあります。"
+       ],
+       "en": [
+        "Rules exist so everyone plays by the same terms.",
+        "That includes the club."
+       ]
+      },
+      {
+       "ja": [
+        "期限内に、証明してください。"
+       ],
+       "en": [
+        "Prove it before the deadline."
+       ]
+      },
+      {
+       "ja": [
+        "証明します！絶対に！"
+       ],
+       "en": [
+        "I will prove it! I promise!",
+        "Nobody's giving this up."
+       ]
+      },
+      {
+       "ja": [
+        "声は、小さく。"
+       ],
+       "en": [
+        "Keep it down."
+       ]
+      },
+      {
+       "ja": [
+        "……はい、校長先生。"
+       ],
+       "en": [
+        "...Yes, Principal."
+       ]
+      }
+     ]
+    },
+    {
+     "part": "b",
+     "summary": "At dusk, Riku and Haru repot the plant together, and Riku says it can still grow back. Haru thanks him, and he pretends not to hear.",
+     "beats": [
+      {
+       "ja": [
+        "うわ、根っこが鉢の形になってる。"
+       ],
+       "en": [
+        "Ugh, the roots have taken the shape of the pot."
+       ]
+      },
+      {
+       "ja": [
+        "無理にほどくと、折れるぞ。"
+       ],
+       "en": [
+        "Pull too hard and they'll snap."
+       ]
+      },
+      {
+       "ja": [
+        "分かってる！"
+       ],
+       "en": [
+        "I know!"
+       ]
+      },
+      {
+       "ja": [
+        "そっと、そっと……。"
+       ],
+       "en": [
+        "Gently, gently..."
+       ]
+      },
+      {
+       "ja": [
+        "手つき、意外と丁寧だな。"
+       ],
+       "en": [
+        "Your hands are surprisingly careful."
+       ]
+      },
+      {
+       "ja": [
+        "当たり前でしょ。"
+       ],
+       "en": [
+        "Obviously."
+       ]
+      },
+      {
+       "ja": [
+        "えっ、今の褒め言葉？"
+       ],
+       "en": [
+        "Wait, was that a compliment?"
+       ]
+      },
+      {
+       "ja": [
+        "褒めてない。 観察だ。"
+       ],
+       "en": [
+        "Not a compliment. Just an observation."
+       ]
+      },
+      {
+       "ja": [
+        "土、ほぐすね。"
+       ],
+       "en": [
+        "Loosening the soil now."
+       ]
+      },
+      {
+       "ja": [
+        "新しい土、どれ使うの？"
+       ],
+       "en": [
+        "Which new soil are we using?"
+       ]
+      },
+      {
+       "ja": [
+        "小泉が測ったやつ。 水はけがいいほう。"
+       ],
+       "en": [
+        "The one Koizumi tested, the one that drains better."
+       ]
+      },
+      {
+       "ja": [
+        "水はけ……。 トモエに説明しといて。"
+       ],
+       "en": [
+        "Drains... Better explain that to Tomoe later."
+       ]
+      },
+      {
+       "ja": [
+        "根が、まだ白い。 生きてる。"
+       ],
+       "en": [
+        "The roots are still white. It's alive."
+       ]
+      },
+      {
+       "ja": [
+        "……そう、かもな。"
+       ],
+       "en": [
+        "...Maybe."
+       ]
+      },
+      {
+       "ja": [
+        "今、かもって言った？"
+       ],
+       "en": [
+        "Did you just say \"maybe\"?"
+       ]
+      },
+      {
+       "ja": [
+        "言ってない。"
+       ],
+       "en": [
+        "Didn't say it."
+       ]
+      },
+      {
+       "ja": [
+        "聞こえたもん。"
+       ],
+       "en": [
+        "I heard it."
+       ]
+      },
+      {
+       "ja": [
+        "空、オレンジになってきた。",
+        "夕焼け、きれい。"
+       ],
+       "en": [
+        "The sky's turning orange. Sunset's pretty."
+       ]
+      },
+      {
+       "ja": [
+        "夕方の水やりは、少なめだよね。"
+       ],
+       "en": [
+        "Evening watering should be light, right?"
+       ]
+      },
+      {
+       "ja": [
+        "少しでいい。 根が腐るから。"
+       ],
+       "en": [
+        "Just a little. Too much and the roots rot."
+       ]
+      },
+      {
+       "ja": [
+        "詳しいじゃん。"
+       ],
+       "en": [
+        "Look at you, knowing all that."
+       ]
+      },
+      {
+       "ja": [
+        "昔、やったから。"
+       ],
+       "en": [
+        "I did this before."
+       ]
+      },
+      {
+       "ja": [
+        "去年の、だよね。"
+       ],
+       "en": [
+        "Last year's, right?"
+       ]
+      },
+      {
+       "ja": [
+        "……ああ。"
+       ],
+       "en": [
+        "...Yeah."
+       ]
+      },
+      {
+       "ja": [
+        "土の下で、まだ頑張ってる。"
+       ],
+       "en": [
+        "It's still fighting down there in the soil.",
+        "It'll come back, I'm sure."
+       ]
+      },
+      {
+       "ja": [
+        "戻るかどうかは、分からない。"
+       ],
+       "en": [
+        "No idea if it'll come back."
+       ]
+      },
+      {
+       "ja": [
+        "根っこ、残ってる。"
+       ],
+       "en": [
+        "The roots are still there.",
+        "It can still grow back."
+       ]
+      },
+      {
+       "ja": [
+        "ありがとう、リク。"
+       ],
+       "en": [
+        "Thanks, Riku."
+       ]
+      },
+      {
+       "ja": [
+        "何か言った？"
+       ],
+       "en": [
+        "Did you say something?"
+       ]
+      },
+      {
+       "ja": [
+        "聞こえてるくせに。"
+       ],
+       "en": [
+        "You heard me, though."
+       ]
+      },
+      {
+       "ja": [
+        "聞いてない。",
+        "風の音だろ。"
+       ],
+       "en": [
+        "Didn't hear a thing. It's just the wind."
+       ]
+      },
+      {
+       "ja": [
+        "風、やさしい音だね。"
+       ],
+       "en": [
+        "The wind sounds gentle today, doesn't it?"
+       ]
+      }
+     ]
+    },
+    {
+     "part": "preview",
+     "summary": "Tomoe bounces on the roof and announces that next week they will try planting seedlings. She teases that someone is going to get soaked in the process.",
+     "beats": [
+      {
+       "ja": [
+        "来週は苗を植えるよ！"
+       ],
+       "en": [
+        "Next week, we're planting seedlings!"
+       ]
+      },
+      {
+       "ja": [
+        "早くない？"
+       ],
+       "en": [
+        "Isn't that a little fast?"
+       ]
+      },
+      {
+       "ja": [
+        "植えたいときが、植え時！"
+       ],
+       "en": [
+        "Whenever you want to plant is planting time!"
+       ]
+      },
+      {
+       "ja": [
+        "厳密には、本葉が出てからが理想。"
+       ],
+       "en": [
+        "Technically, it's best once the true leaves come out.",
+        "Too early, and they won't survive the move."
+       ]
+      },
+      {
+       "ja": [
+        "えっ？"
+       ],
+       "en": [
+        "Huh?"
+       ]
+      },
+      {
+       "ja": [
+        "雨が降るんだって！",
+        "誰かびしょ濡れだね！"
+       ],
+       "en": [
+        "The forecast says rain, so someone's getting soaked!"
+       ]
+      },
+      {
+       "ja": [
+        "俺じゃない。"
+       ],
+       "en": [
+        "Not me."
+       ]
+      },
+      {
+       "ja": [
+        "絶対リクだよ！"
+       ],
+       "en": [
+        "It's totally going to be you!"
+       ]
+      },
+      {
+       "ja": [
+        "水かけ役は、お前だろ。"
+       ],
+       "en": [
+        "You're the one who always holds the hose."
+       ]
+      },
+      {
+       "ja": [
+        "濡れてもいい。苗が育つなら。"
+       ],
+       "en": [
+        "I don't mind getting wet, as long as they grow."
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "number": 2,
+   "title_ja": "葉っぱが多すぎる",
+   "title_en": "Too Many Leaves",
+   "scenes": [
+    {
+     "part": "cold_open",
+     "summary": "Tomoe proudly shows off twelve seedlings in paper cups and says they are all alive. Riku points out that one is already lying flat, and Tomoe refuses to hear it.",
+     "beats": [
+      {
+       "ja": [
+        "じゃーん！ 十二個、ぜんぶ発芽しました！"
+       ],
+       "en": [
+        "Ta-da! All twelve seedlings sprouted!"
+       ]
+      },
+      {
+       "ja": [
+        "えっ、すごい！ 本当に全部？"
+       ],
+       "en": [
+        "Wow! All of them? For real?"
+       ]
+      },
+      {
+       "ja": [
+        "はい！ 一個も欠けてません！"
+       ],
+       "en": [
+        "Yes! Not one is missing!"
+       ]
+      },
+      {
+       "ja": [
+        "全員元気です！"
+       ],
+       "en": [
+        "And every single one is healthy!"
+       ]
+      },
+      {
+       "ja": [
+        "元気かどうかは、まだ分からないだろ。"
+       ],
+       "en": [
+        "You can't tell if they're healthy yet."
+       ]
+      },
+      {
+       "ja": [
+        "分かります！ 見たら分かります！"
+       ],
+       "en": [
+        "I can! You can tell just by looking!"
+       ]
+      },
+      {
+       "ja": [
+        "じゃあ、その左から三番目。"
+       ],
+       "en": [
+        "Then that one, third from the left."
+       ]
+      },
+      {
+       "ja": [
+        "え、この子？ 元気ですよ、ほら。"
+       ],
+       "en": [
+        "This one? She's fine, look."
+       ]
+      },
+      {
+       "ja": [
+        "完全に横になってるだろ。"
+       ],
+       "en": [
+        "She's lying flat, Tomoe. Completely flat."
+       ]
+      },
+      {
+       "ja": [
+        "寝てるだけです！ 植物も休みますから！"
+       ],
+       "en": [
+        "She's just resting!",
+        "Plants need breaks too, you know!"
+       ]
+      },
+      {
+       "ja": [
+        "植物は寝ないんだよ、普通は。"
+       ],
+       "en": [
+        "Plants don't nap, not normally."
+       ]
+      },
+      {
+       "ja": [
+        "うーん、この子はちょっと個性派なんです！"
+       ],
+       "en": [
+        "Hmm, she's just a bit of an individualist!"
+       ]
+      },
+      {
+       "ja": [
+        "トモエ、名前までつけてるの？"
+       ],
+       "en": [
+        "Tomoe, you've named them too?"
+       ]
+      },
+      {
+       "ja": [
+        "もちろん！ 左から、トマ子、トマ太、",
+        "トマ美です！"
+       ],
+       "en": [
+        "Of course! From the left, Tomako, Tomata, Tomami!"
+       ]
+      },
+      {
+       "ja": [
+        "全員トマトだろ。"
+       ],
+       "en": [
+        "They're all tomatoes, you know."
+       ]
+      },
+      {
+       "ja": [
+        "名前の方が大事なんです！ あ、この子はナナちゃん！"
+       ],
+       "en": [
+        "Names matter more! Oh, this one's Nana-chan!"
+       ]
+      },
+      {
+       "ja": [
+        "倒れてるのがナナちゃん？"
+       ],
+       "en": [
+        "The one lying down is Nana-chan?"
+       ]
+      },
+      {
+       "ja": [
+        "はい！ 今は横になって考え中です。",
+        "大丈夫、きっと起きます！"
+       ],
+       "en": [
+        "Yes! She's lying down, thinking things over. She'll get up, I'm sure!"
+       ]
+      },
+      {
+       "ja": [
+        "考え中じゃない。",
+        "倒れてるんだよ。"
+       ],
+       "en": [
+        "She's not thinking. She's collapsed."
+       ]
+      },
+      {
+       "ja": [
+        "聞こえません！ 聞こえません！"
+       ],
+       "en": [
+        "I can't hear you! I can't hear you!"
+       ]
+      },
+      {
+       "ja": [
+        "リク、その言い方はちょっと……"
+       ],
+       "en": [
+        "Riku, that's a bit harsh..."
+       ]
+      },
+      {
+       "ja": [
+        "優しく言ったら、もう一回倒れるよ。"
+       ],
+       "en": [
+        "Say it gently and she'll fall over again."
+       ]
+      },
+      {
+       "ja": [
+        "ナナちゃん、起きてね。"
+       ],
+       "en": [
+        "Nana-chan, please wake up.",
+        "You're doing great, okay?"
+       ]
+      }
+     ]
+    },
+    {
+     "part": "a",
+     "summary": "Minori checks the leaves under a magnifier and finds tiny green insects. She warns Haru that they could spread to every plant on the roof.",
+     "beats": [
+      {
+       "ja": [
+        "ハル、ちょっと来て。"
+       ],
+       "en": [
+        "Haru, come here for a second."
+       ]
+      },
+      {
+       "ja": [
+        "なに？"
+       ],
+       "en": [
+        "What?"
+       ]
+      },
+      {
+       "ja": [
+        "この葉っぱ、拡大鏡で見て。"
+       ],
+       "en": [
+        "Look at this leaf through the magnifier."
+       ]
+      },
+      {
+       "ja": [
+        "裏側に、小さい緑の虫がいる。"
+       ],
+       "en": [
+        "There are tiny green bugs on the underside."
+       ]
+      },
+      {
+       "ja": [
+        "えっ、虫？"
+       ],
+       "en": [
+        "Bugs? Wait, really?"
+       ]
+      },
+      {
+       "ja": [
+        "アブラムシ、だと思う。"
+       ],
+       "en": [
+        "I think they're aphids."
+       ]
+      },
+      {
+       "ja": [
+        "数は？"
+       ],
+       "en": [
+        "How many?"
+       ]
+      },
+      {
+       "ja": [
+        "一、二、三……十七匹。"
+       ],
+       "en": [
+        "One, two, three... seventeen.",
+        "That's just on this one leaf."
+       ]
+      },
+      {
+       "ja": [
+        "この一枚だけで十七匹？"
+       ],
+       "en": [
+        "Seventeen on this one leaf alone?"
+       ]
+      },
+      {
+       "ja": [
+        "技術的には、見えてるだけでもっといる。"
+       ],
+       "en": [
+        "Technically, there are more. I only counted the ones I can see."
+       ]
+      },
+      {
+       "ja": [
+        "嘘でしょ……"
+       ],
+       "en": [
+        "No way..."
+       ]
+      },
+      {
+       "ja": [
+        "増えるのが速いの。一匹で何十匹にもなる。"
+       ],
+       "en": [
+        "They multiply fast. One can turn into dozens in a week."
+       ]
+      },
+      {
+       "ja": [
+        "待って、それって全部の鉢に？"
+       ],
+       "en": [
+        "Wait, could it spread to all the pots?"
+       ]
+      },
+      {
+       "ja": [
+        "うん。風で飛ぶの。",
+        "葉っぱ同士が触れても移る。"
+       ],
+       "en": [
+        "Yes, the wind carries them, and they move leaf to leaf too."
+       ]
+      },
+      {
+       "ja": [
+        "屋上の植物、全部だよ。"
+       ],
+       "en": [
+        "That means every plant on the roof."
+       ]
+      },
+      {
+       "ja": [
+        "全部……。"
+       ],
+       "en": [
+        "Every one..."
+       ]
+      },
+      {
+       "ja": [
+        "トマトも、ナナちゃんも、ぜんぶ。"
+       ],
+       "en": [
+        "The tomatoes, Nana-chan, all of them."
+       ]
+      },
+      {
+       "ja": [
+        "ナナちゃんは今、横になってる。"
+       ],
+       "en": [
+        "And Nana-chan's already lying down."
+       ]
+      },
+      {
+       "ja": [
+        "冗談はいい。"
+       ],
+       "en": [
+        "Not the time for jokes."
+       ]
+      },
+      {
+       "ja": [
+        "冗談じゃない。"
+       ],
+       "en": [
+        "I'm not joking."
+       ]
+      },
+      {
+       "ja": [
+        "今すぐ、全部の鉢を見る。",
+        "端から順に。"
+       ],
+       "en": [
+        "Let's check every pot right now, starting at the edge."
+       ]
+      },
+      {
+       "ja": [
+        "一つずつ、葉の裏を見る。"
+       ],
+       "en": [
+        "One by one, check under every leaf."
+       ]
+      },
+      {
+       "ja": [
+        "分かった。"
+       ],
+       "en": [
+        "Got it."
+       ]
+      },
+      {
+       "ja": [
+        "防除はどうするの？"
+       ],
+       "en": [
+        "So how do we get rid of them?"
+       ]
+      },
+      {
+       "ja": [
+        "石けん水で洗い流せると思う。"
+       ],
+       "en": [
+        "I think a soap spray should wash them off."
+       ]
+      },
+      {
+       "ja": [
+        "でも、薬を使うなら校長に……。"
+       ],
+       "en": [
+        "But if we use anything stronger, we'll need the principal's okay—"
+       ]
+      },
+      {
+       "ja": [
+        "三橋校長に言わなきゃだめ？"
+       ],
+       "en": [
+        "Do we have to tell Mitsuhashi?",
+        "He's going to find out anyway."
+       ]
+      },
+      {
+       "ja": [
+        "ハル、隠すのは良くない。"
+       ],
+       "en": [
+        "Hiding it isn't right, Haru. Let's be honest."
+       ]
+      },
+      {
+       "ja": [
+        "今はまだ、数値が足りない。"
+       ],
+       "en": [
+        "We don't have enough data yet.",
+        "Let me count everything again."
+       ]
+      },
+      {
+       "ja": [
+        "数え直す。"
+       ],
+       "en": [
+        "I'll recount it all."
+       ]
+      },
+      {
+       "ja": [
+        "数字で言えるものだけ。",
+        "話すのはそれから。"
+       ],
+       "en": [
+        "I'll only bring numbers to the principal, then we decide."
+       ]
+      },
+      {
+       "ja": [
+        "……わかった。"
+       ],
+       "en": [
+        "...Fine."
+       ]
+      },
+      {
+       "ja": [
+        "好きにして。でも、私も見る。"
+       ],
+       "en": [
+        "Do what you want. But I'm watching you do it."
+       ]
+      }
+     ]
+    },
+    {
+     "part": "a",
+     "summary": "Mitsuhashi climbs up to check progress and asks for a written schedule. Haru hands him a list, and he notices it has no harvest date before the festival.",
+     "beats": [
+      {
+       "ja": [
+        "校長先生、屋上まで来たんですか？"
+       ],
+       "en": [
+        "Principal, you actually came all the way up here?"
+       ]
+      },
+      {
+       "ja": [
+        "進捗の確認も校長の仕事だ。"
+       ],
+       "en": [
+        "Checking progress is part of my job. Don't look so surprised."
+       ]
+      },
+      {
+       "ja": [
+        "はあ……七十二段。誰か手すりを。"
+       ],
+       "en": [
+        "Haa... seventy-two steps. Someone please install a railing."
+       ]
+      },
+      {
+       "ja": [
+        "手すりは予算申請中です。"
+       ],
+       "en": [
+        "The railing is still waiting on budget approval."
+       ]
+      },
+      {
+       "ja": [
+        "そういう返事は聞いていない。"
+       ],
+       "en": [
+        "I didn't ask for excuses.",
+        "Hand me the schedule. In writing."
+       ]
+      },
+      {
+       "ja": [
+        "えっ、スケジュール？"
+       ],
+       "en": [
+        "Schedule?"
+       ]
+      },
+      {
+       "ja": [
+        "書面で。"
+       ],
+       "en": [
+        "In writing."
+       ]
+      },
+      {
+       "ja": [
+        "あります！ちょっと待って！"
+       ],
+       "en": [
+        "We have one! Hang on!"
+       ]
+      },
+      {
+       "ja": [
+        "はい、どうぞ。"
+       ],
+       "en": [
+        "Here you go."
+       ]
+      },
+      {
+       "ja": [
+        "一、水やりは毎朝七時。",
+        "二、葉の観察。三、接ぎ木。"
+       ],
+       "en": [
+        "1. Water every morning at seven. 2. Check leaves. 3. Grafting practice."
+       ]
+      },
+      {
+       "ja": [
+        "上から順に読む。"
+       ],
+       "en": [
+        "I'll read it from the top."
+       ]
+      },
+      {
+       "ja": [
+        "水やり、観察、接ぎ木、防虫。"
+       ],
+       "en": [
+        "Watering, observation, grafting, pest control."
+       ]
+      },
+      {
+       "ja": [
+        "防虫は昨日始めたばかりだろう。"
+       ],
+       "en": [
+        "Pest control only started yesterday, hasn't it?"
+       ]
+      },
+      {
+       "ja": [
+        "はい。"
+       ],
+       "en": [
+        "Yes."
+       ]
+      },
+      {
+       "ja": [
+        "……収穫は？"
+       ],
+       "en": [
+        "...And the harvest?"
+       ]
+      },
+      {
+       "ja": [
+        "収穫日が書かれていない。"
+       ],
+       "en": [
+        "There's no harvest date on here.",
+        "Not one before the festival."
+       ]
+      },
+      {
+       "ja": [
+        "それは……まだ決めてないんです。"
+       ],
+       "en": [
+        "That... we haven't settled that yet."
+       ]
+      },
+      {
+       "ja": [
+        "決めていない、では困る。"
+       ],
+       "en": [
+        "\"Not decided\" isn't an answer I can accept."
+       ]
+      },
+      {
+       "ja": [
+        "技術的には、開花まで最低四十日です。",
+        "実がなるまでは、もっとかかります。"
+       ],
+       "en": [
+        "Technically, it's at least forty days from flowering to ripe fruit."
+       ]
+      },
+      {
+       "ja": [
+        "四十日。祭りまでは何日だ？"
+       ],
+       "en": [
+        "Forty days. How many days until the festival?"
+       ]
+      },
+      {
+       "ja": [
+        "二十三日です。"
+       ],
+       "en": [
+        "Twenty-three days."
+       ]
+      },
+      {
+       "ja": [
+        "計算が合わないな。"
+       ],
+       "en": [
+        "The math doesn't work, does it?"
+       ]
+      },
+      {
+       "ja": [
+        "植物は締切を読めないんで。"
+       ],
+       "en": [
+        "Plants can't read deadlines, sir.",
+        "Blame the tomatoes, not us."
+       ]
+      },
+      {
+       "ja": [
+        "大和田、口を慎め。"
+       ],
+       "en": [
+        "Owada, watch your mouth."
+       ]
+      },
+      {
+       "ja": [
+        "事実を言っただけです。"
+       ],
+       "en": [
+        "I'm just stating facts."
+       ]
+      },
+      {
+       "ja": [
+        "……あのトマトはどれだ。"
+       ],
+       "en": [
+        "...Which one is the tomato?"
+       ]
+      },
+      {
+       "ja": [
+        "一番左、支柱のやつです！"
+       ],
+       "en": [
+        "The far left one, by the stake!"
+       ]
+      },
+      {
+       "ja": [
+        "名前はロビン！元気だよ！"
+       ],
+       "en": [
+        "Her name's Robin! She's doing great!"
+       ]
+      },
+      {
+       "ja": [
+        "元気なのは名前だけだ。"
+       ],
+       "en": [
+        "Only the name is doing great."
+       ]
+      },
+      {
+       "ja": [
+        "葉が丸まっているな。",
+        "水は足りているはずだが。"
+       ],
+       "en": [
+        "Its leaves are curling. It should be getting enough water, though."
+       ]
+      },
+      {
+       "ja": [
+        "水の量をもう一度見直せ。"
+       ],
+       "en": [
+        "Recheck how much water it gets."
+       ]
+      },
+      {
+       "ja": [
+        "はい！"
+       ],
+       "en": [
+        "Yes!"
+       ]
+      },
+      {
+       "ja": [
+        "校長、そのトマト、お気に入りですか？"
+       ],
+       "en": [
+        "Principal, is that tomato your favorite?"
+       ]
+      },
+      {
+       "ja": [
+        "別に。"
+       ],
+       "en": [
+        "Not particularly."
+       ]
+      },
+      {
+       "ja": [
+        "形がいいだけだ。"
+       ],
+       "en": [
+        "It just has a nice shape."
+       ]
+      },
+      {
+       "ja": [
+        "……ほら、もう行くぞ。"
+       ],
+       "en": [
+        "...Well, I'm heading back down."
+       ]
+      }
+     ]
+    },
+    {
+     "part": "a",
+     "summary": "Miyashita-sensei shows the club how to graft by splicing two stems together with tape. He says the root can be stronger than the fruit, and jokes that he learned it from a melon-bread vendor.",
+     "beats": [
+      {
+       "ja": [
+        "今日はトマトの接ぎ木をやるぞ。"
+       ],
+       "en": [
+        "Today we're grafting tomatoes."
+       ]
+      },
+      {
+       "ja": [
+        "せつぎ木？"
+       ],
+       "en": [
+        "Grafting?"
+       ]
+      },
+      {
+       "ja": [
+        "二本の茎を、くっつけるんだ。"
+       ],
+       "en": [
+        "We're joining two stems together."
+       ]
+      },
+      {
+       "ja": [
+        "えっ、くっつけたら一本になるの？"
+       ],
+       "en": [
+        "Wait, so they become one plant?"
+       ]
+      },
+      {
+       "ja": [
+        "まあ、そんなところだ。"
+       ],
+       "en": [
+        "Pretty much."
+       ]
+      },
+      {
+       "ja": [
+        "テープ、どこ？"
+       ],
+       "en": [
+        "Where's the tape?"
+       ]
+      },
+      {
+       "ja": [
+        "先生、それ、ただの絆創膏じゃないですか。"
+       ],
+       "en": [
+        "Sensei, isn't that just a bandage?"
+       ]
+      },
+      {
+       "ja": [
+        "同じようなものだ。"
+       ],
+       "en": [
+        "Close enough."
+       ]
+      },
+      {
+       "ja": [
+        "切り口は斜めに。",
+        "角度が大事だ。"
+       ],
+       "en": [
+        "Cut the ends at an angle, because the angle matters."
+       ]
+      },
+      {
+       "ja": [
+        "こう？"
+       ],
+       "en": [
+        "Like this?"
+       ]
+      },
+      {
+       "ja": [
+        "小泉さん、角度何度ですか。"
+       ],
+       "en": [
+        "Minori, what's the angle?"
+       ]
+      },
+      {
+       "ja": [
+        "技術的には、三十度前後です。"
+       ],
+       "en": [
+        "Technically, somewhere around thirty degrees."
+       ]
+      },
+      {
+       "ja": [
+        "測ったの？"
+       ],
+       "en": [
+        "You measured it?"
+       ]
+      },
+      {
+       "ja": [
+        "目測で。"
+       ],
+       "en": [
+        "By eye."
+       ]
+      },
+      {
+       "ja": [
+        "合ってる？"
+       ],
+       "en": [
+        "Is it right?"
+       ]
+      },
+      {
+       "ja": [
+        "うん。"
+       ],
+       "en": [
+        "Yeah."
+       ]
+      },
+      {
+       "ja": [
+        "合わせたら、テープでぐるぐる巻く。"
+       ],
+       "en": [
+        "Then you line them up and wrap them tight with tape."
+       ]
+      },
+      {
+       "ja": [
+        "きつく巻きすぎると、茎が締まるぞ。"
+       ],
+       "en": [
+        "Wrap too tight and you'll choke the stem."
+       ]
+      },
+      {
+       "ja": [
+        "優しく、でも離れないように。"
+       ],
+       "en": [
+        "Gently, but so they don't come apart.",
+        "Like a good friendship."
+       ]
+      },
+      {
+       "ja": [
+        "先生、哲学っぽいこと言うのやめてください。"
+       ],
+       "en": [
+        "Sensei, stop saying philosophical things."
+       ]
+      },
+      {
+       "ja": [
+        "俺は一度も言ってない。"
+       ],
+       "en": [
+        "I've never said anything philosophical."
+       ]
+      },
+      {
+       "ja": [
+        "根っこのほうが強い場合もある。",
+        "実より大事なこともある。"
+       ],
+       "en": [
+        "Sometimes the root is stronger than the fruit."
+       ]
+      },
+      {
+       "ja": [
+        "実より根？"
+       ],
+       "en": [
+        "The root over the fruit?"
+       ]
+      },
+      {
+       "ja": [
+        "どうせ実は、根が育てたものだ。"
+       ],
+       "en": [
+        "The fruit's just what the root made."
+       ]
+      },
+      {
+       "ja": [
+        "へえ。"
+       ],
+       "en": [
+        "Huh."
+       ]
+      },
+      {
+       "ja": [
+        "ねえ、そのテープ、どこで覚えたの？"
+       ],
+       "en": [
+        "Hey, where did you learn that tape trick?"
+       ]
+      },
+      {
+       "ja": [
+        "駅前の、メロンパンの屋台のおじさんだ。"
+       ],
+       "en": [
+        "From the melon bread stall guy by the station."
+       ]
+      },
+      {
+       "ja": [
+        "えっ？"
+       ],
+       "en": [
+        "Wait, the melon bread guy?"
+       ]
+      },
+      {
+       "ja": [
+        "接ぎ木は、あの人に教わった。"
+       ],
+       "en": [
+        "He taught me grafting.",
+        "Also, the bread's really good."
+       ]
+      },
+      {
+       "ja": [
+        "屋台で接ぎ木？"
+       ],
+       "en": [
+        "Grafting at a food stall?"
+       ]
+      },
+      {
+       "ja": [
+        "暇な日は、ずっと枝をいじってた。"
+       ],
+       "en": [
+        "On slow days, he'd fiddle with branches all afternoon."
+       ]
+      },
+      {
+       "ja": [
+        "先生、それ絶対嘘でしょ。",
+        "絶対ですよ！"
+       ],
+       "en": [
+        "Sensei, that's obviously a lie."
+       ]
+      },
+      {
+       "ja": [
+        "嘘じゃない。メロンパンは本物だ。"
+       ],
+       "en": [
+        "It's not a lie.",
+        "The melon bread is the real deal."
+       ]
+      }
+     ]
+    },
+    {
+     "part": "a",
+     "summary": "Riku tells Haru that the tomato he grew with his grandfather died in a storm, which is why he quit. Haru tells him that failing once does not make him a failure.",
+     "beats": [
+      {
+       "ja": [
+        "そのポット、ずっと見てたね。"
+       ],
+       "en": [
+        "You've been staring at that pot for a while."
+       ]
+      },
+      {
+       "ja": [
+        "別に。"
+       ],
+       "en": [
+        "Nothing."
+       ]
+      },
+      {
+       "ja": [
+        "うそ。さっきからずっと。"
+       ],
+       "en": [
+        "Liar. You've been at it since earlier."
+       ]
+      },
+      {
+       "ja": [
+        "……昔、じいちゃんと育てたトマトがあった。"
+       ],
+       "en": [
+        "...I grew a tomato with my grandpa once."
+       ]
+      },
+      {
+       "ja": [
+        "中学一年の春。"
+       ],
+       "en": [
+        "First year of middle school, that spring."
+       ]
+      },
+      {
+       "ja": [
+        "朝と夕方、毎日水やりして、支柱も二人で立てた。"
+       ],
+       "en": [
+        "We watered it every morning and evening, and we set the stakes up together."
+       ]
+      },
+      {
+       "ja": [
+        "うん。"
+       ],
+       "en": [
+        "Mm."
+       ]
+      },
+      {
+       "ja": [
+        "実がついて、赤くなり始めた頃。",
+        "台風が来た。"
+       ],
+       "en": [
+        "Then the fruit came in and started turning red, and then a typhoon hit."
+       ]
+      },
+      {
+       "ja": [
+        "じいちゃんは入院してて、俺一人だった。"
+       ],
+       "en": [
+        "Grandpa was in hospital, so I was alone with it."
+       ]
+      },
+      {
+       "ja": [
+        "次の朝、支柱ごと折れてた。"
+       ],
+       "en": [
+        "By morning, the plant was snapped flat, stakes and all."
+       ]
+      },
+      {
+       "ja": [
+        "……そう。"
+       ],
+       "en": [
+        "...I see."
+       ]
+      },
+      {
+       "ja": [
+        "実は全部、地面に落ちてた。"
+       ],
+       "en": [
+        "Every tomato was lying in the dirt."
+       ]
+      },
+      {
+       "ja": [
+        "拾えるやつだけ拾って、残りは全部捨てた。"
+       ],
+       "en": [
+        "I picked up what I could and threw out the rest."
+       ]
+      },
+      {
+       "ja": [
+        "それ以来、部活には行ってない。"
+       ],
+       "en": [
+        "I haven't come back to the club since."
+       ]
+      },
+      {
+       "ja": [
+        "大和田……"
+       ],
+       "en": [
+        "Owada..."
+       ]
+      },
+      {
+       "ja": [
+        "同情とかいらないから。"
+       ],
+       "en": [
+        "Don't feel sorry for me."
+       ]
+      },
+      {
+       "ja": [
+        "同情じゃない。"
+       ],
+       "en": [
+        "I'm not.",
+        "I just keep thinking about how that must have felt."
+       ]
+      },
+      {
+       "ja": [
+        "……ごめん。"
+       ],
+       "en": [
+        "I'm sorry."
+       ]
+      },
+      {
+       "ja": [
+        "失敗したら、もう一生ダメって？"
+       ],
+       "en": [
+        "So you think one failure means you're finished for good?"
+       ]
+      },
+      {
+       "ja": [
+        "違う、そういう意味じゃない。"
+       ],
+       "en": [
+        "No, that's not what I meant."
+       ]
+      },
+      {
+       "ja": [
+        "じゃあ、どういう意味。"
+       ],
+       "en": [
+        "Then what did you mean?"
+       ]
+      },
+      {
+       "ja": [
+        "俺のせいだった、って意味。"
+       ],
+       "en": [
+        "That it was my fault.",
+        "I should have been there."
+       ]
+      },
+      {
+       "ja": [
+        "先輩のせいじゃないでしょ。",
+        "台風は止められない。"
+       ],
+       "en": [
+        "It wasn't your fault. A storm doesn't ask permission."
+       ]
+      },
+      {
+       "ja": [
+        "でも、支柱を結んだの、俺だし。"
+       ],
+       "en": [
+        "But I tied the stakes. Badly."
+       ]
+      },
+      {
+       "ja": [
+        "結び目、ゆるかったのかも。"
+       ],
+       "en": [
+        "Maybe the knots were loose."
+       ]
+      },
+      {
+       "ja": [
+        "一回失敗しただけで、失敗者になんかならない。"
+       ],
+       "en": [
+        "One failure doesn't make you a failure."
+       ]
+      },
+      {
+       "ja": [
+        "私だって、もう三回枯らしてる。",
+        "誰にも言わないでね。"
+       ],
+       "en": [
+        "I've killed three plants myself. Please don't tell anyone."
+       ]
+      },
+      {
+       "ja": [
+        "嘘つけ。"
+       ],
+       "en": [
+        "Yeah, right."
+       ]
+      },
+      {
+       "ja": [
+        "本当。今も一鉢、瀕死。"
+       ],
+       "en": [
+        "Really. And one of them is almost dead right now."
+       ]
+      },
+      {
+       "ja": [
+        "だから、残すの。"
+       ],
+       "en": [
+        "That's why we're saving it.",
+        "Nobody gets left behind."
+       ]
+      },
+      {
+       "ja": [
+        "……まだ、間に合うかな。"
+       ],
+       "en": [
+        "...You think it's not too late?"
+       ]
+      },
+      {
+       "ja": [
+        "間に合わせる。手伝って。"
+       ],
+       "en": [
+        "We'll make it. Help me."
+       ]
+      }
+     ]
+    },
+    {
+     "part": "a",
+     "summary": "Haru and Riku argue over whether to tell the principal about the aphids. Haru wants honesty, while Riku wants to fix the problem quietly first, and they agree to try his way.",
+     "beats": [
+      {
+       "ja": [
+        "校長に言おう。アブラムシのこと。"
+       ],
+       "en": [
+        "We should tell the principal about the aphids."
+       ]
+      },
+      {
+       "ja": [
+        "なんで。黙ってても、いいことないよ。"
+       ],
+       "en": [
+        "Why? Keeping quiet won't do any good."
+       ]
+      },
+      {
+       "ja": [
+        "言ったら、屋上取られるだろ。"
+       ],
+       "en": [
+        "If we tell him, they'll take the roof."
+       ]
+      },
+      {
+       "ja": [
+        "それでも、嘘はだめ。"
+       ],
+       "en": [
+        "Even so, lying is not okay."
+       ]
+      },
+      {
+       "ja": [
+        "嘘じゃない。まだ言ってないだけ。"
+       ],
+       "en": [
+        "It's not a lie. We just haven't said it yet."
+       ]
+      },
+      {
+       "ja": [
+        "同じじゃん。"
+       ],
+       "en": [
+        "It's the same thing."
+       ]
+      },
+      {
+       "ja": [
+        "えっ？"
+       ],
+       "en": [
+        "Huh?"
+       ]
+      },
+      {
+       "ja": [
+        "三日あれば、一匹残らず落とせる。"
+       ],
+       "en": [
+        "Give me three days and I'll get every last one."
+       ]
+      },
+      {
+       "ja": [
+        "三日で治るなら、先に言えば？"
+       ],
+       "en": [
+        "If it's fixed in three days, why not say so first?"
+       ]
+      },
+      {
+       "ja": [
+        "報告するとき、",
+        "もう消えてたら説明しやすい。"
+       ],
+       "en": [
+        "When we report, it'll be easier if they're already gone."
+       ]
+      },
+      {
+       "ja": [
+        "隠してる間に広がったらどうすんの。"
+       ],
+       "en": [
+        "What if they spread while we're hiding them?"
+       ]
+      },
+      {
+       "ja": [
+        "広がらせない。葉っぱ、もう全部調べた。"
+       ],
+       "en": [
+        "They won't. I've already checked every leaf.",
+        "Only the bottom ones are affected."
+       ]
+      },
+      {
+       "ja": [
+        "本当？"
+       ],
+       "en": [
+        "Really?"
+       ]
+      },
+      {
+       "ja": [
+        "うん。ミノリにも確認してもらった。"
+       ],
+       "en": [
+        "Yeah. Minori checked them too."
+       ]
+      },
+      {
+       "ja": [
+        "数えたの？"
+       ],
+       "en": [
+        "Did she count them?"
+       ]
+      },
+      {
+       "ja": [
+        "数えた。ざっと二百匹。"
+       ],
+       "en": [
+        "She did. About two hundred."
+       ]
+      },
+      {
+       "ja": [
+        "二百！？ 全然、少なくないじゃん。"
+       ],
+       "en": [
+        "Two hundred?! That's not a small number at all."
+       ]
+      },
+      {
+       "ja": [
+        "減らせば、少ない。"
+       ],
+       "en": [
+        "Get rid of them and it becomes a small number."
+       ]
+      },
+      {
+       "ja": [
+        "でも……"
+       ],
+       "en": [
+        "But..."
+       ]
+      },
+      {
+       "ja": [
+        "隠し事はしたくない。",
+        "正直に話そう。"
+       ],
+       "en": [
+        "I don't want to hide things.",
+        "Let's just tell the truth."
+       ]
+      },
+      {
+       "ja": [
+        "怒られるのは別にいい。"
+       ],
+       "en": [
+        "Getting yelled at, I can live with."
+       ]
+      },
+      {
+       "ja": [
+        "屋上がなくなったら、何もできない。"
+       ],
+       "en": [
+        "But if we lose the roof, we can't do anything."
+       ]
+      },
+      {
+       "ja": [
+        "だから、先に直す。それから報告。"
+       ],
+       "en": [
+        "That's why we fix it first, then report."
+       ]
+      },
+      {
+       "ja": [
+        "順番が逆じゃない？"
+       ],
+       "en": [
+        "Isn't the order backwards?"
+       ]
+      },
+      {
+       "ja": [
+        "逆でもいい。",
+        "結果が出れば、校長も文句言えない。"
+       ],
+       "en": [
+        "Backwards is fine. If the results are there, he can't complain."
+       ]
+      },
+      {
+       "ja": [
+        "うーん……"
+       ],
+       "en": [
+        "Hmm..."
+       ]
+      },
+      {
+       "ja": [
+        "言わせない。"
+       ],
+       "en": [
+        "He won't.",
+        "I'll make sure of it."
+       ]
+      },
+      {
+       "ja": [
+        "自信あるの？"
+       ],
+       "en": [
+        "Are you sure?"
+       ]
+      },
+      {
+       "ja": [
+        "……ない。でも、やってみる。"
+       ],
+       "en": [
+        "...No. But I'll try."
+       ]
+      },
+      {
+       "ja": [
+        "正直すぎるのも、考えものだよ。"
+       ],
+       "en": [
+        "Being too honest can be a problem too."
+       ]
+      },
+      {
+       "ja": [
+        "考えてるよ、毎日。"
+       ],
+       "en": [
+        "I think about it every day."
+       ]
+      },
+      {
+       "ja": [
+        "分かった。リクのやり方で。三日だけね。"
+       ],
+       "en": [
+        "...Fine, your way.",
+        "But only three days."
+       ]
+      }
+     ]
+    },
+    {
+     "part": "b",
+     "summary": "The club sprays the leaves with a homemade soap solution, and Tomoe gets splashed in the face by accident. She laughs, and Riku tells her to stop wiping her eyes with dirty gloves.",
+     "beats": [
+      {
+       "ja": [
+        "霧吹き、葉の表も裏も全部かけて。"
+       ],
+       "en": [
+        "Spray every leaf, top and bottom."
+       ]
+      },
+      {
+       "ja": [
+        "石けんは百倍に薄めた。計量済み。"
+       ],
+       "en": [
+        "The soap's diluted a hundred times. I measured it."
+       ]
+      },
+      {
+       "ja": [
+        "わーい！ シュッシュッ！"
+       ],
+       "en": [
+        "Whee! Shh, shh!"
+       ]
+      },
+      {
+       "ja": [
+        "出しすぎ。葉がびしょびしょになる。"
+       ],
+       "en": [
+        "Too much. You'll drown the leaves."
+       ]
+      },
+      {
+       "ja": [
+        "この子たちもシャワー浴びるの！"
+       ],
+       "en": [
+        "These guys get a shower too!"
+       ]
+      },
+      {
+       "ja": [
+        "裏側も忘れずに。アブラムシはそこにいる。"
+       ],
+       "en": [
+        "Don't forget the undersides. That's where the aphids hide."
+       ]
+      },
+      {
+       "ja": [
+        "裏側も全部やるよ。"
+       ],
+       "en": [
+        "We'll do the undersides too.",
+        "Everyone take a pot."
+       ]
+      },
+      {
+       "ja": [
+        "了解。"
+       ],
+       "en": [
+        "Got it."
+       ]
+      },
+      {
+       "ja": [
+        "この子はトマ吉！ 水しぶきくらえ！"
+       ],
+       "en": [
+        "This one's Tomakichi! Take that, splash!"
+       ]
+      },
+      {
+       "ja": [
+        "名前つけるな。"
+       ],
+       "en": [
+        "Don't name them."
+       ]
+      },
+      {
+       "ja": [
+        "えっ、もう呼んじゃったもん。"
+       ],
+       "en": [
+        "Too late, I already did."
+       ]
+      },
+      {
+       "ja": [
+        "統計的には、名前付きの鉢のほうが枯れにくい。",
+        "測ったことはないけど。"
+       ],
+       "en": [
+        "Statistically, named pots survive longer. I haven't actually measured that."
+       ]
+      },
+      {
+       "ja": [
+        "じゃあ、トマ吉は強い子！"
+       ],
+       "en": [
+        "Then Tomakichi is strong!"
+       ]
+      },
+      {
+       "ja": [
+        "手を動かして。"
+       ],
+       "en": [
+        "Hands moving, please."
+       ]
+      },
+      {
+       "ja": [
+        "はーい！"
+       ],
+       "en": [
+        "Yes!"
+       ]
+      },
+      {
+       "ja": [
+        "ごめん！",
+        "手が滑った！"
+       ],
+       "en": [
+        "Sorry! My hand slipped!"
+       ]
+      },
+      {
+       "ja": [
+        "ひゃっ！ 目が！"
+       ],
+       "en": [
+        "Eek! My eyes!"
+       ]
+      },
+      {
+       "ja": [
+        "あはは、目がしみるー！"
+       ],
+       "en": [
+        "Ha ha, it stings! This is kind of funny, though."
+       ]
+      },
+      {
+       "ja": [
+        "大丈夫？ 本当にごめん。"
+       ],
+       "en": [
+        "Are you okay? I'm really sorry."
+       ]
+      },
+      {
+       "ja": [
+        "大丈夫！ 石けんの味がする！"
+       ],
+       "en": [
+        "I'm fine! Tastes like soap!"
+       ]
+      },
+      {
+       "ja": [
+        "少量なら平気だけど。",
+        "念のため洗い流して。"
+       ],
+       "en": [
+        "A little won't hurt. Rinse it off to be safe."
+       ]
+      },
+      {
+       "ja": [
+        "ぐしぐし。"
+       ],
+       "en": [
+        "Rub, rub."
+       ]
+      },
+      {
+       "ja": [
+        "手袋で目こするな。泥ついてるだろ。"
+       ],
+       "en": [
+        "Don't rub your eyes with those gloves. They're covered in dirt."
+       ]
+      },
+      {
+       "ja": [
+        "えっ、泥？"
+       ],
+       "en": [
+        "Dirt? Wait, really?"
+       ]
+      },
+      {
+       "ja": [
+        "泥と、虫の残りカス。"
+       ],
+       "en": [
+        "Dirt, and whatever the bugs left behind.",
+        "Congratulations, you've got both."
+       ]
+      },
+      {
+       "ja": [
+        "うわあああ！"
+       ],
+       "en": [
+        "Aaah!"
+       ]
+      },
+      {
+       "ja": [
+        "洗ってくる！"
+       ],
+       "en": [
+        "I'll go wash them!"
+       ]
+      },
+      {
+       "ja": [
+        "手も顔も、たまには洗うといい。"
+       ],
+       "en": [
+        "Hands and face. Maybe the heart too.",
+        "Everything gets dirty eventually."
+       ]
+      },
+      {
+       "ja": [
+        "先生、ちょっと手伝って。"
+       ],
+       "en": [
+        "Sensei, could you help a little?"
+       ]
+      },
+      {
+       "ja": [
+        "善処しよう。"
+       ],
+       "en": [
+        "I'll try. Preferably after the melon bread."
+       ]
+      },
+      {
+       "ja": [
+        "三日でやるんだろ。数えとけよ。"
+       ],
+       "en": [
+        "Three days, right? Start counting."
+       ]
+      }
+     ]
+    },
+    {
+     "part": "b",
+     "summary": "Minori and Riku argue about timing, with Minori saying the festival is too early and Riku saying a fast fix is possible. Minori agrees to wait if he clears the aphids in three days.",
+     "beats": [
+      {
+       "ja": [
+        "祭りまで十日しかないのよ。早すぎる。"
+       ],
+       "en": [
+        "The festival's only ten days away.",
+        "That's way too early."
+       ]
+      },
+      {
+       "ja": [
+        "早くないって。虫くらい三日で片づく。"
+       ],
+       "en": [
+        "It's not too early. Bugs like that can be cleared in three days."
+       ]
+      },
+      {
+       "ja": [
+        "技術的に言えば、それは希望的観測。",
+        "計画じゃない。"
+       ],
+       "en": [
+        "Technically, that's wishful thinking, not a plan."
+       ]
+      },
+      {
+       "ja": [
+        "希望じゃなくて計画だよ。"
+       ],
+       "en": [
+        "It's not wishful. It's a plan."
+       ]
+      },
+      {
+       "ja": [
+        "計画なら、数字で見せて。"
+       ],
+       "en": [
+        "Then show me the numbers.",
+        "Real ones."
+       ]
+      },
+      {
+       "ja": [
+        "はいはい。"
+       ],
+       "en": [
+        "Sure, sure."
+       ]
+      },
+      {
+       "ja": [
+        "石けん液を薄めて、三回散布する。"
+       ],
+       "en": [
+        "Diluted soap, sprayed three times, every other day."
+       ]
+      },
+      {
+       "ja": [
+        "虫は何匹いるの？"
+       ],
+       "en": [
+        "How many bugs are we talking about?"
+       ]
+      },
+      {
+       "ja": [
+        "数えてない。"
+       ],
+       "en": [
+        "Didn't count."
+       ]
+      },
+      {
+       "ja": [
+        "えっ？"
+       ],
+       "en": [
+        "What?"
+       ]
+      },
+      {
+       "ja": [
+        "数えたら、直すより時間がかかるだろ。",
+        "葉は全部見た。"
+       ],
+       "en": [
+        "Counting takes longer than fixing. I checked every leaf."
+       ]
+      },
+      {
+       "ja": [
+        "対策の前に、現状把握が先でしょ。"
+       ],
+       "en": [
+        "Shouldn't you assess the damage before you treat it?"
+       ]
+      },
+      {
+       "ja": [
+        "葉の裏、全部見たよ。"
+       ],
+       "en": [
+        "I checked the undersides of every leaf."
+       ]
+      },
+      {
+       "ja": [
+        "全部？"
+       ],
+       "en": [
+        "Every single one?"
+       ]
+      },
+      {
+       "ja": [
+        "大体。"
+       ],
+       "en": [
+        "Mostly."
+       ]
+      },
+      {
+       "ja": [
+        "大体じゃ困るの。"
+       ],
+       "en": [
+        "Mostly isn't good enough."
+       ]
+      },
+      {
+       "ja": [
+        "記録は？"
+       ],
+       "en": [
+        "Where's the record?"
+       ]
+      },
+      {
+       "ja": [
+        "頭の中。"
+       ],
+       "en": [
+        "In my head."
+       ]
+      },
+      {
+       "ja": [
+        "最悪。"
+       ],
+       "en": [
+        "Terrible."
+       ]
+      },
+      {
+       "ja": [
+        "信用しろよ。"
+       ],
+       "en": [
+        "Trust me.",
+        "I know these plants."
+       ]
+      },
+      {
+       "ja": [
+        "信用は、データの後で。"
+       ],
+       "en": [
+        "Trust comes after data."
+       ]
+      },
+      {
+       "ja": [
+        "面倒くさい奴だな。"
+       ],
+       "en": [
+        "You're a real pain, you know that?"
+       ]
+      },
+      {
+       "ja": [
+        "誰かが数えないと、大和田くんは雑になるでしょ。"
+       ],
+       "en": [
+        "Someone has to count, or you'll get sloppy, Owada."
+       ]
+      },
+      {
+       "ja": [
+        "小泉に言われると、刺さるな。"
+       ],
+       "en": [
+        "Coming from you, that stings."
+       ]
+      },
+      {
+       "ja": [
+        "刺さるのは、当たってるってこと。"
+       ],
+       "en": [
+        "A sting means I hit the mark."
+       ]
+      },
+      {
+       "ja": [
+        "校長が見に来るのは祭りの日だ。",
+        "待てない。"
+       ],
+       "en": [
+        "The principal inspects on festival day. We can't wait."
+       ]
+      },
+      {
+       "ja": [
+        "だから早すぎるのよ。"
+       ],
+       "en": [
+        "That's exactly why it's too early."
+       ]
+      },
+      {
+       "ja": [
+        "三日でいい。虫は消す。"
+       ],
+       "en": [
+        "Three days. I'll clear the bugs."
+       ]
+      },
+      {
+       "ja": [
+        "……三日で本当に消えたら、待つわ。"
+       ],
+       "en": [
+        "Only if they're really gone in three days will I wait."
+       ]
+      },
+      {
+       "ja": [
+        "約束な。"
+       ],
+       "en": [
+        "Deal."
+       ]
+      },
+      {
+       "ja": [
+        "数えとく。"
+       ],
+       "en": [
+        "I'll be counting."
+       ]
+      },
+      {
+       "ja": [
+        "三日後、確認しに来るから。"
+       ],
+       "en": [
+        "I'll come check in three days."
+       ]
+      }
+     ]
+    },
+    {
+     "part": "b",
+     "summary": "Tomoe asks Miyashita-sensei why plants die, and he answers that plants are stubborn and so are people. Tomoe finds this oddly comforting.",
+     "beats": [
+      {
+       "ja": [
+        "ねえ先生！ トマトって、なんで枯れちゃうの？"
+       ],
+       "en": [
+        "Hey, Sensei! Why do tomatoes die?"
+       ]
+      },
+      {
+       "ja": [
+        "……急だねえ。"
+       ],
+       "en": [
+        "That came out of nowhere."
+       ]
+      },
+      {
+       "ja": [
+        "だって、ミニたろうが寝てるんだもん！"
+       ],
+       "en": [
+        "Because Mini-Taro is lying down and won't get up!"
+       ]
+      },
+      {
+       "ja": [
+        "寝てるわけじゃないよ。"
+       ],
+       "en": [
+        "He's not sleeping, you know."
+       ]
+      },
+      {
+       "ja": [
+        "えっ？ じゃあ、起きないの？"
+       ],
+       "en": [
+        "Eh? So he's not going to wake up?"
+       ]
+      },
+      {
+       "ja": [
+        "起きるかどうかは、トモエ次第かな。"
+       ],
+       "en": [
+        "Whether he wakes up depends on you, maybe."
+       ]
+      },
+      {
+       "ja": [
+        "わたし次第！？ じゃあ、水やる！"
+       ],
+       "en": [
+        "Me? Then I'll water him!"
+       ]
+      },
+      {
+       "ja": [
+        "水のやりすぎも、よくないよ。"
+       ],
+       "en": [
+        "Too much water isn't good for him either."
+       ]
+      },
+      {
+       "ja": [
+        "じゃあ！ どうすればいいの！"
+       ],
+       "en": [
+        "Then what am I supposed to do!"
+       ]
+      },
+      {
+       "ja": [
+        "待つ。",
+        "それから、見る。"
+       ],
+       "en": [
+        "Wait. Then watch."
+       ]
+      },
+      {
+       "ja": [
+        "待つの苦手！"
+       ],
+       "en": [
+        "I'm bad at waiting!"
+       ]
+      },
+      {
+       "ja": [
+        "知ってる。"
+       ],
+       "en": [
+        "I know."
+       ]
+      },
+      {
+       "ja": [
+        "先生、ずるい！ 答えになってない！"
+       ],
+       "en": [
+        "That's cheating, Sensei! That's not an answer!"
+       ]
+      },
+      {
+       "ja": [
+        "答えは、植物の方が知ってるからね。"
+       ],
+       "en": [
+        "Plants know the answer better than I do."
+       ]
+      },
+      {
+       "ja": [
+        "植物は喋らないもん！"
+       ],
+       "en": [
+        "Plants don't talk!"
+       ]
+      },
+      {
+       "ja": [
+        "うん……"
+       ],
+       "en": [
+        "Mm..."
+       ]
+      },
+      {
+       "ja": [
+        "でもさ、なんで死んじゃうのかは知りたい！"
+       ],
+       "en": [
+        "But I still want to know why they die!"
+       ]
+      },
+      {
+       "ja": [
+        "植物はね、頑固なんだ。"
+       ],
+       "en": [
+        "Plants are stubborn."
+       ]
+      },
+      {
+       "ja": [
+        "頑固？"
+       ],
+       "en": [
+        "Stubborn?"
+       ]
+      },
+      {
+       "ja": [
+        "頑固だよ。"
+       ],
+       "en": [
+        "Yes, stubborn."
+       ]
+      },
+      {
+       "ja": [
+        "一度決めたら、なかなか曲げない。"
+       ],
+       "en": [
+        "Once they've made up their minds, they don't bend easily."
+       ]
+      },
+      {
+       "ja": [
+        "人もね、同じくらい頑固だ。"
+       ],
+       "en": [
+        "People are just as stubborn.",
+        "Maybe even more."
+       ]
+      },
+      {
+       "ja": [
+        "先生も頑固？"
+       ],
+       "en": [
+        "Are you stubborn too, Sensei?"
+       ]
+      },
+      {
+       "ja": [
+        "ぼくは、眠いのが頑固なだけ。"
+       ],
+       "en": [
+        "I'm only stubborn about being sleepy.",
+        "Ask anyone."
+       ]
+      },
+      {
+       "ja": [
+        "えへへ、それ先生っぽい！"
+       ],
+       "en": [
+        "Hehe, that's so you, Sensei!"
+       ]
+      },
+      {
+       "ja": [
+        "なるほど……"
+       ],
+       "en": [
+        "I see..."
+       ]
+      },
+      {
+       "ja": [
+        "じゃあ、ミニたろうも、まだ戦ってる？"
+       ],
+       "en": [
+        "So Mini-Taro is still fighting?"
+       ]
+      },
+      {
+       "ja": [
+        "そうだね。",
+        "根っこは、まだ働いてる。"
+       ],
+       "en": [
+        "Yes. The roots are still working."
+       ]
+      },
+      {
+       "ja": [
+        "なんか、ちょっとほっとした。"
+       ],
+       "en": [
+        "Somehow that makes me feel better.",
+        "Like someone agreed with me."
+       ]
+      },
+      {
+       "ja": [
+        "不思議。死ぬ話なのに。"
+       ],
+       "en": [
+        "Strange. We're talking about dying, and I still feel better."
+       ]
+      },
+      {
+       "ja": [
+        "頑固なのは、いいことだよ。",
+        "生きたがってる証拠さ。"
+       ],
+       "en": [
+        "Being stubborn is good. It means they want to live."
+       ]
+      }
+     ]
+    },
+    {
+     "part": "b",
+     "summary": "Mitsuhashi overhears Haru and Riku whispering on the stairs and asks what they are hiding. They lie badly, and he lets it go with a warning.",
+     "beats": [
+      {
+       "ja": [
+        "しーっ。声、大きい。"
+       ],
+       "en": [
+        "Shh. You're too loud."
+       ]
+      },
+      {
+       "ja": [
+        "君が先に言ったんだろ。"
+       ],
+       "en": [
+        "You talked first."
+       ]
+      },
+      {
+       "ja": [
+        "言ってない。"
+       ],
+       "en": [
+        "I did not."
+       ]
+      },
+      {
+       "ja": [
+        "言った。「ねえ」って。"
+       ],
+       "en": [
+        "You did. You said \"hey.\""
+       ]
+      },
+      {
+       "ja": [
+        "それは挨拶。"
+       ],
+       "en": [
+        "That was a greeting."
+       ]
+      },
+      {
+       "ja": [
+        "階段で挨拶する人はいない。"
+       ],
+       "en": [
+        "Nobody greets people on stairs."
+       ]
+      },
+      {
+       "ja": [
+        "ここにいる。"
+       ],
+       "en": [
+        "I do."
+       ]
+      },
+      {
+       "ja": [
+        "はいはい。で、どうする。"
+       ],
+       "en": [
+        "Fine. So what now?"
+       ]
+      },
+      {
+       "ja": [
+        "校長に言うか、",
+        "言わないか。"
+       ],
+       "en": [
+        "Do we tell the principal or not?"
+       ]
+      },
+      {
+       "ja": [
+        "言わない。"
+       ],
+       "en": [
+        "No."
+       ]
+      },
+      {
+       "ja": [
+        "嘘つくのは嫌。"
+       ],
+       "en": [
+        "I hate lying."
+       ]
+      },
+      {
+       "ja": [
+        "嘘じゃない。まだ言ってないだけ。"
+       ],
+       "en": [
+        "It's not lying.",
+        "We just haven't said it yet."
+       ]
+      },
+      {
+       "ja": [
+        "階段で何を話している。"
+       ],
+       "en": [
+        "What are you two discussing on the stairs?"
+       ]
+      },
+      {
+       "ja": [
+        "えっ！ 別に！"
+       ],
+       "en": [
+        "Huh! Nothing!"
+       ]
+      },
+      {
+       "ja": [
+        "天気の話。"
+       ],
+       "en": [
+        "The weather."
+       ]
+      },
+      {
+       "ja": [
+        "今日は晴れだ。"
+       ],
+       "en": [
+        "It's sunny today."
+       ]
+      },
+      {
+       "ja": [
+        "晴れの話です。"
+       ],
+       "en": [
+        "We were talking about sunshine."
+       ]
+      },
+      {
+       "ja": [
+        "雨の話もした。"
+       ],
+       "en": [
+        "And rain."
+       ]
+      },
+      {
+       "ja": [
+        "ちょっと黙ってて。"
+       ],
+       "en": [
+        "Could you not?"
+       ]
+      },
+      {
+       "ja": [
+        "踊り場で小声。",
+        "隠し事の典型だな。"
+       ],
+       "en": [
+        "Whispering on a landing.",
+        "Classic signs of a secret."
+       ]
+      },
+      {
+       "ja": [
+        "隠してない。"
+       ],
+       "en": [
+        "We're not hiding anything."
+       ]
+      },
+      {
+       "ja": [
+        "隠してないなら、",
+        "何を言えないんだ。"
+       ],
+       "en": [
+        "If you're hiding nothing, what can't you tell me?"
+       ]
+      },
+      {
+       "ja": [
+        "それは……"
+       ],
+       "en": [
+        "That's..."
+       ]
+      },
+      {
+       "ja": [
+        "トマト！"
+       ],
+       "en": [
+        "Tomatoes!"
+       ]
+      },
+      {
+       "ja": [
+        "馬鹿。"
+       ],
+       "en": [
+        "Idiot."
+       ]
+      },
+      {
+       "ja": [
+        "トマト。"
+       ],
+       "en": [
+        "Tomatoes."
+       ]
+      },
+      {
+       "ja": [
+        "育ててます。すごく。"
+       ],
+       "en": [
+        "We're growing them. Really well."
+       ]
+      },
+      {
+       "ja": [
+        "報告書は、",
+        "月曜までに。"
+       ],
+       "en": [
+        "Your report is due by Monday."
+       ]
+      },
+      {
+       "ja": [
+        "出します。"
+       ],
+       "en": [
+        "We'll submit it."
+       ]
+      },
+      {
+       "ja": [
+        "今回は見逃す。"
+       ],
+       "en": [
+        "I'll let this one go."
+       ]
+      },
+      {
+       "ja": [
+        "屋上の植物は、学校の規則の下にある。",
+        "忘れるな。"
+       ],
+       "en": [
+        "The plants on that roof fall under school rules.",
+        "Don't forget."
+       ]
+      },
+      {
+       "ja": [
+        "はい。"
+       ],
+       "en": [
+        "Yes."
+       ]
+      },
+      {
+       "ja": [
+        "……トマトは、よく育てなさい。"
+       ],
+       "en": [
+        "...Grow the tomatoes properly."
+       ]
+      }
+     ]
+    },
+    {
+     "part": "b",
+     "summary": "That night the club sets up a small light on the roof to watch for pests. Riku checks the grafted plant and admits to Minori that he is not sure he wants to return to the old way.",
+     "beats": [
+      {
+       "ja": [
+        "ライト、つけるよ。"
+       ],
+       "en": [
+        "Okay, turning the light on."
+       ]
+      },
+      {
+       "ja": [
+        "わあ、葉っぱが光ってる！"
+       ],
+       "en": [
+        "Wow, the leaves are glowing!"
+       ]
+      },
+      {
+       "ja": [
+        "光ってないです。反射です。"
+       ],
+       "en": [
+        "They're not glowing. Technically, it's reflection."
+       ]
+      },
+      {
+       "ja": [
+        "反射って、なに？"
+       ],
+       "en": [
+        "What's reflection?"
+       ]
+      },
+      {
+       "ja": [
+        "光が跳ね返ること。"
+       ],
+       "en": [
+        "When light bounces back off something."
+       ]
+      },
+      {
+       "ja": [
+        "虫、いる？"
+       ],
+       "en": [
+        "Any bugs?",
+        "Keep your eyes open."
+       ]
+      },
+      {
+       "ja": [
+        "今は、いません。"
+       ],
+       "en": [
+        "Not right now."
+       ]
+      },
+      {
+       "ja": [
+        "よかったぁ！"
+       ],
+       "en": [
+        "Phew, good!"
+       ]
+      },
+      {
+       "ja": [
+        "見張りは交代制。",
+        "無理はしない。"
+       ],
+       "en": [
+        "We take turns on watch. Nobody pushes themselves."
+       ]
+      },
+      {
+       "ja": [
+        "私、最初！"
+       ],
+       "en": [
+        "I'll go first!"
+       ]
+      },
+      {
+       "ja": [
+        "十分だけ。"
+       ],
+       "en": [
+        "Just ten minutes."
+       ]
+      },
+      {
+       "ja": [
+        "十分で、",
+        "何匹見つかる？"
+       ],
+       "en": [
+        "In ten minutes, how many bugs can you find?"
+       ]
+      },
+      {
+       "ja": [
+        "夜中に屋上で騒ぐな。"
+       ],
+       "en": [
+        "Don't make a racket on the roof in the middle of the night."
+       ]
+      },
+      {
+       "ja": [
+        "リクくん！"
+       ],
+       "en": [
+        "Riku-kun!"
+       ]
+      },
+      {
+       "ja": [
+        "……来るつもりはなかった。"
+       ],
+       "en": [
+        "I wasn't planning on coming."
+       ]
+      },
+      {
+       "ja": [
+        "でも、来た。"
+       ],
+       "en": [
+        "But you came."
+       ]
+      },
+      {
+       "ja": [
+        "照明が気になっただけだ。"
+       ],
+       "en": [
+        "I just wanted to check the light.",
+        "Not the plants, obviously."
+       ]
+      },
+      {
+       "ja": [
+        "嘘が下手ですね。"
+       ],
+       "en": [
+        "That's a bad lie."
+       ]
+      },
+      {
+       "ja": [
+        "うるさい。"
+       ],
+       "en": [
+        "Shut up."
+       ]
+      },
+      {
+       "ja": [
+        "接ぎ木、見せて。"
+       ],
+       "en": [
+        "Show me the graft."
+       ]
+      },
+      {
+       "ja": [
+        "テープ、少しゆるんでます。"
+       ],
+       "en": [
+        "The tape's a little loose."
+       ]
+      },
+      {
+       "ja": [
+        "締め直す。"
+       ],
+       "en": [
+        "I'll retape it."
+       ]
+      },
+      {
+       "ja": [
+        "触っても、大丈夫ですか？"
+       ],
+       "en": [
+        "Is it okay to touch it?"
+       ]
+      },
+      {
+       "ja": [
+        "待って、ここ。",
+        "切り口、まだ生きてる。"
+       ],
+       "en": [
+        "Wait, look here. The cut's still alive."
+       ]
+      },
+      {
+       "ja": [
+        "本当ですか？"
+       ],
+       "en": [
+        "Really?"
+       ]
+      },
+      {
+       "ja": [
+        "根が勝ってる。"
+       ],
+       "en": [
+        "The roots are winning."
+       ]
+      },
+      {
+       "ja": [
+        "宮下先生の言ったこと、覚えてるんですね。"
+       ],
+       "en": [
+        "So you remember what Miyashita-sensei said."
+       ]
+      },
+      {
+       "ja": [
+        "忘れられないんだよ。"
+       ],
+       "en": [
+        "I can't seem to forget it."
+       ]
+      },
+      {
+       "ja": [
+        "戻る気、あるんですか？"
+       ],
+       "en": [
+        "Do you want to go back, then?"
+       ]
+      },
+      {
+       "ja": [
+        "昔のやり方に戻るのか、正直、わからない。"
+       ],
+       "en": [
+        "Go back to the old way? Honestly, I don't know.",
+        "It's not as simple as it used to be."
+       ]
+      },
+      {
+       "ja": [
+        "両方やればいいじゃん！"
+       ],
+       "en": [
+        "Why not do both?"
+       ]
+      }
+     ]
+    },
+    {
+     "part": "preview",
+     "summary": "Haru stands on the roof with a clipboard and teases that the principal is coming for the festival inspection. She says someone is going to get caught with mud on their face.",
+     "beats": [
+      {
+       "ja": [
+        "校長先生、祭りの前に検査に来るって。"
+       ],
+       "en": [
+        "The principal's coming to inspect before the festival, apparently."
+       ]
+      },
+      {
+       "ja": [
+        "えっ、今週？"
+       ],
+       "en": [
+        "Wait, this week?"
+       ]
+      },
+      {
+       "ja": [
+        "今週。"
+       ],
+       "en": [
+        "This week."
+       ]
+      },
+      {
+       "ja": [
+        "三日で虫を全部取るって言ったよね。"
+       ],
+       "en": [
+        "You promised the bugs would be gone in three days, remember?"
+       ]
+      },
+      {
+       "ja": [
+        "言ったのはリクでしょ。"
+       ],
+       "en": [
+        "That was your promise, not mine."
+       ]
+      },
+      {
+       "ja": [
+        "検査の日、顔に泥をつけた誰かさんが",
+        "校長に捕まるんだよね。"
+       ],
+       "en": [
+        "On inspection day, someone with mud on their face gets caught by the principal."
+       ]
+      },
+      {
+       "ja": [
+        "はいはい。"
+       ],
+       "en": [
+        "Yeah, yeah."
+       ]
+      },
+      {
+       "ja": [
+        "逃げないでよ、リク。"
+       ],
+       "en": [
+        "Don't run off, Riku.",
+        "I need you up here for this."
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "number": 3,
+   "title_ja": "赤くなった日",
+   "title_en": "The Day It Turned Red",
+   "scenes": [
+    {
+     "part": "cold_open",
+     "summary": "On festival morning, Miyashita-sensei arrives with a bag of melon bread and finds Tomoe jumping up and down. She shouts that the tomato is finally ripe.",
+     "beats": [
+      {
+       "ja": [
+        "先生！"
+       ],
+       "en": [
+        "Sensei!"
+       ]
+      },
+      {
+       "ja": [
+        "遅いってば！"
+       ],
+       "en": [
+        "You're late, I've been waiting!"
+       ]
+      },
+      {
+       "ja": [
+        "うん、ごめんごめん。"
+       ],
+       "en": [
+        "Yeah, sorry, sorry."
+       ]
+      },
+      {
+       "ja": [
+        "朝の散歩でね、遠回りしたんだ。"
+       ],
+       "en": [
+        "I took the long way on my morning walk."
+       ]
+      },
+      {
+       "ja": [
+        "それより、紙袋の中身は？"
+       ],
+       "en": [
+        "Never mind that. What's in the paper bag?"
+       ]
+      },
+      {
+       "ja": [
+        "メロンパン。"
+       ],
+       "en": [
+        "Melon bread."
+       ]
+      },
+      {
+       "ja": [
+        "やっぱり！"
+       ],
+       "en": [
+        "I knew it!"
+       ]
+      },
+      {
+       "ja": [
+        "先生、そんなことより！"
+       ],
+       "en": [
+        "Forget the bread, Sensei!"
+       ]
+      },
+      {
+       "ja": [
+        "トマト、赤くなったの！"
+       ],
+       "en": [
+        "The tomato's turned red!"
+       ]
+      },
+      {
+       "ja": [
+        "一番上の、ほら。",
+        "色が全部ちゃんと赤い。"
+       ],
+       "en": [
+        "The top one, look. It's fully red all over."
+       ]
+      },
+      {
+       "ja": [
+        "本当に？"
+       ],
+       "en": [
+        "Really?"
+       ]
+      },
+      {
+       "ja": [
+        "昨日まで青かったのに、今朝見たら真っ赤なの。"
+       ],
+       "en": [
+        "It was still green yesterday, but this morning it was bright red.",
+        "I almost screamed, honestly."
+       ]
+      },
+      {
+       "ja": [
+        "信じられる？"
+       ],
+       "en": [
+        "Can you believe it?"
+       ]
+      },
+      {
+       "ja": [
+        "さっきからずっと跳ねてる？"
+       ],
+       "en": [
+        "Have you been bouncing like that the whole time?"
+       ]
+      },
+      {
+       "ja": [
+        "跳ねないと落ち着かないの！"
+       ],
+       "en": [
+        "I can't keep still when something this big happens!"
+       ]
+      },
+      {
+       "ja": [
+        "ふうん。"
+       ],
+       "en": [
+        "I see."
+       ]
+      },
+      {
+       "ja": [
+        "実がつくまで、長かったね。"
+       ],
+       "en": [
+        "It took a long while for the fruit to come.",
+        "Waiting is always the hardest part, isn't it."
+       ]
+      },
+      {
+       "ja": [
+        "なるほど。"
+       ],
+       "en": [
+        "Mm, I see."
+       ]
+      },
+      {
+       "ja": [
+        "待って、みんな呼んでくる！",
+        "先生はここで見てて！"
+       ],
+       "en": [
+        "Wait, I'll go get everyone! Stay right here and watch!"
+       ]
+      },
+      {
+       "ja": [
+        "先生、早く！"
+       ],
+       "en": [
+        "Sensei, hurry!"
+       ]
+      }
+     ]
+    },
+    {
+     "part": "a",
+     "summary": "Minori counts the red tomatoes and finds exactly one, small and deep red. She insists everyone keep their hands off it while she calls it a miracle.",
+     "beats": [
+      {
+       "ja": [
+        "全部数えるから、誰も触らないで。"
+       ],
+       "en": [
+        "I'm counting every one, so nobody touch anything."
+       ]
+      },
+      {
+       "ja": [
+        "うん！"
+       ],
+       "en": [
+        "Okay!"
+       ]
+      },
+      {
+       "ja": [
+        "緑が十二、黄色が三。"
+       ],
+       "en": [
+        "Twelve green, three yellow."
+       ]
+      },
+      {
+       "ja": [
+        "赤いのは？"
+       ],
+       "en": [
+        "What about the red ones?"
+       ]
+      },
+      {
+       "ja": [
+        "赤は……一つ。",
+        "間違いなく一つ。"
+       ],
+       "en": [
+        "Red... just one, and I've checked it three times."
+       ]
+      },
+      {
+       "ja": [
+        "一個？ 冗談だろ。"
+       ],
+       "en": [
+        "One? You've got to be joking."
+       ]
+      },
+      {
+       "ja": [
+        "冗談じゃないよ！ほら、あれ！"
+       ],
+       "en": [
+        "It's not a joke! Look, over there!"
+       ]
+      },
+      {
+       "ja": [
+        "……小さいな。"
+       ],
+       "en": [
+        "...It's tiny."
+       ]
+      },
+      {
+       "ja": [
+        "小さいけど、色が深いの。"
+       ],
+       "en": [
+        "It's small, but look at that deep red.",
+        "Technically, that's the ideal ripeness."
+       ]
+      },
+      {
+       "ja": [
+        "深い赤だね。"
+       ],
+       "en": [
+        "That's a deep red."
+       ]
+      },
+      {
+       "ja": [
+        "触っちゃダメ？"
+       ],
+       "en": [
+        "Can we touch it?"
+       ]
+      },
+      {
+       "ja": [
+        "ダメ！",
+        "絶対に触らないで。"
+       ],
+       "en": [
+        "No touching it, not even a finger."
+       ]
+      },
+      {
+       "ja": [
+        "えー……"
+       ],
+       "en": [
+        "Aw..."
+       ]
+      },
+      {
+       "ja": [
+        "奇跡なんだから、手を離して。"
+       ],
+       "en": [
+        "This is a miracle. Take your hands off it."
+       ]
+      },
+      {
+       "ja": [
+        "奇跡って大げさだろ。"
+       ],
+       "en": [
+        "A miracle? That's a bit much."
+       ]
+      },
+      {
+       "ja": [
+        "大げさじゃない。三週間かけて一個なの。"
+       ],
+       "en": [
+        "It's not an exaggeration. Three weeks to get one fruit.",
+        "That's not nothing."
+       ]
+      },
+      {
+       "ja": [
+        "待つのも、実りのうちだよ。"
+       ],
+       "en": [
+        "Waiting is part of the harvest too."
+       ]
+      },
+      {
+       "ja": [
+        "出た、先生の名言。"
+       ],
+       "en": [
+        "There it is, sensei's wisdom."
+       ]
+      },
+      {
+       "ja": [
+        "名言かな。"
+       ],
+       "en": [
+        "Is it wisdom?"
+       ]
+      },
+      {
+       "ja": [
+        "それより、メロンパンは？"
+       ],
+       "en": [
+        "Anyway, did you bring the melon bread?"
+       ]
+      },
+      {
+       "ja": [
+        "先生、今それ！"
+       ],
+       "en": [
+        "Sensei, now's not the time!"
+       ]
+      },
+      {
+       "ja": [
+        "写真、撮る。"
+       ],
+       "en": [
+        "I'm taking a photo."
+       ]
+      },
+      {
+       "ja": [
+        "待って。",
+        "光の角度を合わせるから。"
+       ],
+       "en": [
+        "Hold on, I need to fix the angle of the light first."
+       ]
+      },
+      {
+       "ja": [
+        "早くして。"
+       ],
+       "en": [
+        "Hurry up, then."
+       ]
+      },
+      {
+       "ja": [
+        "今、測ってる。"
+       ],
+       "en": [
+        "I'm measuring it."
+       ]
+      },
+      {
+       "ja": [
+        "直径三センチ、重さは十八グラム。"
+       ],
+       "en": [
+        "Three centimeters across, eighteen grams.",
+        "Technically, that's small for a tomato."
+       ]
+      },
+      {
+       "ja": [
+        "ちゃんと測った？"
+       ],
+       "en": [
+        "You actually weighed it?"
+       ]
+      },
+      {
+       "ja": [
+        "当たり前。"
+       ],
+       "en": [
+        "Of course."
+       ]
+      },
+      {
+       "ja": [
+        "名前、もう決めてある！"
+       ],
+       "en": [
+        "I've already got a name for it!"
+       ]
+      },
+      {
+       "ja": [
+        "まだ早い。"
+       ],
+       "en": [
+        "It's too early for names."
+       ]
+      },
+      {
+       "ja": [
+        "名前は大事だよ。"
+       ],
+       "en": [
+        "Names matter, you know."
+       ]
+      },
+      {
+       "ja": [
+        "奇跡は、ちゃんと記録しないと。"
+       ],
+       "en": [
+        "A miracle has to be recorded properly before anyone touches it."
+       ]
+      }
+     ]
+    },
+    {
+     "part": "a",
+     "summary": "Riku and Haru argue over who should present the tomato to the principal. Riku says it should be him because it was his fault, but Haru refuses.",
+     "beats": [
+      {
+       "ja": [
+        "俺が持っていく。"
+       ],
+       "en": [
+        "I'll be the one who takes it to him."
+       ]
+      },
+      {
+       "ja": [
+        "だめ。"
+       ],
+       "en": [
+        "No."
+       ]
+      },
+      {
+       "ja": [
+        "は？"
+       ],
+       "en": [
+        "Excuse me?"
+       ]
+      },
+      {
+       "ja": [
+        "部長は私。"
+       ],
+       "en": [
+        "I'm the president. That makes it my call."
+       ]
+      },
+      {
+       "ja": [
+        "枯らしたの、俺のせいだろ。"
+       ],
+       "en": [
+        "I'm the one who let it die. This is on me."
+       ]
+      },
+      {
+       "ja": [
+        "去年の話でしょ。",
+        "もう引きずらないで。"
+       ],
+       "en": [
+        "That was last year.",
+        "Stop dragging it into this."
+       ]
+      },
+      {
+       "ja": [
+        "引きずってねえよ。"
+       ],
+       "en": [
+        "I'm not dragging anything."
+       ]
+      },
+      {
+       "ja": [
+        "嘘。"
+       ],
+       "en": [
+        "Liar."
+       ]
+      },
+      {
+       "ja": [
+        "水やり、俺が一週間サボった。"
+       ],
+       "en": [
+        "I skipped watering for a week. Nobody else did that."
+       ]
+      },
+      {
+       "ja": [
+        "それは知ってる。"
+       ],
+       "en": [
+        "I know. Everyone knows."
+       ]
+      },
+      {
+       "ja": [
+        "だったら、俺が謝るのが筋だろ。"
+       ],
+       "en": [
+        "Then I should be the one apologizing to him. That's only fair."
+       ]
+      },
+      {
+       "ja": [
+        "謝るのは、トマトが助かってから。",
+        "今じゃない。"
+       ],
+       "en": [
+        "You can apologize once the tomato's safe.",
+        "Not before."
+       ]
+      },
+      {
+       "ja": [
+        "……そうかよ。"
+       ],
+       "en": [
+        "Fine. Whatever."
+       ]
+      },
+      {
+       "ja": [
+        "勝手に納得しないで。"
+       ],
+       "en": [
+        "Don't decide that on your own."
+       ]
+      },
+      {
+       "ja": [
+        "俺は納得してない。"
+       ],
+       "en": [
+        "I'm not convinced at all."
+       ]
+      },
+      {
+       "ja": [
+        "じゃあ、どうしたいの。"
+       ],
+       "en": [
+        "Then what do you want?"
+       ]
+      },
+      {
+       "ja": [
+        "俺が話す。"
+       ],
+       "en": [
+        "I'll do the talking."
+       ]
+      },
+      {
+       "ja": [
+        "無理。"
+       ],
+       "en": [
+        "Impossible."
+       ]
+      },
+      {
+       "ja": [
+        "俺だって話せる。"
+       ],
+       "en": [
+        "I can talk just fine, you know."
+       ]
+      },
+      {
+       "ja": [
+        "二十分黙って、ずっと睨んでたくせに。"
+       ],
+       "en": [
+        "You stood there glaring at the principal for twenty minutes last time.",
+        "You didn't say a word."
+       ]
+      },
+      {
+       "ja": [
+        "あれは、考えてたんだよ。"
+       ],
+       "en": [
+        "I was thinking, that's all."
+       ]
+      },
+      {
+       "ja": [
+        "考えてる顔じゃなかった。"
+       ],
+       "en": [
+        "You looked like you wanted to hit someone."
+       ]
+      },
+      {
+       "ja": [
+        "うるせえ。"
+       ],
+       "en": [
+        "Shut up."
+       ]
+      },
+      {
+       "ja": [
+        "待って！"
+       ],
+       "en": [
+        "Wait!"
+       ]
+      },
+      {
+       "ja": [
+        "ほら、今の顔。"
+       ],
+       "en": [
+        "See? That look right there."
+       ]
+      },
+      {
+       "ja": [
+        "見てない。"
+       ],
+       "en": [
+        "I'm not looking at you."
+       ]
+      },
+      {
+       "ja": [
+        "見てるじゃん。"
+       ],
+       "en": [
+        "You clearly are."
+       ]
+      },
+      {
+       "ja": [
+        "なるほど。"
+       ],
+       "en": [
+        "I see."
+       ]
+      },
+      {
+       "ja": [
+        "何がなるほどなんだよ。"
+       ],
+       "en": [
+        "What do you mean, you see?"
+       ]
+      },
+      {
+       "ja": [
+        "二人で行けばいい。"
+       ],
+       "en": [
+        "Why don't we both go?",
+        "Then nobody gets blamed alone."
+       ]
+      },
+      {
+       "ja": [
+        "それは、ずるい。"
+       ],
+       "en": [
+        "That's cheating."
+       ]
+      },
+      {
+       "ja": [
+        "勝手に決めた。"
+       ],
+       "en": [
+        "I decided that on the spot."
+       ]
+      },
+      {
+       "ja": [
+        "分かった。"
+       ],
+       "en": [
+        "Okay. Fine."
+       ]
+      },
+      {
+       "ja": [
+        "両方、いい。"
+       ],
+       "en": [
+        "Both of us, then. That works."
+       ]
+      }
+     ]
+    },
+    {
+     "part": "a",
+     "summary": "Mitsuhashi arrives with the inspection board and asks for the report. He listens in silence while Haru explains the aphids and the grafts.",
+     "beats": [
+      {
+       "ja": [
+        "報告書を、提出してください。"
+       ],
+       "en": [
+        "Please submit the report."
+       ]
+      },
+      {
+       "ja": [
+        "はい！ 今すぐ！"
+       ],
+       "en": [
+        "Yes! Right now!"
+       ]
+      },
+      {
+       "ja": [
+        "ちょっと待って、まだ途中。"
+       ],
+       "en": [
+        "Wait, it isn't finished yet.",
+        "Give us one minute."
+       ]
+      },
+      {
+       "ja": [
+        "途中の報告書は受け付けません。"
+       ],
+       "en": [
+        "I don't accept unfinished reports."
+       ]
+      },
+      {
+       "ja": [
+        "じゃあ、口頭で説明する。"
+       ],
+       "en": [
+        "Then I'll explain it out loud."
+       ]
+      },
+      {
+       "ja": [
+        "それでいい。"
+       ],
+       "en": [
+        "That will do."
+       ]
+      },
+      {
+       "ja": [
+        "えっと、まず一番の問題は、アブラムシ。"
+       ],
+       "en": [
+        "Okay. First, the biggest problem was aphids."
+       ]
+      },
+      {
+       "ja": [
+        "三週間前、葉の裏に集まってた。",
+        "数えたら、百匹以上。"
+       ],
+       "en": [
+        "Three weeks ago they covered the leaf undersides. Over a hundred of them."
+       ]
+      },
+      {
+       "ja": [
+        "厳密には、百四十二匹です。"
+       ],
+       "en": [
+        "Technically, it was a hundred and forty-two."
+       ]
+      },
+      {
+       "ja": [
+        "数字はどうでもいいだろ。"
+       ],
+       "en": [
+        "Who cares about the exact number?"
+       ]
+      },
+      {
+       "ja": [
+        "ここからが本番。"
+       ],
+       "en": [
+        "This is the important part."
+       ]
+      },
+      {
+       "ja": [
+        "薬は使わなかった。"
+       ],
+       "en": [
+        "We didn't use pesticide."
+       ]
+      },
+      {
+       "ja": [
+        "手で取って、石鹸水で洗った。"
+       ],
+       "en": [
+        "We picked them off by hand",
+        "and washed the plants in soapy water."
+       ]
+      },
+      {
+       "ja": [
+        "毎朝、六時から。"
+       ],
+       "en": [
+        "Every morning, starting at six."
+       ]
+      },
+      {
+       "ja": [
+        "……それで？"
+       ],
+       "en": [
+        "And?"
+       ]
+      },
+      {
+       "ja": [
+        "接ぎ木は、台木を二本使った。",
+        "片方が病気になった時のため。"
+       ],
+       "en": [
+        "For the grafts we used two rootstocks, in case one got sick."
+       ]
+      },
+      {
+       "ja": [
+        "接ぎ口は斜めに切って、ぴったり合わせた。"
+       ],
+       "en": [
+        "We cut the joints at a slant",
+        "and matched them exactly."
+       ]
+      },
+      {
+       "ja": [
+        "切り口がぴったり！"
+       ],
+       "en": [
+        "The joints fit perfectly!"
+       ]
+      },
+      {
+       "ja": [
+        "うるさい。"
+       ],
+       "en": [
+        "Quiet."
+       ]
+      },
+      {
+       "ja": [
+        "二本とも、つながった。"
+       ],
+       "en": [
+        "Both of them took."
+       ]
+      },
+      {
+       "ja": [
+        "すごーい！"
+       ],
+       "en": [
+        "Wow!"
+       ]
+      },
+      {
+       "ja": [
+        "片方はもう枯れた。"
+       ],
+       "en": [
+        "One of them died anyway."
+       ]
+      },
+      {
+       "ja": [
+        "でも、残った方に",
+        "実がついた。"
+       ],
+       "en": [
+        "But the other one bore fruit."
+       ]
+      },
+      {
+       "ja": [
+        "……そうか。"
+       ],
+       "en": [
+        "I see."
+       ]
+      },
+      {
+       "ja": [
+        "報告は以上です。",
+        "質問は？"
+       ],
+       "en": [
+        "That's the full report. Any questions?"
+       ]
+      },
+      {
+       "ja": [
+        "穴が多い。"
+       ],
+       "en": [
+        "There are gaps."
+       ]
+      },
+      {
+       "ja": [
+        "分かってる。"
+       ],
+       "en": [
+        "I know."
+       ]
+      },
+      {
+       "ja": [
+        "報告は、長いと疲れますよ。",
+        "校長もそうでしょう。"
+       ],
+       "en": [
+        "Long reports wear a person out. Don't they, Principal?"
+       ]
+      },
+      {
+       "ja": [
+        "宮下先生、黙っていなさい。"
+       ],
+       "en": [
+        "Miyashita-sensei, be quiet."
+       ]
+      },
+      {
+       "ja": [
+        "次は、トマトを見せなさい。"
+       ],
+       "en": [
+        "Now, show me the tomato."
+       ]
+      },
+      {
+       "ja": [
+        "はい。"
+       ],
+       "en": [
+        "Yes."
+       ]
+      },
+      {
+       "ja": [
+        "触らないでくださいね。"
+       ],
+       "en": [
+        "Please don't touch it, okay?"
+       ]
+      }
+     ]
+    },
+    {
+     "part": "a",
+     "summary": "Mitsuhashi tastes the tomato, pauses, and says it is the best he has had since he was a child. He asks the club why they need the roof, and no one answers right away.",
+     "beats": [
+      {
+       "ja": [
+        "では、いただこう。"
+       ],
+       "en": [
+        "Then I'll try it."
+       ]
+      },
+      {
+       "ja": [
+        "どうぞ。"
+       ],
+       "en": [
+        "Go ahead."
+       ]
+      },
+      {
+       "ja": [
+        "皮が、薄い。"
+       ],
+       "en": [
+        "The skin is thin."
+       ]
+      },
+      {
+       "ja": [
+        "皮で分かるんですか！"
+       ],
+       "en": [
+        "You can tell from the skin?!"
+       ]
+      },
+      {
+       "ja": [
+        "静かにしなさい。"
+       ],
+       "en": [
+        "Be quiet."
+       ]
+      },
+      {
+       "ja": [
+        "……。"
+       ],
+       "en": [
+        "..."
+       ]
+      },
+      {
+       "ja": [
+        "甘い。"
+       ],
+       "en": [
+        "It's sweet."
+       ]
+      },
+      {
+       "ja": [
+        "酸味が、あとから来る。"
+       ],
+       "en": [
+        "The sourness comes after."
+       ]
+      },
+      {
+       "ja": [
+        "技術的には、糖度は八・二です。",
+        "味は数字にしにくいです。"
+       ],
+       "en": [
+        "Technically, it's 8.2 Brix, but taste doesn't measure well."
+       ]
+      },
+      {
+       "ja": [
+        "甘いでしょう！"
+       ],
+       "en": [
+        "Sweet, right?"
+       ]
+      },
+      {
+       "ja": [
+        "子どものころに食べた味だ。"
+       ],
+       "en": [
+        "It tastes like the ones I ate as a child.",
+        "Those are hard to find now."
+       ]
+      },
+      {
+       "ja": [
+        "校長先生、いま笑いました？"
+       ],
+       "en": [
+        "Did the principal just smile?"
+       ]
+      },
+      {
+       "ja": [
+        "笑ってない。"
+       ],
+       "en": [
+        "I'm not smiling."
+       ]
+      },
+      {
+       "ja": [
+        "校長。"
+       ],
+       "en": [
+        "Principal."
+       ]
+      },
+      {
+       "ja": [
+        "一つ、聞く。"
+       ],
+       "en": [
+        "I have one question."
+       ]
+      },
+      {
+       "ja": [
+        "君たちは、なぜ屋上が必要なんだ。"
+       ],
+       "en": [
+        "Why do you need the roof?",
+        "Give me an actual reason."
+       ]
+      },
+      {
+       "ja": [
+        "……。"
+       ],
+       "en": [
+        "..."
+       ]
+      },
+      {
+       "ja": [
+        "えっと、理由は、その。"
+       ],
+       "en": [
+        "Well, the reason is..."
+       ]
+      },
+      {
+       "ja": [
+        "待って。"
+       ],
+       "en": [
+        "Wait."
+       ]
+      },
+      {
+       "ja": [
+        "屋上にはトマトがあります！"
+       ],
+       "en": [
+        "There are tomatoes on the roof!",
+        "Tons of them!"
+       ]
+      },
+      {
+       "ja": [
+        "それは、答えではない。"
+       ],
+       "en": [
+        "That's not an answer."
+       ]
+      },
+      {
+       "ja": [
+        "答えたら、通るんですか。",
+        "規則のほうが強いでしょう。"
+       ],
+       "en": [
+        "Even if we answer, the rules still win, right?"
+       ]
+      },
+      {
+       "ja": [
+        "規則は規則だ。"
+       ],
+       "en": [
+        "A rule is a rule."
+       ]
+      },
+      {
+       "ja": [
+        "校長も、答えは知っているでしょう。"
+       ],
+       "en": [
+        "I think you already know the answer, Principal."
+       ]
+      },
+      {
+       "ja": [
+        "宮下先生。"
+       ],
+       "en": [
+        "Miyashita-sensei."
+       ]
+      },
+      {
+       "ja": [
+        "……はい。"
+       ],
+       "en": [
+        "Yes, sorry."
+       ]
+      },
+      {
+       "ja": [
+        "私たちは、ここで育てたいんです。"
+       ],
+       "en": [
+        "We want to grow things here. That's all."
+       ]
+      },
+      {
+       "ja": [
+        "育てるだけなら、鉢でいい。"
+       ],
+       "en": [
+        "If it's only growing, pots will do."
+       ]
+      },
+      {
+       "ja": [
+        "鉢じゃ、足りないんです。",
+        "屋上じゃなきゃ、だめなんです。"
+       ],
+       "en": [
+        "Pots aren't enough. It has to be the roof."
+       ]
+      },
+      {
+       "ja": [
+        "日当たりも、風も、違います。"
+       ],
+       "en": [
+        "The sunlight and the wind are different up here."
+       ]
+      }
+     ]
+    },
+    {
+     "part": "a",
+     "summary": "Riku finally tells the group about his grandfather and says the roof is the only place he feels he belongs. He speaks honestly for once, and Haru does not interrupt.",
+     "beats": [
+      {
+       "ja": [
+        "……なんだよ、その顔。"
+       ],
+       "en": [
+        "What's with that face?"
+       ]
+      },
+      {
+       "ja": [
+        "別に、大した話じゃない。"
+       ],
+       "en": [
+        "It's not a big story or anything."
+       ]
+      },
+      {
+       "ja": [
+        "じいちゃん、昔ここで野菜作ってた。"
+       ],
+       "en": [
+        "My grandfather grew vegetables up here.",
+        "Right on this corner, actually."
+       ]
+      },
+      {
+       "ja": [
+        "えっ？"
+       ],
+       "en": [
+        "Huh?"
+       ]
+      },
+      {
+       "ja": [
+        "昔、学校の裏で農家やってたんだ。",
+        "校舎ができて、畑は全部なくなった。"
+       ],
+       "en": [
+        "He farmed behind the school. When they built it up, every field was gone."
+       ]
+      },
+      {
+       "ja": [
+        "そっか。"
+       ],
+       "en": [
+        "Yeah."
+       ]
+      },
+      {
+       "ja": [
+        "じいちゃん、それがずっと悔しかったらしい。"
+       ],
+       "en": [
+        "I think he never got over that."
+       ]
+      },
+      {
+       "ja": [
+        "最後にここへ来たのは、中一の春。"
+       ],
+       "en": [
+        "The last time he came up here was the spring I started first year."
+       ]
+      },
+      {
+       "ja": [
+        "足腰弱ってたけど、トマト植えるって聞かなくて。"
+       ],
+       "en": [
+        "His legs were already weak, but he wouldn't listen. He insisted on planting tomatoes."
+       ]
+      },
+      {
+       "ja": [
+        "俺が手伝った。",
+        "支柱の立て方、全部あいつに教わった。"
+       ],
+       "en": [
+        "I helped. He taught me how to set every stake."
+       ]
+      },
+      {
+       "ja": [
+        "……うん。"
+       ],
+       "en": [
+        "Yeah."
+       ]
+      },
+      {
+       "ja": [
+        "夏に、じいちゃんは病院に入った。"
+       ],
+       "en": [
+        "That summer, he was admitted to the hospital."
+       ]
+      },
+      {
+       "ja": [
+        "秋には、もう戻らなかった。"
+       ],
+       "en": [
+        "By autumn, he wasn't coming back."
+       ]
+      },
+      {
+       "ja": [
+        "残ったトマトは、俺が収穫するしかなかった。",
+        "でも、全部だめだった。"
+       ],
+       "en": [
+        "I was the one who had to harvest what was left. But it was all ruined."
+       ]
+      },
+      {
+       "ja": [
+        "病気で、全部腐った。"
+       ],
+       "en": [
+        "Blight. It all rotted."
+       ]
+      },
+      {
+       "ja": [
+        "待って、それって。"
+       ],
+       "en": [
+        "Wait, so that means..."
+       ]
+      },
+      {
+       "ja": [
+        "そう。 俺のせいで、枯らした。"
+       ],
+       "en": [
+        "Yes. I killed them. It was my fault."
+       ]
+      },
+      {
+       "ja": [
+        "それで、もうやめた。"
+       ],
+       "en": [
+        "So I quit."
+       ]
+      },
+      {
+       "ja": [
+        "逃げたんだよ、俺は。"
+       ],
+       "en": [
+        "I ran away, that's all."
+       ]
+      },
+      {
+       "ja": [
+        "……なんで。"
+       ],
+       "en": [
+        "Why?"
+       ]
+      },
+      {
+       "ja": [
+        "どうして、今まで言わなかったの？"
+       ],
+       "en": [
+        "Why didn't you tell us before?"
+       ]
+      },
+      {
+       "ja": [
+        "言う理由、なかったから。"
+       ],
+       "en": [
+        "There was no reason to."
+       ]
+      },
+      {
+       "ja": [
+        "冗談で誤魔化してたほうが、楽だった。"
+       ],
+       "en": [
+        "Joking it off was easier."
+       ]
+      },
+      {
+       "ja": [
+        "でも、ここに来ると。",
+        "息がちゃんとできる。"
+       ],
+       "en": [
+        "But when I come up here, I can actually breathe."
+       ]
+      },
+      {
+       "ja": [
+        "教室にも、家にも、居場所なんてないけど。"
+       ],
+       "en": [
+        "I don't belong in the classroom or at home."
+       ]
+      },
+      {
+       "ja": [
+        "ここだけは、ちゃんと俺の場所だって思える。"
+       ],
+       "en": [
+        "This is the only place I feel like I belong.",
+        "It's the only place that's mine."
+       ]
+      },
+      {
+       "ja": [
+        "恥ずかしいこと言ってるの、わかってる。"
+       ],
+       "en": [
+        "I know how embarrassing that sounds."
+       ]
+      },
+      {
+       "ja": [
+        "笑えよ。"
+       ],
+       "en": [
+        "Go ahead, laugh."
+       ]
+      },
+      {
+       "ja": [
+        "……笑わない。"
+       ],
+       "en": [
+        "Not laughing."
+       ]
+      },
+      {
+       "ja": [
+        "話、続けて。"
+       ],
+       "en": [
+        "Keep going."
+       ]
+      },
+      {
+       "ja": [
+        "技術的には、今の話が一番正確。"
+       ],
+       "en": [
+        "Technically, that's the most accurate thing you've said all week."
+       ]
+      },
+      {
+       "ja": [
+        "うるせーよ。"
+       ],
+       "en": [
+        "Shut up."
+       ]
+      },
+      {
+       "ja": [
+        "うぅ、泣いてないよ！"
+       ],
+       "en": [
+        "I'm not crying!"
+       ]
+      },
+      {
+       "ja": [
+        "植物も、ひとつの場所で育つんだよ。"
+       ],
+       "en": [
+        "Plants grow in one place too, you know."
+       ]
+      },
+      {
+       "ja": [
+        "大和田くん。"
+       ],
+       "en": [
+        "Owada."
+       ]
+      },
+      {
+       "ja": [
+        "大和田くん、ここにいていい。",
+        "この屋上、ちゃんと残す。"
+       ],
+       "en": [
+        "You're allowed to stay here, Owada. We're keeping this roof."
+       ]
+      }
+     ]
+    },
+    {
+     "part": "b",
+     "summary": "The board gathers, and Mitsuhashi proposes a six-month trial in which half the roof stays a garden. Miyashita-sensei agrees to sign as advisor if the club pays for the melon bread.",
+     "beats": [
+      {
+       "ja": [
+        "時間どおりだ。全員、席につけ。"
+       ],
+       "en": [
+        "Right on time. Everyone, take a seat."
+       ]
+      },
+      {
+       "ja": [
+        "はいっ！"
+       ],
+       "en": [
+        "Yes!"
+       ]
+      },
+      {
+       "ja": [
+        "本日は屋上の件について結論を出す。"
+       ],
+       "en": [
+        "Today we reach a decision about the rooftop."
+       ]
+      },
+      {
+       "ja": [
+        "今日、決まるんですか。"
+       ],
+       "en": [
+        "Are we deciding today?"
+       ]
+      },
+      {
+       "ja": [
+        "決める。ただし条件付きだ。"
+       ],
+       "en": [
+        "We are. With conditions.",
+        "Listen carefully."
+       ]
+      },
+      {
+       "ja": [
+        "条件、数字で示してもらえますか。"
+       ],
+       "en": [
+        "Could you put the conditions in numbers?"
+       ]
+      },
+      {
+       "ja": [
+        "六か月の試験運用とする。"
+       ],
+       "en": [
+        "A six-month trial.",
+        "It starts now."
+       ]
+      },
+      {
+       "ja": [
+        "六か月。"
+       ],
+       "en": [
+        "Six months."
+       ]
+      },
+      {
+       "ja": [
+        "屋上の半分は、菜園として残す。"
+       ],
+       "en": [
+        "Half the roof stays a garden."
+       ]
+      },
+      {
+       "ja": [
+        "えっ、半分も！"
+       ],
+       "en": [
+        "Wait, half?!"
+       ]
+      },
+      {
+       "ja": [
+        "半分も……残るんですか。"
+       ],
+       "en": [
+        "Half of it stays?"
+       ]
+      },
+      {
+       "ja": [
+        "残りは太陽光パネルの区画。",
+        "条件は以上だ。"
+       ],
+       "en": [
+        "The other half goes to solar panels. Those are the terms."
+       ]
+      },
+      {
+       "ja": [
+        "技術的には、半分でも発電量は足りるかも。"
+       ],
+       "en": [
+        "Technically, half the roof might still produce enough power."
+       ]
+      },
+      {
+       "ja": [
+        "数字の話は、あとだ。",
+        "今日は受け入れる。"
+       ],
+       "en": [
+        "Numbers come later. Today we accept the terms."
+       ]
+      },
+      {
+       "ja": [
+        "うわ、出た。校長の「あとで」。"
+       ],
+       "en": [
+        "There it is. The principal's \"later.\""
+       ]
+      },
+      {
+       "ja": [
+        "大和田。口を慎め。"
+       ],
+       "en": [
+        "Owada. Watch your mouth."
+       ]
+      },
+      {
+       "ja": [
+        "すいません。"
+       ],
+       "en": [
+        "Sorry."
+       ]
+      },
+      {
+       "ja": [
+        "まあまあ。半分なら、いいじゃないですか。"
+       ],
+       "en": [
+        "Come on. Half sounds fine to me."
+       ]
+      },
+      {
+       "ja": [
+        "宮下先生。顧問として署名できますか。"
+       ],
+       "en": [
+        "Miyashita-sensei. Will you sign as advisor?"
+       ]
+      },
+      {
+       "ja": [
+        "署名はしますよ。"
+       ],
+       "en": [
+        "I'll sign it.",
+        "Just one small condition."
+       ]
+      },
+      {
+       "ja": [
+        "条件がひとつ。"
+       ],
+       "en": [
+        "One condition."
+       ]
+      },
+      {
+       "ja": [
+        "言ってみろ。"
+       ],
+       "en": [
+        "Go on."
+       ]
+      },
+      {
+       "ja": [
+        "部のお金で、メロンパン。人数分。"
+       ],
+       "en": [
+        "The club pays for the melon bread. One for everyone."
+       ]
+      },
+      {
+       "ja": [
+        "先生、それ条件じゃないです！"
+       ],
+       "en": [
+        "Sensei, that's not a condition!"
+       ]
+      },
+      {
+       "ja": [
+        "大事です。"
+       ],
+       "en": [
+        "It's important."
+       ]
+      },
+      {
+       "ja": [
+        "……予算は、なんとかしよう。"
+       ],
+       "en": [
+        "...Fine. I'll find the budget somehow."
+       ]
+      },
+      {
+       "ja": [
+        "やったー！"
+       ],
+       "en": [
+        "Yay!"
+       ]
+      },
+      {
+       "ja": [
+        "校長、それは正式な決議ですか。"
+       ],
+       "en": [
+        "Sir, is that an official resolution?"
+       ]
+      },
+      {
+       "ja": [
+        "議事録に残せ。"
+       ],
+       "en": [
+        "Put it in the minutes."
+       ]
+      },
+      {
+       "ja": [
+        "必ず結果を出します。",
+        "約束します。"
+       ],
+       "en": [
+        "We'll show results. I promise."
+       ]
+      },
+      {
+       "ja": [
+        "味は認める。だが、数字で出せ。"
+       ],
+       "en": [
+        "I'll admit the taste. Now show me numbers."
+       ]
+      },
+      {
+       "ja": [
+        "校長、トマト好きでしょ。"
+       ],
+       "en": [
+        "You like the tomatoes, don't you, sir?"
+       ]
+      },
+      {
+       "ja": [
+        "議題に関係ない。"
+       ],
+       "en": [
+        "That's not on the agenda."
+       ]
+      }
+     ]
+    },
+    {
+     "part": "b",
+     "summary": "Minori and Haru worry the trial is a trap, but Minori says the deal is fair if they keep producing. Haru agrees, and they start planning the next harvest.",
+     "beats": [
+      {
+       "ja": [
+        "厳密に言うと、まだ半年しか守られてないよ。"
+       ],
+       "en": [
+        "Technically, we only have six months of protection."
+       ]
+      },
+      {
+       "ja": [
+        "うん。"
+       ],
+       "en": [
+        "Yeah."
+       ]
+      },
+      {
+       "ja": [
+        "半年たったら、どうなるの。"
+       ],
+       "en": [
+        "What happens after that?"
+       ]
+      },
+      {
+       "ja": [
+        "考えてもしょうがない。今は今。"
+       ],
+       "en": [
+        "Thinking about it won't help. Right now is what counts."
+       ]
+      },
+      {
+       "ja": [
+        "でも、校長の提案、条件が多すぎない？"
+       ],
+       "en": [
+        "But the principal's offer has too many conditions, doesn't it?"
+       ]
+      },
+      {
+       "ja": [
+        "多いね。"
+       ],
+       "en": [
+        "It does."
+       ]
+      },
+      {
+       "ja": [
+        "収穫量が落ちたら、即打ち切りって書いてあった。"
+       ],
+       "en": [
+        "The fine print says if the yield drops, it's cancelled right away."
+       ]
+      },
+      {
+       "ja": [
+        "罠って言いたいの？"
+       ],
+       "en": [
+        "Are you saying it's a trap?"
+       ]
+      },
+      {
+       "ja": [
+        "分からない。だから怖いの。"
+       ],
+       "en": [
+        "I don't know. That's why it scares me."
+       ]
+      },
+      {
+       "ja": [
+        "待って。"
+       ],
+       "en": [
+        "Wait."
+       ]
+      },
+      {
+       "ja": [
+        "何。"
+       ],
+       "en": [
+        "What?"
+       ]
+      },
+      {
+       "ja": [
+        "条件があるってことは、守れば続くってことでしょ。"
+       ],
+       "en": [
+        "If there are conditions, it keeps going as long as we meet them.",
+        "That's the deal, right?"
+       ]
+      },
+      {
+       "ja": [
+        "……それは、そうだけど。"
+       ],
+       "en": [
+        "...That's true, but..."
+       ]
+      },
+      {
+       "ja": [
+        "厳密には、公平な取引だと思う。収穫を続けるなら。"
+       ],
+       "en": [
+        "Technically, it's a fair deal, as long as we keep producing."
+       ]
+      },
+      {
+       "ja": [
+        "続けるよ。"
+       ],
+       "en": [
+        "We will."
+       ]
+      },
+      {
+       "ja": [
+        "毎週、重さと糖度を測る。",
+        "記録はミノリがまとめて。"
+       ],
+       "en": [
+        "We weigh and measure the sugar every week."
+       ]
+      },
+      {
+       "ja": [
+        "やる。トモエにも手伝わせる。"
+       ],
+       "en": [
+        "We will. I'll have Tomoe help too."
+       ]
+      },
+      {
+       "ja": [
+        "トモエは数字を見ると、すぐ眠くなるよ。"
+       ],
+       "en": [
+        "Tomoe falls asleep the second she sees numbers."
+       ]
+      },
+      {
+       "ja": [
+        "じゃあ、名付け係。"
+       ],
+       "en": [
+        "Then she's in charge of naming things."
+       ]
+      },
+      {
+       "ja": [
+        "ふふ、それは得意だね。"
+       ],
+       "en": [
+        "Haha, that she's good at."
+       ]
+      },
+      {
+       "ja": [
+        "次の苗、どうする。"
+       ],
+       "en": [
+        "So, the next seedlings. What do we do?"
+       ]
+      },
+      {
+       "ja": [
+        "接ぎ木の台木、まだ三本ある。",
+        "予備も必要。"
+       ],
+       "en": [
+        "We still have three rootstocks for grafting."
+       ]
+      },
+      {
+       "ja": [
+        "一本は、赤い実の株に接ぐ。"
+       ],
+       "en": [
+        "One goes on the plant with the red fruit."
+       ]
+      },
+      {
+       "ja": [
+        "病気が出たら、どうするの。"
+       ],
+       "en": [
+        "What if disease shows up?"
+       ]
+      },
+      {
+       "ja": [
+        "葉を分けて育てる。隔離する。"
+       ],
+       "en": [
+        "We split the leaves and grow them apart.",
+        "Isolated, so it can't spread."
+       ]
+      },
+      {
+       "ja": [
+        "水やりの時間、もう少し決めた方がいい。"
+       ],
+       "en": [
+        "We should set a fixed watering time too."
+       ]
+      },
+      {
+       "ja": [
+        "朝六時。",
+        "夕方は日没前。"
+       ],
+       "en": [
+        "Six in the morning.",
+        "Evenings, before sunset."
+       ]
+      },
+      {
+       "ja": [
+        "温度が下がってから水をやる。"
+       ],
+       "en": [
+        "Water once the heat has dropped."
+       ]
+      },
+      {
+       "ja": [
+        "了解。アブラムシ対策は？"
+       ],
+       "en": [
+        "Got it. What about aphids?"
+       ]
+      },
+      {
+       "ja": [
+        "石けん水で試す。"
+       ],
+       "en": [
+        "Soap water first.",
+        "If that fails, ladybugs."
+       ]
+      },
+      {
+       "ja": [
+        "テントウムシは、屋上に放すと逃げるよ。"
+       ],
+       "en": [
+        "Ladybugs fly off if you release them on a roof."
+       ]
+      },
+      {
+       "ja": [
+        "じゃあ、逃げない理由を作る。"
+       ],
+       "en": [
+        "Then we give them a reason to stay."
+       ]
+      },
+      {
+       "ja": [
+        "極端だなあ。"
+       ],
+       "en": [
+        "That's extreme."
+       ]
+      },
+      {
+       "ja": [
+        "次の収穫は、全部赤くする。"
+       ],
+       "en": [
+        "Next harvest, every single one turns red."
+       ]
+      }
+     ]
+    },
+    {
+     "part": "b",
+     "summary": "Tomoe names the red tomato 'Kurenai' and the others argue about the name. Riku says it sounds like a sushi chef, and Tomoe refuses to change it.",
+     "beats": [
+      {
+       "ja": [
+        "名前、決めた！"
+       ],
+       "en": [
+        "I've picked a name!"
+       ]
+      },
+      {
+       "ja": [
+        "紅！"
+       ],
+       "en": [
+        "Kurenai!"
+       ]
+      },
+      {
+       "ja": [
+        "紅？"
+       ],
+       "en": [
+        "Kurenai?"
+       ]
+      },
+      {
+       "ja": [
+        "赤いから紅。"
+       ],
+       "en": [
+        "It's red, so it's Kurenai."
+       ]
+      },
+      {
+       "ja": [
+        "単純すぎない？"
+       ],
+       "en": [
+        "Isn't that a bit too simple?"
+       ]
+      },
+      {
+       "ja": [
+        "シンプルが一番なの！"
+       ],
+       "en": [
+        "Simple is best!"
+       ]
+      },
+      {
+       "ja": [
+        "名前つけるなら、もっと考えようよ。"
+       ],
+       "en": [
+        "If we're going to name it, let's think harder.",
+        "Something a little more dignified, maybe?"
+       ]
+      },
+      {
+       "ja": [
+        "考えた結果が紅なの！"
+       ],
+       "en": [
+        "Kurenai is what I came up with!"
+       ]
+      },
+      {
+       "ja": [
+        "待って。"
+       ],
+       "en": [
+        "Wait."
+       ]
+      },
+      {
+       "ja": [
+        "紅さん、寿司屋の大将っぽい。"
+       ],
+       "en": [
+        "Chef Kurenai. Sounds like a sushi shop owner, right?"
+       ]
+      },
+      {
+       "ja": [
+        "えっ？"
+       ],
+       "en": [
+        "Huh?"
+       ]
+      },
+      {
+       "ja": [
+        "大将じゃない！",
+        "紅だってば！"
+       ],
+       "en": [
+        "It's not a shop owner! It's Kurenai!"
+       ]
+      },
+      {
+       "ja": [
+        "技術的に、トマトは寿司ネタじゃない。"
+       ],
+       "en": [
+        "Technically, a tomato isn't a sushi topping."
+       ]
+      },
+      {
+       "ja": [
+        "じゃあ、トマト寿司だな。"
+       ],
+       "en": [
+        "So it's tomato sushi, then."
+       ]
+      },
+      {
+       "ja": [
+        "紅は紅！ トマトじゃない！"
+       ],
+       "en": [
+        "Kurenai is Kurenai! It's not a tomato!"
+       ]
+      },
+      {
+       "ja": [
+        "なるほど。"
+       ],
+       "en": [
+        "I see."
+       ]
+      },
+      {
+       "ja": [
+        "変えないなら、ちゃんと呼べるように。",
+        "紅、って。"
+       ],
+       "en": [
+        "If we're keeping it, we should at least be able to say it. Kurenai, okay?"
+       ]
+      },
+      {
+       "ja": [
+        "呼べるよ！ 紅！"
+       ],
+       "en": [
+        "I can say it! Kurenai!"
+       ]
+      },
+      {
+       "ja": [
+        "紅、いい響きだと思うけどね。"
+       ],
+       "en": [
+        "I think Kurenai sounds nice.",
+        "Very sushi-chef, though."
+       ]
+      },
+      {
+       "ja": [
+        "先生、メロンパン食べてるだけでしょ。"
+       ],
+       "en": [
+        "You're just eating melon bread, Sensei."
+       ]
+      },
+      {
+       "ja": [
+        "食べながら考えてる。"
+       ],
+       "en": [
+        "I'm thinking while I eat."
+       ]
+      },
+      {
+       "ja": [
+        "命名の根拠は。"
+       ],
+       "en": [
+        "What's the reasoning behind it?"
+       ]
+      },
+      {
+       "ja": [
+        "一番に赤くなった子だから！",
+        "名付け親は私！"
+       ],
+       "en": [
+        "Because it was the first one to turn red! I named it!"
+       ]
+      },
+      {
+       "ja": [
+        "うん、この子。"
+       ],
+       "en": [
+        "Yeah, this one."
+       ]
+      },
+      {
+       "ja": [
+        "紛らわしいんだよ。"
+       ],
+       "en": [
+        "That's confusing."
+       ]
+      },
+      {
+       "ja": [
+        "紅は、ここにいるこの子。",
+        "名前を聞けば、すぐ分かるでしょ？"
+       ],
+       "en": [
+        "Kurenai is this one, right here.",
+        "Once you hear the name, you'll know it."
+       ]
+      },
+      {
+       "ja": [
+        "寿司屋の大将、紅さん。"
+       ],
+       "en": [
+        "Chef Kurenai of the sushi bar."
+       ]
+      },
+      {
+       "ja": [
+        "紅だよ！ 紅！ 紅！"
+       ],
+       "en": [
+        "It's Kurenai! Kurenai! Kurenai!"
+       ]
+      },
+      {
+       "ja": [
+        "もう、やめて。"
+       ],
+       "en": [
+        "Stop it, already."
+       ]
+      }
+     ]
+    },
+    {
+     "part": "b",
+     "summary": "Miyashita-sensei shows Riku the last trick of grafting as a farewell gift. He says Riku never really left the club, and Riku mutters a thank-you.",
+     "beats": [
+      {
+       "ja": [
+        "ちょっと来なさい、大和田くん。"
+       ],
+       "en": [
+        "Come over here a second, Owada."
+       ]
+      },
+      {
+       "ja": [
+        "嫌だ。"
+       ],
+       "en": [
+        "No."
+       ]
+      },
+      {
+       "ja": [
+        "まあまあ、いいから。"
+       ],
+       "en": [
+        "Oh, come on. Just humor me."
+       ]
+      },
+      {
+       "ja": [
+        "何だよ、その木箱。"
+       ],
+       "en": [
+        "What's with the wooden box?"
+       ]
+      },
+      {
+       "ja": [
+        "台木と穂木。",
+        "切り口で勝負が決まる。"
+       ],
+       "en": [
+        "Rootstock and scion. The cut decides everything."
+       ]
+      },
+      {
+       "ja": [
+        "何回聞いたよ、それ。"
+       ],
+       "en": [
+        "I've heard that a hundred times."
+       ]
+      },
+      {
+       "ja": [
+        "角度は二十度。刃は寝かせて。"
+       ],
+       "en": [
+        "Twenty degrees, with the blade laid low."
+       ]
+      },
+      {
+       "ja": [
+        "目分量でいいだろ。"
+       ],
+       "en": [
+        "Can't I just eyeball it?"
+       ]
+      },
+      {
+       "ja": [
+        "目分量で切ると、必ず失敗する。"
+       ],
+       "en": [
+        "Eyeball it and you fail every time.",
+        "Ask Koizumi. She'd tell you the same."
+       ]
+      },
+      {
+       "ja": [
+        "小泉が聞いたら、数字持ってくるな。"
+       ],
+       "en": [
+        "If Koizumi heard that, she'd bring you numbers."
+       ]
+      },
+      {
+       "ja": [
+        "だから、君が伝えなさい。"
+       ],
+       "en": [
+        "So you're the one who passes it on."
+       ]
+      },
+      {
+       "ja": [
+        "えっ？"
+       ],
+       "en": [
+        "Huh?"
+       ]
+      },
+      {
+       "ja": [
+        "形成層。",
+        "皮の内側の、薄い緑のところ。"
+       ],
+       "en": [
+        "The cambium. The thin green layer just under the bark."
+       ]
+      },
+      {
+       "ja": [
+        "緑なんて見えないよ。"
+       ],
+       "en": [
+        "I can't see any green."
+       ]
+      },
+      {
+       "ja": [
+        "光にかざせば見える。"
+       ],
+       "en": [
+        "Hold it up to the light and you'll see it."
+       ]
+      },
+      {
+       "ja": [
+        "……見えた。"
+       ],
+       "en": [
+        "...There. I see it."
+       ]
+      },
+      {
+       "ja": [
+        "合わせるのは、ここだけでいい。"
+       ],
+       "en": [
+        "You only need to line up this part."
+       ]
+      },
+      {
+       "ja": [
+        "全部合わせないと、くっつかないだろ。"
+       ],
+       "en": [
+        "Won't it stick if the whole cut doesn't match?"
+       ]
+      },
+      {
+       "ja": [
+        "片側だけ合えば、くっつく。 植物は意外と許してくれる。"
+       ],
+       "en": [
+        "One side lining up is enough.",
+        "Plants are more forgiving than you'd think."
+       ]
+      },
+      {
+       "ja": [
+        "適当だな。"
+       ],
+       "en": [
+        "That's sloppy."
+       ]
+      },
+      {
+       "ja": [
+        "そのくらいが、ちょうどいい。"
+       ],
+       "en": [
+        "A little sloppiness is just right."
+       ]
+      },
+      {
+       "ja": [
+        "先生が言うと、説得力ないな。"
+       ],
+       "en": [
+        "Coming from you, that's not very convincing."
+       ]
+      },
+      {
+       "ja": [
+        "合わせたら、テープで巻く。"
+       ],
+       "en": [
+        "Once it's matched, wrap it in tape."
+       ]
+      },
+      {
+       "ja": [
+        "巻き方くらい知ってる。"
+       ],
+       "en": [
+        "I know how to wrap it, at least."
+       ]
+      },
+      {
+       "ja": [
+        "知ってても、やらなかっただろ。",
+        "今日は君がやりなさい。"
+       ],
+       "en": [
+        "You knew how, but you never did it. You're doing it today."
+       ]
+      },
+      {
+       "ja": [
+        "……分かったよ。"
+       ],
+       "en": [
+        "...Fine. Got it."
+       ]
+      },
+      {
+       "ja": [
+        "大和田くん。"
+       ],
+       "en": [
+        "Owada."
+       ]
+      },
+      {
+       "ja": [
+        "何。"
+       ],
+       "en": [
+        "What?"
+       ]
+      },
+      {
+       "ja": [
+        "君はずっと、この部に残ってた。"
+       ],
+       "en": [
+        "You never really left this club."
+       ]
+      },
+      {
+       "ja": [
+        "辞めたって言っただろ。"
+       ],
+       "en": [
+        "I quit, remember?",
+        "Don't make it sound like I came back."
+       ]
+      },
+      {
+       "ja": [
+        "また、屋上に来なさい。"
+       ],
+       "en": [
+        "Come up to the roof again sometime."
+       ]
+      },
+      {
+       "ja": [
+        "……ありがと。"
+       ],
+       "en": [
+        "...Thanks."
+       ]
+      }
+     ]
+    },
+    {
+     "part": "b",
+     "summary": "At sunset, the club stands at the fence as the solar company's van drives away with its proposal shelved. They toast with melon bread, and Tomoe says the roof is theirs for now.",
+     "beats": [
+      {
+       "ja": [
+        "見て。バンが門を出ていく。"
+       ],
+       "en": [
+        "Look. The van's leaving through the gate."
+       ]
+      },
+      {
+       "ja": [
+        "……本当に行った。"
+       ],
+       "en": [
+        "...It actually left."
+       ]
+      },
+      {
+       "ja": [
+        "提案書、棚上げだって。"
+       ],
+       "en": [
+        "They said the proposal's been shelved."
+       ]
+      },
+      {
+       "ja": [
+        "棚上げって、保留ってこと？"
+       ],
+       "en": [
+        "Shelved means on hold?",
+        "So it's not dead?"
+       ]
+      },
+      {
+       "ja": [
+        "そういうこと。死んではいない。"
+       ],
+       "en": [
+        "That's right. It isn't dead.",
+        "It isn't safe yet, either."
+       ]
+      },
+      {
+       "ja": [
+        "じゃあ、勝ったの？"
+       ],
+       "en": [
+        "So did we win?"
+       ]
+      },
+      {
+       "ja": [
+        "勝ちとは言ってない。"
+       ],
+       "en": [
+        "I didn't say we won."
+       ]
+      },
+      {
+       "ja": [
+        "えっ、今の勝ちでしょ！"
+       ],
+       "en": [
+        "Huh? That was a win!"
+       ]
+      },
+      {
+       "ja": [
+        "うん。"
+       ],
+       "en": [
+        "Yeah."
+       ]
+      },
+      {
+       "ja": [
+        "……まあ、今日は勝ちでいい。"
+       ],
+       "en": [
+        "...Well, today can count as a win."
+       ]
+      },
+      {
+       "ja": [
+        "先生、メロンパン！"
+       ],
+       "en": [
+        "Sensei, the melon bread!"
+       ]
+      },
+      {
+       "ja": [
+        "袋、もう開けてるよ。"
+       ],
+       "en": [
+        "I've already got the bag open."
+       ]
+      },
+      {
+       "ja": [
+        "一人一個。数えたから間違いない。"
+       ],
+       "en": [
+        "One each. I counted, so it's accurate."
+       ]
+      },
+      {
+       "ja": [
+        "先生の分は、ないよ。"
+       ],
+       "en": [
+        "Sensei doesn't get one."
+       ]
+      },
+      {
+       "ja": [
+        "小泉さん、それは厳しすぎない？"
+       ],
+       "en": [
+        "Koizumi, isn't that a bit harsh?"
+       ]
+      },
+      {
+       "ja": [
+        "厳しくないです。計算です。"
+       ],
+       "en": [
+        "It's not harsh. It's arithmetic."
+       ]
+      },
+      {
+       "ja": [
+        "先生は、もう半分食べたでしょ。"
+       ],
+       "en": [
+        "You already ate half of yours, Sensei."
+       ]
+      },
+      {
+       "ja": [
+        "半分は、会議の前の分だよ。"
+       ],
+       "en": [
+        "That half was from before the meeting."
+       ]
+      },
+      {
+       "ja": [
+        "屋上の夕日、きれいだね。"
+       ],
+       "en": [
+        "The sunset up here is beautiful."
+       ]
+      },
+      {
+       "ja": [
+        "毎日見てるのに、飽きないのが不思議。"
+       ],
+       "en": [
+        "I see it every day, and it never gets old."
+       ]
+      },
+      {
+       "ja": [
+        "夕日は、同じ場所から見ても同じじゃない。"
+       ],
+       "en": [
+        "The sunset never looks the same, even from the same spot."
+       ]
+      },
+      {
+       "ja": [
+        "先生、それ、いい話っぽいけど、ごまかしてる。"
+       ],
+       "en": [
+        "Sensei, that sounds nice, but you're dodging the question."
+       ]
+      },
+      {
+       "ja": [
+        "乾杯しよう！"
+       ],
+       "en": [
+        "Let's toast!"
+       ]
+      },
+      {
+       "ja": [
+        "かんぱーい！"
+       ],
+       "en": [
+        "Cheers!"
+       ]
+      },
+      {
+       "ja": [
+        "メロンパンで乾杯って、どうなの。"
+       ],
+       "en": [
+        "A toast with melon bread? Really?"
+       ]
+      },
+      {
+       "ja": [
+        "文化的には、まあ、ありです。"
+       ],
+       "en": [
+        "Culturally speaking, it's acceptable."
+       ]
+      },
+      {
+       "ja": [
+        "大和田くん、ちゃんと食べなさい。"
+       ],
+       "en": [
+        "Owada, eat it properly."
+       ]
+      },
+      {
+       "ja": [
+        "食べてる。ちゃんと、食べてる。"
+       ],
+       "en": [
+        "I am. Properly. Look."
+       ]
+      },
+      {
+       "ja": [
+        "今日は、いい色のトマトだった。"
+       ],
+       "en": [
+        "Today we got a good tomato."
+       ]
+      },
+      {
+       "ja": [
+        "赤くて、小さくて、ちゃんと赤かった。"
+       ],
+       "en": [
+        "Red, small, and properly red."
+       ]
+      },
+      {
+       "ja": [
+        "屋上は、今はわたしたちのです！"
+       ],
+       "en": [
+        "The roof is ours, for now!"
+       ]
+      },
+      {
+       "ja": [
+        "今だけ、ね。"
+       ],
+       "en": [
+        "For now, yeah."
+       ]
+      },
+      {
+       "ja": [
+        "今は、それでいい。"
+       ],
+       "en": [
+        "For now is enough."
+       ]
+      }
+     ]
+    },
+    {
+     "part": "preview",
+     "summary": "Minori stands among a row of strawberry runners and teases that she has found a new crop to experiment with. She says someone is going to pick the wrong pot and cause a mess.",
+     "beats": [
+      {
+       "ja": [
+        "新しい作物、見つけちゃった。"
+       ],
+       "en": [
+        "Look what I found: a new crop to experiment with."
+       ]
+      },
+      {
+       "ja": [
+        "えっ、いちご？"
+       ],
+       "en": [
+        "Wait, strawberries?"
+       ]
+      },
+      {
+       "ja": [
+        "それ、ただのランナーだろ。"
+       ],
+       "en": [
+        "Those are just runners, though."
+       ]
+      },
+      {
+       "ja": [
+        "ランナーは、増やせる。",
+        "実験は、いくらでもできる。"
+       ],
+       "en": [
+        "Runners can be multiplied, and there's no limit to experiments."
+       ]
+      },
+      {
+       "ja": [
+        "待って。"
+       ],
+       "en": [
+        "Wait."
+       ]
+      },
+      {
+       "ja": [
+        "誰かが鉢を間違えて摘む。 絶対、混ざる。"
+       ],
+       "en": [
+        "Someone's going to pick the wrong pot.",
+        "And then it's going to be a total mess."
+       ]
+      },
+      {
+       "ja": [
+        "摘むの、わたしがやる！"
+       ],
+       "en": [
+        "I'll do the picking!"
+       ]
+      },
+      {
+       "ja": [
+        "いやいや。"
+       ],
+       "en": [
+        "Oh, no, no."
+       ]
+      },
+      {
+       "ja": [
+        "次は、夜明け前の実験。"
+       ],
+       "en": [
+        "Next time, an experiment that starts before dawn."
+       ]
+      },
+      {
+       "ja": [
+        "数字は、ごまかせない。"
+       ],
+       "en": [
+        "Numbers don't lie, and they don't wait for anyone."
+       ]
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

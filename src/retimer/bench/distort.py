@@ -12,6 +12,10 @@ A distortion describes how the target's timeline differs from the reference:
 - `noise` adds lines that are not dialogue: sound descriptions, credits, a song
   block, and trailing lines the reference has no counterpart for.
 
+A caller can also hand in lines of its own, `extras`: the effect lines of a
+karaoke, signs redrawn for every frame, the other episodes of a pack. They are
+placed in the in-sync file first and then distorted with everything else.
+
 They compose in that order: `target = (true + breaks_before(true) + offset) * rate`.
 The inverse is expressible as a plan (one scale, one shift per block), and the
 generator returns that ideal plan alongside the truth.
@@ -21,6 +25,7 @@ from __future__ import annotations
 
 import copy
 import random
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Literal
 
@@ -31,7 +36,9 @@ from retimer.classify import classify_lines
 from retimer.model import Subtitle
 from retimer.plan import Plan, RemoveLines, Scale, Shift
 
-LineKind = Literal["base", "sound_description", "credit", "karaoke", "trailing"]
+LineKind = Literal[
+    "base", "sound_description", "credit", "karaoke", "trailing", "sign", "other_content"
+]
 
 _SONG_STYLE = "OP-Romaji"
 _MIN_GAP_FOR_SOUND_MS = 1_500
@@ -107,6 +114,26 @@ class TruthLine(BaseModel):
     base_id: int | None = None
     true_start_ms: int | None = None
     true_end_ms: int | None = None
+
+
+@dataclass(frozen=True)
+class Extra:
+    """A line a caller adds to the in-sync file before it is distorted.
+
+    Times are in the true timeline, like those of the base lines. `timed` is
+    False for a line the reference has no place for, such as a line of another
+    episode: it moves with the rest and is expected to be removed.
+    """
+
+    start_ms: int
+    end_ms: int
+    text: str
+    kind: LineKind
+    style: str = "Default"
+    effect: str = ""
+    layer: int = 0
+    comment: bool = False
+    timed: bool = True
 
 
 @dataclass
@@ -250,6 +277,11 @@ def _block_of(start: int, breaks: list[Break]) -> tuple[int, int] | None:
     return block, delta
 
 
+def _as_a_script_keeps(ms: int) -> int:
+    """A time rounded to hundredths of a second, as the script writer rounds it."""
+    return (ms + 5) - (ms + 5) % 10
+
+
 def distort(
     base: Subtitle,
     distortion: Distortion,
@@ -257,8 +289,13 @@ def distort(
     fmt: str | None = None,
     language: str = "",
     seed: int = 0,
+    extras: Sequence[Extra] = (),
+    styles: Mapping[str, pysubs2.SSAStyle] | None = None,
 ) -> Distorted:
-    """Apply `distortion` to an in-sync subtitle and return the target with its truth."""
+    """Apply `distortion` to an in-sync subtitle and return the target with its truth.
+
+    `extras` are added to the in-sync file first, and `styles` to its styles.
+    """
     fmt = fmt or base.format
     rng = random.Random(seed)
     breaks = _check_breaks(distortion.breaks)
@@ -276,6 +313,23 @@ def distort(
             event=event,
         )
         for line, event in zip(base.lines, base.ssa.events, strict=True)
+    ]
+    records += [
+        _Record(
+            extra.start_ms,
+            extra.end_ms,
+            extra.text,
+            extra.style,
+            extra.kind,
+            "",
+            event=pysubs2.SSAEvent(
+                layer=extra.layer,
+                effect=extra.effect,
+                type="Comment" if extra.comment else "Dialogue",
+            ),
+            timed=extra.timed,
+        )
+        for extra in extras
     ]
     noise = distortion.noise
     floor_ms = max(0, -distortion.offset_ms)
@@ -305,8 +359,17 @@ def distort(
     if min(start for start, _, _, _ in placed) < 0:
         raise DistortionError("the distortion moves lines before zero")
     placed.sort(key=lambda item: item[0])
+    if fmt == "ass":
+        # A script keeps hundredths of a second. The plan that undoes the
+        # distortion is cut where the file has its lines, not where they were meant.
+        placed = [
+            (_as_a_script_keeps(start), _as_a_script_keeps(end), block, record)
+            for start, end, block, record in placed
+        ]
 
     ssa = copy.deepcopy(base.ssa)
+    for name, style in (styles or {}).items():
+        ssa.styles.setdefault(name, style)
     if any(record.style == _SONG_STYLE for _, _, _, record in placed):
         ssa.styles.setdefault(_SONG_STYLE, pysubs2.SSAStyle(alignment=pysubs2.Alignment.TOP_CENTER))
     events = []
