@@ -2,7 +2,9 @@
 
 The defaults are the production ones: every limit is on, the interactive
 documentation is off, and a request that did not arrive over HTTPS is refused.
-`dev` relaxes the last two for a server on the same machine.
+`dev` relaxes the last two for a server on the same machine. `allow_http`
+relaxes only the last one, for a server on a home network that is reached
+without a proxy in front, such as next to Jellyfin in Docker.
 """
 
 from __future__ import annotations
@@ -20,6 +22,7 @@ MB = 1024 * 1024
 DATA_DIR_ENV = "RETIMER_DATA_DIR"
 API_KEYS_ENV = "RETIMER_API_KEYS"
 DEV_ENV = "RETIMER_DEV"
+ALLOW_HTTP_ENV = "RETIMER_ALLOW_HTTP"
 
 AGENT_CHOICES = ("haiku", "sonnet", "opus")
 # The models that read image subtitles. The names are those of `retimer.ocr.MODELS`.
@@ -37,6 +40,10 @@ class ApiSettings(BaseModel):
     # A server for development on this machine: plain HTTP and the interactive
     # documentation. Never for a server that others can reach.
     dev: bool = False
+    # Plain HTTP from any address, for a network the owner trusts: keys, limits
+    # and the budget stay as they are and the documentation stays off, but keys
+    # and uploads cross the network unencrypted.
+    allow_http: bool = False
 
     # Uploads. A subtitle of a film is well under a megabyte as plain text, and
     # a film's audio as the client should send it (mono Opus, 24 kbps) about
@@ -168,6 +175,7 @@ class ApiSettings(BaseModel):
         take(DATA_DIR_ENV, "data_dir", Path)
         take(API_KEYS_ENV, "api_keys", parse_keys)
         take(DEV_ENV, "dev", flag)
+        take(ALLOW_HTTP_ENV, "allow_http", flag)
         take("RETIMER_MAX_SUBTITLE_MB", "max_subtitle_bytes", megabytes)
         take("RETIMER_MAX_AUDIO_MB", "max_audio_bytes", megabytes)
         take("RETIMER_MAX_REQUEST_MB", "max_request_bytes", megabytes)

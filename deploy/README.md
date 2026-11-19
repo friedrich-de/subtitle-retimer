@@ -1,18 +1,19 @@
-# Deployment
+# Deployment on a Linux server
 
-How the service runs at `https://retimer.example.org`, on the
-rented server behind a Cloudflare Tunnel, and how it got there.
+How to run the service on the internet: as a system service on a Linux server
+with systemd, behind a proxy that does HTTPS. For a home network next to
+Jellyfin, the Docker setup in the [README](../README.md) is simpler.
 
 ```
-client ── HTTPS ──> Cloudflare ── tunnel ──> cloudflared ── HTTP ──> 127.0.0.1:8712
-                                             (on the server)         retimer.service
+client ── HTTPS ──> proxy (Cloudflare Tunnel, Caddy, nginx) ── HTTP ──> 127.0.0.1:8712
+                    on the server or in front of it                   retimer.service
 ```
 
 The service listens on the machine itself and nowhere else. It has no port to
-the outside and no certificate of its own. Cloudflare terminates TLS, and
-`cloudflared` on the server holds an outgoing connection to Cloudflare through
-which requests arrive. The service believes `cloudflared`, and nobody else,
-about whether a request came over HTTPS and from which address.
+the outside and no certificate of its own. The proxy terminates TLS, and the
+service believes the proxy, and nobody else, about whether a request came over
+HTTPS and from which address. The examples below use
+`https://retimer.example.org`; put your own address in its place.
 
 ## What is where
 
@@ -20,8 +21,9 @@ about whether a request came over HTTPS and from which address.
 | --- | --- | --- |
 | `/opt/retimer/releases/COMMIT` | `deploy` | One release: the code and its Python environment. |
 | `/opt/retimer/current` | `deploy` | A link to the release that runs. |
-| `/opt/retimer/repo.git`, `.ssh`, `bin`, `python`, `cache` | `deploy` | A copy of the repository, the key that reads it, `uv`, and what `uv` downloads. |
-| `/opt/retimer/smoke` | `deploy` | The film the smoke test uploads. |
+| `/opt/retimer/repo.git`, `bin`, `python`, `cache` | `deploy` | A copy of the repository, `uv`, and what `uv` downloads. |
+| `/opt/retimer/.ssh` | `deploy` | Only for a private repository: the deploy key that reads it. |
+| `/opt/retimer/smoke` | `deploy` | The film the smoke test uploads (`smoke_test.py` fetches it). |
 | `/var/lib/retimer` | `retimer` | Jobs, uploads while they arrive, the cache of transcripts. |
 | `/etc/retimer/retimer.env` | `root` | Settings that are not secret. |
 | `/etc/retimer/secrets.env` | `root`, mode 600 | The OpenRouter key and the hashes of the API keys. |
@@ -73,31 +75,24 @@ to Anthropic's own servers. To call the model at Anthropic directly instead,
 put `RETIMER_AGENT_PROVIDER=anthropic` into `/etc/retimer/retimer.env`; the
 tool then asks for an Anthropic key too.
 
-## The tunnel
+## The proxy
 
-The server already ran a Cloudflare Tunnel, so the service needed no tunnel of
-its own, only a hostname on that one. In the Cloudflare Zero Trust dashboard,
-under Networks, Tunnels, the tunnel of the server, Public Hostnames:
+Anything that terminates TLS and forwards to `127.0.0.1:8712` will do. Run it
+on the same machine, or add its address to `RETIMER_TRUSTED_PROXIES` in
+`/etc/retimer/retimer.env`.
 
-| Field | Value |
-| --- | --- |
-| Subdomain | `subtitleapi` |
-| Domain | `example.org` |
-| Service | `HTTP`, `127.0.0.1:8712` |
+- **Cloudflare Tunnel.** In the Zero Trust dashboard, under Networks, Tunnels,
+  add a public hostname to the server's tunnel with the service `HTTP`,
+  `127.0.0.1:8712`. Leave Cloudflare Access off for it: the service checks its
+  own key on every call, and Access in front would turn clients away.
+- **Caddy.** `retimer.example.org { reverse_proxy 127.0.0.1:8712 }`.
 
-Cloudflare Access stays off for this hostname. The service checks its own key
-on every call, and Access in front would turn scripts away. `cloudflared`
-picks the change up within seconds and needs no restart.
-
-Cloudflare has limits of its own, and what it turns away gets its answer and
-not the service's:
-
-- **100 MB a request** on the free plan. The service therefore takes 95 MB a
-  request (`RETIMER_MAX_REQUEST_MB`) and 90 MB of audio, and answers anything
-  between with a 413 a client can read. Above 100 MB the 413 is Cloudflare's
-  and is not JSON.
-- **100 seconds for an answer.** No call of the service takes that long: a job
-  is submitted, and asked about later.
+A proxy may have limits of its own, and what it turns away gets its answer and
+not the service's. Cloudflare's free plan stops a request at 100 MB, so the
+service takes 95 MB a request (`RETIMER_MAX_REQUEST_MB`) and 90 MB of audio,
+and answers anything between with a 413 a client can read. Cloudflare also
+gives an answer 100 seconds; no call of the service takes that long, because a
+job is submitted and asked about later.
 
 ## A new release
 
@@ -128,13 +123,13 @@ On a fresh server with `ffmpeg`, `git` and `curl`, and an account `deploy`:
 1. As root, from a copy of this directory: `bash server-setup.sh`. It makes
    the account `retimer`, the directories above, the unit and the keys tool.
    It removes nothing.
-2. As `deploy`, put `uv` at `/opt/retimer/bin/uv`, make a key with
-   `ssh-keygen -t ed25519 -N '' -f /opt/retimer/.ssh/deploy_key`, and put the
-   host key of GitHub into `/opt/retimer/.ssh/known_hosts`. Add the public
-   half of the key to the repository as a deploy key without write access.
-3. As `deploy`, fetch `release.sh` once by hand and run it:
-   `git clone --bare git@github.com:friedrich-de/retimer-api.git /opt/retimer/repo.git`
-   with the `GIT_SSH_COMMAND` from `release.sh`, then
-   `git --git-dir /opt/retimer/repo.git show main:deploy/release.sh | bash`.
-4. `sudo retimer-secrets`, then the hostname on the tunnel, then the smoke
-   test.
+2. As `deploy`, put `uv` at `/opt/retimer/bin/uv`.
+3. As `deploy`, fetch the repository once by hand and run `release.sh` from it:
+   `git clone --bare https://github.com/friedrich-de/retimer-api.git /opt/retimer/repo.git`,
+   then `git --git-dir /opt/retimer/repo.git show main:deploy/release.sh | bash`.
+   For a private fork, make a key with
+   `ssh-keygen -t ed25519 -N '' -f /opt/retimer/.ssh/deploy_key`, put GitHub's
+   host key into `/opt/retimer/.ssh/known_hosts`, add the public half to the
+   fork as a deploy key without write access, and set `RETIMER_REPOSITORY` to
+   the fork's SSH address. `release.sh` uses the key when it is there.
+4. `sudo retimer-secrets`, then the proxy, then the smoke test.

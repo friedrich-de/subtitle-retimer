@@ -1,0 +1,28 @@
+# Runs the Retimer API on a home network, for the Jellyfin plugin.
+#
+#   cp secrets.env.example secrets.env     then fill it in, see the README
+#   docker compose up -d --build
+#
+# The plugin then reaches it at http://ADDRESS-OF-THIS-MACHINE:8000, or at
+# http://retimer-api:8000 from a Jellyfin container on the same Docker network.
+services:
+  retimer-api:
+    build: .
+    image: retimer-api:local
+    restart: unless-stopped
+    # OPENROUTER_API_KEY and RETIMER_API_KEYS. Keep this file out of version control.
+    env_file: secrets.env
+    environment:
+      # Plain HTTP, for a network you trust. Every call still needs an API key.
+      # With a proxy that does HTTPS in front, set this to 0 and name the proxy in
+      # RETIMER_TRUSTED_PROXIES.
+      RETIMER_ALLOW_HTTP: "1"
+    ports:
+      - "8000:8000"
+    volumes:
+      - retimer-data:/data
+    # Matching a long subtitle needs up to about 1 GB.
+    mem_limit: 4g
+
+volumes:
+  retimer-data:

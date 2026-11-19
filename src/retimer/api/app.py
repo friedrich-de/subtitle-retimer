@@ -147,7 +147,8 @@ class Gate:
         if method == "GET" and path in self.open_paths:
             scope["retimer.body_limit"] = 0
             return None
-        if not self.settings.dev and scope.get("scheme") != "https":
+        plain_allowed = self.settings.dev or self.settings.allow_http
+        if not plain_allowed and scope.get("scheme") != "https":
             return error_response(403, "https_required", "This service is reached over HTTPS only.")
 
         client = scope.get("client")
@@ -235,7 +236,8 @@ class Gate:
             (b"referrer-policy", b"no-referrer"),
         ]
         if not self.settings.dev:
-            extra.append((b"strict-transport-security", b"max-age=31536000"))
+            if not self.settings.allow_http:
+                extra.append((b"strict-transport-security", b"max-age=31536000"))
             extra.append((b"content-security-policy", b"default-src 'none'"))
 
         async def with_headers(message: Message) -> None:

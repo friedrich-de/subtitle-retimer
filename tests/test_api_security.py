@@ -172,6 +172,20 @@ def test_a_development_server_takes_plain_http(tmp_path):
     assert "strict-transport-security" not in plain.get("/healthz").headers
 
 
+def test_a_server_on_a_home_network_takes_plain_http_but_still_wants_a_key(tmp_path):
+    service = make_service(tmp_path, allow_http=True)
+    plain = TestClient(service.app, base_url="http://testserver")
+
+    assert plain.get("/v1/jobs", headers=service.auth()).status_code == 200
+    assert refused(plain.get("/v1/jobs"), 401, "unauthorized")
+    answer = plain.get("/healthz")
+    assert "strict-transport-security" not in answer.headers
+    assert answer.headers["content-security-policy"] == "default-src 'none'"
+    # It is no development server: the documentation stays closed.
+    assert refused(plain.get("/docs", headers=service.auth()), 404, "not_found")
+    assert refused(plain.get("/openapi.json"), 401, "unauthorized")
+
+
 def test_every_answer_carries_the_security_headers(tmp_path):
     service = make_service(tmp_path)
     answers = [
@@ -473,6 +487,12 @@ def test_settings_come_from_the_environment(tmp_path):
         "sonnet",
     )
     assert settings.dev is False
+    assert settings.allow_http is False
+    assert ApiSettings.from_env({**base_env(entry), "RETIMER_ALLOW_HTTP": "1"}).allow_http
+
+
+def base_env(entry) -> dict[str, str]:
+    return {"RETIMER_API_KEYS": format_entry(entry)}
 
 
 def test_a_setting_that_makes_no_sense_stops_the_start(tmp_path):
@@ -490,6 +510,7 @@ def test_a_setting_that_makes_no_sense_stops_the_start(tmp_path):
         # A deployment without a model is not one.
         ("RETIMER_AGENT", "off"),
         ("RETIMER_DEV", "maybe"),
+        ("RETIMER_ALLOW_HTTP", "maybe"),
     ):
         with pytest.raises(ConfigError):
             ApiSettings.from_env({**base, name: value})
@@ -505,9 +526,13 @@ def test_a_development_server_only_listens_on_its_own_machine(tmp_path, monkeypa
     dev = ApiSettings(data_dir=tmp_path, api_keys=[entry], dev=True)
     production = dev.model_copy(update={"dev": False})
 
+    home = production.model_copy(update={"allow_http": True})
+
     assert problems(dev, "127.0.0.1") == []
     assert "loopback" in problems(dev, "0.0.0.0")[0]
     assert problems(production, "0.0.0.0") == []
+    # Plain HTTP on a home network is no development server, so it may listen on every address.
+    assert problems(home, "0.0.0.0") == []
 
 
 def test_the_server_does_not_start_without_what_jobs_need(tmp_path, monkeypatch):

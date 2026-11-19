@@ -62,10 +62,14 @@ def configure_logging() -> None:
         logging.getLogger(name).setLevel(logging.WARNING)
 
 
-def load_settings(*, dev: bool = False, need_keys: bool = True) -> ApiSettings:
+def load_settings(
+    *, dev: bool = False, allow_http: bool = False, need_keys: bool = True
+) -> ApiSettings:
     settings = ApiSettings.from_env(need_keys=need_keys)
     if dev:
         settings = settings.model_copy(update={"dev": True})
+    if allow_http:
+        settings = settings.model_copy(update={"allow_http": True})
     return settings
 
 
@@ -107,7 +111,14 @@ def _prepare_directories(settings: ApiSettings) -> None:
     tempfile.tempdir = str(spool)
 
 
-def serve(host: str, port: int, *, dev: bool = False, run_worker: bool = True) -> int:
+def serve(
+    host: str,
+    port: int,
+    *,
+    dev: bool = False,
+    allow_http: bool = False,
+    run_worker: bool = True,
+) -> int:
     """Run the HTTP service until it is stopped. Returns the exit code."""
     import uvicorn
 
@@ -115,7 +126,7 @@ def serve(host: str, port: int, *, dev: bool = False, run_worker: bool = True) -
 
     configure_logging()
     try:
-        settings = load_settings(dev=dev)
+        settings = load_settings(dev=dev, allow_http=allow_http)
     except ConfigError as error:
         print(f"error: {error}", file=sys.stderr)
         return 2
@@ -126,6 +137,11 @@ def serve(host: str, port: int, *, dev: bool = False, run_worker: bool = True) -
         return 2
     if settings.dev:
         log.warning("development server: plain HTTP is accepted and /docs is open")
+    elif settings.allow_http:
+        log.warning(
+            "plain HTTP is accepted: keys and uploads cross the network unencrypted. "
+            "Use this on a network you trust only, or put a proxy with HTTPS in front."
+        )
     _prepare_directories(settings)
     log.info(
         "starting on %s:%d with %d key(s): %s",

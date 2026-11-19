@@ -19,7 +19,6 @@
 set -euo pipefail
 
 ROOT=${RETIMER_ROOT:-/opt/retimer}
-REPOSITORY=${RETIMER_REPOSITORY:-git@github.com:friedrich-de/retimer-api.git}
 REF=${1:-main}
 PYTHON=3.13
 KEEP=3
@@ -34,9 +33,15 @@ export UV_PYTHON_INSTALL_DIR=$ROOT/python
 export UV_CACHE_DIR=$ROOT/cache
 export UV_PYTHON_PREFERENCE=only-managed
 export UV_NO_PROGRESS=1
-# The repository is private. The server reads it with a key of its own.
-export GIT_SSH_COMMAND="ssh -i $ROOT/.ssh/deploy_key -o IdentitiesOnly=yes -o BatchMode=yes \
+# A public repository is read over HTTPS. A private one (a fork, say) is read
+# over SSH with a deploy key of its own, kept at .ssh/deploy_key.
+if [ -e "$ROOT/.ssh/deploy_key" ]; then
+    REPOSITORY=${RETIMER_REPOSITORY:-git@github.com:friedrich-de/retimer-api.git}
+    export GIT_SSH_COMMAND="ssh -i $ROOT/.ssh/deploy_key -o IdentitiesOnly=yes -o BatchMode=yes \
 -o UserKnownHostsFile=$ROOT/.ssh/known_hosts -o StrictHostKeyChecking=yes"
+else
+    REPOSITORY=${RETIMER_REPOSITORY:-https://github.com/friedrich-de/retimer-api.git}
+fi
 umask 022
 
 cd "$ROOT"

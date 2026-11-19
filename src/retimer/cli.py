@@ -160,7 +160,13 @@ def _cmd_sync(args: argparse.Namespace) -> int:
 def _cmd_serve(args: argparse.Namespace) -> int:
     from retimer.api.server import serve
 
-    return serve(args.host, args.port, dev=args.dev, run_worker=not args.no_worker)
+    return serve(
+        args.host,
+        args.port,
+        dev=args.dev,
+        allow_http=args.allow_http,
+        run_worker=not args.no_worker,
+    )
 
 
 def _cmd_worker(args: argparse.Namespace) -> int:
@@ -307,6 +313,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--dev",
         action="store_true",
         help="development server: plain HTTP and /docs, on this machine only",
+    )
+    server.add_argument(
+        "--allow-http",
+        action="store_true",
+        help="take plain HTTP from any address, for a network you trust "
+        "(also RETIMER_ALLOW_HTTP=1); keys are still required",
     )
     server.add_argument(
         "--no-worker",
