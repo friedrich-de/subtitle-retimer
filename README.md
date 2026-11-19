@@ -120,3 +120,10 @@ hours later, and transcripts and embeddings after 30 days.
 | [bench/README.md](bench/README.md) | The benchmark |
 | [CHANGELOG.md](CHANGELOG.md) | What changed in each release |
 | [SECURITY.md](SECURITY.md) | How to report a security problem |
+
+## Licence
+
+[AGPL-3.0](LICENSE). You may run, change and share it. If you run a changed
+copy as a service that others use, you have to offer them the source of your
+changes. The subtitles of the two Blender films in `bench/seeds` are under
+CC BY 3.0, as [their README](bench/seeds/README.md) says.

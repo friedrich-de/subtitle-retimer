@@ -3,6 +3,8 @@ name = "retimer"
 version = "0.1.0"
 description = "Synchronizes subtitles to a reference with an agent that plans and deterministic tools that compute."
 readme = "README.md"
+license = "AGPL-3.0-only"
+license-files = ["LICENSE"]
 requires-python = ">=3.11"
 dependencies = [
     "pysubs2>=1.8",
@@ -16,6 +18,10 @@ dependencies = [
     "python-multipart>=0.0.18",
     "py7zr>=1.0",
 ]
+
+[project.urls]
+Source = "https://github.com/friedrich-de/retimer-api"
+Changelog = "https://github.com/friedrich-de/retimer-api/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 dev = [

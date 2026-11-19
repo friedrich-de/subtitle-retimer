@@ -17,3 +17,4 @@ The first public release.
   behind a proxy, or plain HTTP on a home network with `RETIMER_ALLOW_HTTP`.
 - A Dockerfile and a compose file for running it next to Jellyfin.
 - The benchmark and the real-file kit used to measure it.
+- Licensed under the AGPL-3.0.
