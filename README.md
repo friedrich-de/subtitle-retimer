@@ -1,4 +1,4 @@
-# retimer-api
+# subtitle-retimer
 
 A self-hosted service that fixes the timing of subtitles. Give it a subtitle
 that is out of sync and a reference (a subtitle track of the video that is in
@@ -7,7 +7,7 @@ sync, the video's audio, or both), and it hands back the subtitle in sync.
 A model decides what is wrong with a file, and code does all of the timing
 math, so a model's answer can never move a line by a number it made up. It is
 built for the Jellyfin plugin
-[Subtitle Retimer](https://github.com/friedrich-de/jellyfin-plugin-retimer), and
+[Subtitle Retimer](https://github.com/friedrich-de/jellyfin-subtitle-retimer), and
 any client can use it over HTTP or on the command line.
 
 <picture>
@@ -97,8 +97,8 @@ A model is part of every job, so the service does not start without the key.
 ## Quick start with Docker
 
 ```bash
-git clone https://github.com/friedrich-de/retimer-api.git
-cd retimer-api
+git clone https://github.com/friedrich-de/subtitle-retimer.git
+cd subtitle-retimer
 cp secrets.env.example secrets.env
 docker compose run --rm --no-deps retimer-api retimer api-key --label jellyfin
 ```

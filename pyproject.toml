@@ -20,8 +20,8 @@ dependencies = [
 ]
 
 [project.urls]
-Source = "https://github.com/friedrich-de/retimer-api"
-Changelog = "https://github.com/friedrich-de/retimer-api/blob/main/CHANGELOG.md"
+Source = "https://github.com/friedrich-de/subtitle-retimer"
+Changelog = "https://github.com/friedrich-de/subtitle-retimer/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 dev = [

@@ -5,7 +5,7 @@
 
 [Unit]
 Description=Subtitle Retimer API
-Documentation=https://github.com/friedrich-de/retimer-api
+Documentation=https://github.com/friedrich-de/subtitle-retimer
 After=network-online.target
 Wants=network-online.target
 # The code and the secrets arrive separately. Until both are there, there is

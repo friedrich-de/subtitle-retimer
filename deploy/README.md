@@ -125,7 +125,7 @@ On a fresh server with `ffmpeg`, `git` and `curl`, and an account `deploy`:
    It removes nothing.
 2. As `deploy`, put `uv` at `/opt/retimer/bin/uv`.
 3. As `deploy`, fetch the repository once by hand and run `release.sh` from it:
-   `git clone --bare https://github.com/friedrich-de/retimer-api.git /opt/retimer/repo.git`,
+   `git clone --bare https://github.com/friedrich-de/subtitle-retimer.git /opt/retimer/repo.git`,
    then `git --git-dir /opt/retimer/repo.git show main:deploy/release.sh | bash`.
    For a private fork, make a key with
    `ssh-keygen -t ed25519 -N '' -f /opt/retimer/.ssh/deploy_key`, put GitHub's
