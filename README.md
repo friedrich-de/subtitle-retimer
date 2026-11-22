@@ -10,6 +10,61 @@ built for the Jellyfin plugin
 [Subtitle Retimer](https://github.com/friedrich-de/jellyfin-plugin-retimer), and
 any client can use it over HTTP or on the command line.
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/benchmark-dark.svg">
+  <img src="docs/benchmark-light.svg" width="800" alt="Cases solved, of 588 with a known answer: Retimer API 551 (94%), alass 363 (62%), ffsubsync with --split-penalty 304 (52%), ffsubsync 225 (38%), the file as it was sent 62 (11%).">
+</picture>
+
+## How it compares
+
+[alass](https://github.com/kaegi/alass) and
+[ffsubsync](https://github.com/smacke/ffsubsync) are the best-known tools for
+this. All three ran on the same 588 cases of the benchmark, each with
+a known right answer. A case is solved when 95% of its lines start within
+250 ms of where they belong, or, for the wrong file, when it is refused or
+left alone.
+
+| The case gives | Cases | Retimer API | alass | ffsubsync, split | ffsubsync |
+| --- | --- | --- | --- | --- | --- |
+| A subtitle that is in sync | 380 | **98%** | 85% | 66% | 49% |
+| The audio | 116 | **74%** | 0% | 21% | 11% |
+| A subtitle and the audio | 46 | **100%** | 87% | 63% | 57% |
+| A wrong file, to refuse or leave alone | 46 | **100%** | 0% | 0% | 0% |
+
+- **It knows which line is which.** alass and ffsubsync line up the rhythm of
+  the lines with the reference. The retimer matches lines by what they say,
+  also from Japanese to English, so episode packs, scenes cut in the middle,
+  cold opens and karaoke scripts do not throw it. Against a subtitle it solves
+  52 cases that alass does not, and alass 2 that it does not.
+- **It works from the audio.** It matches the lines to a transcript of the
+  speech. On the two films of the benchmark alass misses every audio case,
+  and ffsubsync with `--split-penalty` solves a fifth.
+- **It says no.** Given another film, the next episode or a track of signs and
+  songs only, it refuses or leaves the file alone. alass and ffsubsync move
+  the file in every one of those cases.
+
+**On real files** it was measured too, on 1,027 Japanese subtitle files from
+Jimaku against the subtitle tracks of their anime episodes and films. Nobody
+timed those by hand, so two automatic checks judge them: one against the
+episode's own track, which favours the retimer, and one that listens for the
+voices.
+
+| | Against the episode's track | Against the voices |
+| --- | --- | --- |
+| **Retimer API** | **95%** | **97%** |
+| alass, tuned on that set | 80% | 93% |
+| ffsubsync, tuned on that set | 68% | 83% |
+
+It refused 123 of 125 files for another episode or series, where alass and
+ffsubsync moved every one they could read.
+
+The made cases are the problems this project set out to solve, and alass and
+ffsubsync ran on them with their defaults. They take one reference, so where a
+case gives a subtitle and the audio they got the subtitle. Every audio case is
+from two English films. The full runs, with all their limits:
+[the benchmark](bench/baselines/2026-11-22-head-to-head.md) and
+[the real files](bench/baselines/2026-11-18-real-files.md).
+
 ## What it handles
 
 - **Offsets, frame rates and cuts.** A file that is early or late, one made for
@@ -26,9 +81,7 @@ any client can use it over HTTP or on the command line.
   encodings such as Shift-JIS.
 - **Picture subtitles** (PGS from Blu-rays) read into text.
 
-On its benchmark of 588 made cases with a known truth it solves 550
-([the run](bench/baselines/2026-11-18-stretches.md)). How it works is in
-[docs/how-it-works.md](docs/how-it-works.md).
+How it works is in [docs/how-it-works.md](docs/how-it-works.md).
 
 ## What you need
 

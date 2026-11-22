@@ -1,5 +1,6 @@
 import stat
 import sys
+from types import SimpleNamespace
 
 import pytest
 
@@ -144,6 +145,14 @@ def test_commands_follow_each_tools_argument_order(tmp_path, monkeypatch):
         str(target),
         str(out),
     ]
+
+
+def test_a_tool_gets_the_subtitle_where_a_case_has_the_audio_too(tmp_path):
+    subtitle, audio = tmp_path / "ref.srt", tmp_path / "ref.ogg"
+    both = SimpleNamespace(reference_subtitle_path=subtitle, audio_path=audio)
+    audio_only = SimpleNamespace(reference_subtitle_path=None, audio_path=audio)
+    assert AlassRunner().reference_path(both) == subtitle
+    assert AlassRunner().reference_path(audio_only) == audio
 
 
 @pytest.mark.parametrize("name", ["ffsubsync", "alass"])

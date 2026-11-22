@@ -166,7 +166,10 @@ class CommandRunner:
         return True
 
     def reference_path(self, case: LoadedCase) -> Path:
-        path = case.audio_path or case.reference_subtitle_path
+        # Where a case has a subtitle and the audio, the tool gets the subtitle,
+        # as a user would give it: with the audio alass solved none of these
+        # cases and with the subtitle 40 of 46 (run of 2026-11-22).
+        path = case.reference_subtitle_path or case.audio_path
         if path is None:
             raise ValueError(f"case {case.case.id} has no reference")
         return path

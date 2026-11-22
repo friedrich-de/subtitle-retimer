@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="274" viewBox="0 0 800 274" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif" role="img" aria-labelledby="t d">
+<title id="t">Cases solved, of 588 with a known answer</title>
+<desc id="d">Retimer API (Claude Haiku 5.5): 551 of 588; alass 2.0.0: 363 of 588; ffsubsync 0.5.1, split: 304 of 588; ffsubsync 0.5.1: 225 of 588; The file as it was sent: 62 of 588</desc>
+<text x="0" y="24" font-size="18" font-weight="600" fill="#f0f6fc">Cases solved, of 588 with a known answer</text>
+<text x="0" y="48" font-size="13" fill="#9198a1">Against a reference subtitle, the audio or both, and wrong files to refuse. One run, 22 November 2026.</text>
+<line x1="250" y1="72" x2="250" y2="266.0" stroke="#3d444d" stroke-width="1"/>
+<text x="236" y="94.0" font-size="14" font-weight="600" text-anchor="end" fill="#f0f6fc">Retimer API (Claude Haiku 5.5)</text>
+<g fill="#3987e5"><path d="M250,78 H648.9 Q652.9,78 652.9,82 V96 Q652.9,100 648.9,100 H250 Z"/></g>
+<text x="662.9" y="94.0" font-size="14" font-weight="600" fill="#f0f6fc">94%<tspan fill="#9198a1" font-weight="400" font-size="12">  551 of 588</tspan></text>
+<text x="236" y="134.0" font-size="14" font-weight="400" text-anchor="end" fill="#f0f6fc">alass 2.0.0</text>
+<g fill="#656c76"><path d="M250,118 H511.5 Q515.5,118 515.5,122 V136 Q515.5,140 511.5,140 H250 Z"/></g>
+<text x="525.5" y="134.0" font-size="14" font-weight="400" fill="#f0f6fc">62%<tspan fill="#9198a1" font-weight="400" font-size="12">  363 of 588</tspan></text>
+<text x="236" y="174.0" font-size="14" font-weight="400" text-anchor="end" fill="#f0f6fc">ffsubsync 0.5.1, split</text>
+<g fill="#656c76"><path d="M250,158 H468.3 Q472.3,158 472.3,162 V176 Q472.3,180 468.3,180 H250 Z"/></g>
+<text x="482.3" y="174.0" font-size="14" font-weight="400" fill="#f0f6fc">52%<tspan fill="#9198a1" font-weight="400" font-size="12">  304 of 588</tspan></text>
+<text x="236" y="214.0" font-size="14" font-weight="400" text-anchor="end" fill="#f0f6fc">ffsubsync 0.5.1</text>
+<g fill="#656c76"><path d="M250,198 H410.5 Q414.5,198 414.5,202 V216 Q414.5,220 410.5,220 H250 Z"/></g>
+<text x="424.5" y="214.0" font-size="14" font-weight="400" fill="#f0f6fc">38%<tspan fill="#9198a1" font-weight="400" font-size="12">  225 of 588</tspan></text>
+<text x="236" y="254.0" font-size="14" font-weight="400" text-anchor="end" fill="#f0f6fc">The file as it was sent</text>
+<g fill="#656c76"><path d="M250,238 H291.3 Q295.3,238 295.3,242 V256 Q295.3,260 291.3,260 H250 Z"/></g>
+<text x="305.3" y="254.0" font-size="14" font-weight="400" fill="#f0f6fc">11%<tspan fill="#9198a1" font-weight="400" font-size="12">  62 of 588</tspan></text>
+</svg>

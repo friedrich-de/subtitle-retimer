@@ -99,9 +99,8 @@ A system that takes one reference gets the track a client would send that
 sends a single one: the track marked default, and the first where none is
 marked. So `alass` and `ffsubsync` are given the dialogue in `full-and-signs`,
 `two-languages-fit` and `in-sync`, another episode in
-`other-episode-and-signs`, and a track of signs in the five other cases. With
-the audio beside the tracks they get the audio, as in every case that has
-both. `pipeline`, the agent systems
+`other-episode-and-signs`, and a track of signs in the five other cases, also
+where the audio is beside the tracks. `pipeline`, the agent systems
 and `api` get every track with its labels and choose. Which track was chosen
 is in the record of a run, under `details.report.reference_choice` (for `api`
 under `details.job.summary.reference`), next to what was found out about each
@@ -247,7 +246,9 @@ may sort the file.
 | `api` | A running service, reached over HTTP as a client reaches it. Needs `RETIMER_API_URL` and `RETIMER_API_KEY`. |
 
 The external tools take one reference. When a case has both audio and a
-reference subtitle they get the audio. When it has several reference
+reference subtitle they get the subtitle, as a user would give it: with the
+audio alass solved none of those 46 cases, with the subtitle 40. Runs before
+2026-11-22 gave them the audio. When it has several reference
 subtitles they get the one a client would send that sends a single track
 ([above](#several-reference-tracks)). A tool is found on the `PATH`, or
 through `RETIMER_FFSUBSYNC` and `RETIMER_ALASS`.
@@ -352,10 +353,9 @@ Each run writes a directory under `data/bench/results`:
 - `run.json`: when it ran and the tool versions.
 - `outputs/<system>/<case>/`: the file each system produced.
 
-Runs worth keeping are written up in [baselines/](baselines/). The one over
-535 cases, with alass and ffsubsync next to the pipeline and the agent, is
-[baselines/2026-11-18-real-file-problems.md](baselines/2026-11-18-real-file-problems.md).
-It was made before the family `several_references` was added. The run over
-that family's 53 cases is
-[baselines/2026-11-18-several-references.md](baselines/2026-11-18-several-references.md).
-With the audio of the two films fetched, the set now has 588 cases.
+Runs worth keeping are written up in [baselines/](baselines/). The latest
+over all 588 cases, with alass and ffsubsync next to the pipeline and the
+agent, is
+[baselines/2026-11-22-head-to-head.md](baselines/2026-11-22-head-to-head.md).
+The same systems on the real-file set are in
+[baselines/2026-11-18-real-files.md](baselines/2026-11-18-real-files.md).

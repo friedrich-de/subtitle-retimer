@@ -51,15 +51,17 @@ On the 194 seed cases the pipeline syncs 87% of the files, against 43% for the
 best existing tool. How it got there is in
 [bench/baselines/2026-11-16-fixed-pipeline.md](../bench/baselines/2026-11-16-fixed-pipeline.md).
 
-On 535 cases, with a made-up series and the problems of real files among them,
-the pipeline solves 86%, the agent 88%, alass 58% and ffsubsync 50% at best.
-With a reference subtitle and nothing to refuse, alass is level with the
-retimer (310 of 345, against 306 and 318). The lead comes from audio, from
-scripts full of karaoke and signs, and from knowing when not to sync. A change
-after that run, which keeps the agent from taking the next episode of a series
-for the same one, brought the agent to 90%. The tables, and where the retimer
-loses, are in
-[bench/baselines/2026-11-18-real-file-problems.md](../bench/baselines/2026-11-18-real-file-problems.md).
+On all 588 cases, with a made-up series and the problems of real files among
+them, the agent solves 94%, the pipeline alone 87%, alass 62% and ffsubsync 52%
+at best. With a reference subtitle and nothing to refuse the agent solves 373
+of 380 and alass 323. The lead there comes from several reference tracks,
+episode packs, karaoke scripts, edits in the middle of a scene and cold opens,
+and alass solves 2 cases of drifting captions that the retimer does not. The
+rest of the lead comes from audio and from knowing when not to sync. The
+tables, and where the retimer loses, are in
+[bench/baselines/2026-11-22-head-to-head.md](../bench/baselines/2026-11-22-head-to-head.md),
+and the same systems on real files in
+[bench/baselines/2026-11-18-real-files.md](../bench/baselines/2026-11-18-real-files.md).
 
 ## What the agent does
 
