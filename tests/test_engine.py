@@ -202,3 +202,23 @@ def test_a_comment_at_the_start_does_not_stand_in_the_way_of_moving_earlier(ass)
 
     assert (result.lines[0].start_ms, result.lines[0].end_ms) == (0, 0)
     assert result.lines[1].start_ms == 500
+
+
+def test_symbols_take_the_caption_brackets_only_from_japanese():
+    japanese = loads(
+        "1\n00:00:01,000 --> 00:00:02,000\n《ハルリ：この女は…　違う》\n\n"
+        "2\n00:00:03,000 --> 00:00:04,000\n（ポチタ）《ウウ～…\n\n"
+        "3\n00:00:05,000 --> 00:00:06,000\n》\n"
+    )
+    chinese = loads("1\n00:00:01,000 --> 00:00:02,000\n♪ 此处出自《神曲》地狱篇\n")
+    options = Options(remove_hearing_impaired=True, remove_symbols=True)
+
+    def delivered(subtitle):
+        views = build_views(subtitle, options)
+        return [
+            line.text
+            for line in apply_plan(subtitle, Plan(content_ops=views.content_ops)).subtitle.lines
+        ]
+
+    assert delivered(japanese) == ["この女は…　違う", "ウウ～…"]
+    assert delivered(chinese) == ["此处出自《神曲》地狱篇"]

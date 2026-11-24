@@ -2,6 +2,7 @@ import pytest
 
 from retimer.clean import (
     normalize_for_match,
+    reads_as_japanese,
     remove_hearing_impaired,
     remove_symbols,
     strip_formatting,
@@ -35,10 +36,24 @@ from retimer.clean import (
             "((フィーアのこと捕まえられたら\\Nお嫁さんになってあげるよ))",
         ),
         ("（（そうだったのか））", "（（そうだったのか））"),
-        ("((ﾌｨﾘｱ:ｻｼﾞｮｳ｡\\N痛っ｡", "((ﾌｨﾘｱ:ｻｼﾞｮｳ｡\\N痛っ｡"),
+        ("((ﾌｨﾘｱ:ｻｼﾞｮｳ｡\\N痛っ｡", "((ｻｼﾞｮｳ｡\\N痛っ｡"),
         ("(切嗣)((殺し屋だった))", "((殺し屋だった))"),
         # Half-width and full-width partners are mixed in files typed by hand.
         ("貴様は我（おれ）を見るに能(あた）わぬ", "貴様は我を見るに能わぬ"),
+        # Brackets nest: a speaker's name carries its reading.
+        ("(刀鬼(とうき))鞘姫(さやひめ)", "鞘姫"),
+        ("（ＮＡ(ナレーション):月見(るなみ)ヤチヨ）今は昔", "今は昔"),
+        ("((衛宮(えみや)だ))", "((衛宮だ))"),
+        ("〔エラー音〕\\N(仁菜) あっ…", "あっ…"),
+        # In Japanese captions a name follows the bracket of a thought or a voice.
+        ("《ハルリ：この女は…　違う》", "《この女は…　違う》"),
+        ("＜ボンドルド：闇すらも及ばぬ深淵に", "＜闇すらも及ばぬ深淵に"),
+        ("((ＭＥＭちょ：かなちゃんは　きっと", "((かなちゃんは　きっと"),
+        ("{\\an8}｟ギルベルト：ヴァイオレット。", "{\\an8}｟ヴァイオレット。"),
+        ("《鏑木{\\fscx50}：{\\fscx100}ほら", "《{\\fscx50}{\\fscx100}ほら"),
+        ("《{\\fscx50}ハルリ：{\\fscx100}この女は", "《{\\fscx50}{\\fscx100}この女は"),
+        ("《20：00　発進》", "《20：00　発進》"),
+        ("注：これは本物です", "注：これは本物です"),
     ],
 )
 def test_remove_hearing_impaired(text, expected):
@@ -55,7 +70,7 @@ def test_remove_hearing_impaired(text, expected):
         ("{\\an8}♫ La la", "{\\an8}La la"),
         ("No symbols here.", "No symbols here."),
         # Japanese broadcast captions: a sentence runs on, a voice comes from a device.
-        ("＜彼らは 誰よりも深く→", "＜彼らは 誰よりも深く"),
+        ("＜彼らは 誰よりも深く→", "彼らは 誰よりも深く"),
         ("四方の門は閉じ　王冠より出で➡️", "四方の門は閉じ　王冠より出で"),
         ("📺昨晩　衝撃は➨", "昨晩　衝撃は"),
         ("📱おかけになった電話は", "おかけになった電話は"),
@@ -63,14 +78,56 @@ def test_remove_hearing_impaired(text, expected):
         ("☎️", ""),
         ("🎵～", ""),
         ("キラッ☆\\N好き♡", "キラッ\\N好き"),
+        # The brackets of a thought, a narration or a voice off screen. A
+        # stretch runs over several subtitles, so each half goes on its own.
+        ("≪芸術だなぁ｡≫ ＜きっと＞ 3×4", "芸術だなぁ｡ きっと 3×4"),
+        ("《その言葉のとおり", "その言葉のとおり"),
+        ("どうせ死ぬんだ》", "どうせ死ぬんだ"),
+        ("《天使》", "天使"),
+        ("（ポチタ）《ウウ～…》", "（ポチタ）ウウ～…"),
+        ("＜　だが　これにより➡", "だが　これにより"),
+        ("｟📺ソンナ顔シテテ　楽シイノ？", "ソンナ顔シテテ　楽シイノ？"),
+        (
+            "⸨外法による理不尽は➨\\N〈アシㇼパが帰ってきた〉",
+            "外法による理不尽は\\Nアシㇼパが帰ってきた",
+        ),
+        ("》", ""),
+        ("((あとはひたすら追かける))", "あとはひたすら追かける"),
+        ("（（そうだったのか", "そうだったのか"),
+        ("(切嗣)((殺し屋だった))", "(切嗣)殺し屋だった"),
         # What is part of the text stays.
         ("藤丸～！ 久利須＝矜治", "藤丸～！ 久利須＝矜治"),
-        ("≪芸術だなぁ｡≫ ＜きっと＞ 3×4", "≪芸術だなぁ｡≫ ＜きっと＞ 3×4"),
         ("Time alter ── double accel", "Time alter ── double accel"),
+        ("≪「黒閃」！≫ 『鬼滅の刃』", "「黒閃」！ 『鬼滅の刃』"),
+        ("〝聖域 〞から出られた", "〝聖域 〞から出られた"),
+        # Doubled parentheses that close a reading and a name are not a thought.
+        ("(百目(ひゃくめ))かつて", "(百目(ひゃくめ))かつて"),
     ],
 )
 def test_remove_symbols(text, expected):
     assert remove_symbols(text) == expected
+
+
+def test_chinese_and_korean_titles_keep_their_brackets():
+    text = "此处出自《神曲》地狱篇 ((注))"
+    assert remove_symbols(text, japanese=False) == text
+    assert remove_symbols("♪ 《神曲》", japanese=False) == "《神曲》"
+
+
+@pytest.mark.parametrize(
+    ("texts", "expected"),
+    [
+        (["《その言葉のとおり", "{\\an8}地下４階。"], True),
+        (["ﾌｨﾘｱ:ｻｼﾞｮｳ｡"], True),
+        # A Chinese file that names a Japanese album once.
+        (["此处出自《神曲》地狱篇第三曲"] * 10 + ["《サーフ ブンガク カマクラ》专辑"], False),
+        (["《미생》은 웹툰이다"], False),
+        (["Somewhere far away"], False),
+        (["♪ ♪", ""], False),
+    ],
+)
+def test_reads_as_japanese(texts, expected):
+    assert reads_as_japanese(texts) is expected
 
 
 def test_strip_formatting():
