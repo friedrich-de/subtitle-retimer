@@ -61,13 +61,14 @@ def build_content_ops(
     remove: dict[str, list[int]] = {}
     strip: dict[str, list[int]] = {}
 
+    strippers = clean.strippers_for(subtitle)
     steps = []
     if options.remove_hearing_impaired:
-        steps.append(("hearing_impaired", clean.remove_hearing_impaired))
+        steps.append(("hearing_impaired", strippers["hearing_impaired"]))
     if options.remove_symbols:
-        steps.append(("symbols", clean.remove_symbols))
+        steps.append(("symbols", strippers["symbols"]))
     if options.strip_formatting:
-        steps.append(("formatting", clean.strip_formatting))
+        steps.append(("formatting", strippers["formatting"]))
 
     for line in subtitle.lines:
         label = label_by_id[line.id]

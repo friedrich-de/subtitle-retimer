@@ -13,6 +13,9 @@ The first public release.
 - The matched reference: the reference reduced to the lines the target has a
   counterpart for, for dual subtitles.
 - Picture subtitles (PGS) read into text.
+- Clean-up options for Japanese captions: the brackets around a thought or a
+  voice off screen, speaker names with their readings or after such a bracket,
+  and sound descriptions in 〔〕.
 - An HTTP API with keys, rate limits, a daily budget and upload limits; HTTPS
   behind a proxy, or plain HTTP on a home network with `RETIMER_ALLOW_HTTP`.
 - A Dockerfile and a compose file for running it next to Jellyfin.

@@ -18,12 +18,6 @@ MIN_SCALE = 0.8
 MAX_SCALE = 1.25
 _MAX_IDS_IN_ISSUE = 20
 
-_STRIPPERS: dict[str, Callable[[str], str]] = {
-    "hearing_impaired": clean.remove_hearing_impaired,
-    "symbols": clean.remove_symbols,
-    "formatting": clean.strip_formatting,
-}
-
 
 class PlanIssue(BaseModel):
     code: str
@@ -210,10 +204,13 @@ def apply_plan(subtitle: Subtitle, plan: Plan) -> ApplyResult:
                 summary.removed[op.reason] = summary.removed.get(op.reason, 0) + len(fresh)
 
     stripped: Counter[str] = Counter()
+    strippers: dict[str, Callable[[str], str]] | None = None
     for op in plan.content_ops:
         if not isinstance(op, StripText):
             continue
-        strip = _STRIPPERS[op.what]
+        if strippers is None:
+            strippers = clean.strippers_for(subtitle)
+        strip = strippers[op.what]
         targets = op.ids if op.ids is not None else result.ids
         for line_id in targets:
             if line_id in removed:
