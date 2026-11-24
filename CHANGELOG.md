@@ -14,8 +14,10 @@ The first public release.
   counterpart for, for dual subtitles.
 - Picture subtitles (PGS) read into text.
 - Clean-up options for Japanese captions: the brackets around a thought or a
-  voice off screen, speaker names with their readings or after such a bracket,
-  and sound descriptions in 〔〕.
+  voice off screen, round brackets left without a partner, speaker names with
+  their readings or after such a bracket, sound descriptions in 〔〕 or over two
+  lines with readings, and names and sounds whose brackets a caption put in
+  lines of their own.
 - An HTTP API with keys, rate limits, a daily budget and upload limits; HTTPS
   behind a proxy, or plain HTTP on a home network with `RETIMER_ALLOW_HTTP`.
 - A Dockerfile and a compose file for running it next to Jellyfin.

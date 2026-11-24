@@ -45,6 +45,11 @@ from retimer.clean import (
         ("（ＮＡ(ナレーション):月見(るなみ)ヤチヨ）今は昔", "今は昔"),
         ("((衛宮(えみや)だ))", "((衛宮だ))"),
         ("〔エラー音〕\\N(仁菜) あっ…", "あっ…"),
+        # A description over two lines may carry the readings of its words.
+        ("（リコーダーの演奏(えんそう)：\\N「課題曲(かだいきょく)」）", ""),
+        ("（ミッカの歌声(うたごえ)と\\Nのび太(た)たちの演奏(えんそう)）\\N行くよ", "行くよ"),
+        # Another bracket in it is not a reading, so the stretch may not be one.
+        ("(I mean it\\N- (laughs) Sure)", "(I mean it\\N- Sure)"),
         # In Japanese captions a name follows the bracket of a thought or a voice.
         ("《ハルリ：この女は…　違う》", "《この女は…　違う》"),
         ("＜ボンドルド：闇すらも及ばぬ深淵に", "＜闇すらも及ばぬ深淵に"),
@@ -102,10 +107,27 @@ def test_remove_hearing_impaired(text, expected):
         ("〝聖域 〞から出られた", "〝聖域 〞から出られた"),
         # Doubled parentheses that close a reading and a name are not a thought.
         ("(百目(ひゃくめ))かつて", "(百目(ひゃくめ))かつて"),
+        # A round bracket that pairs with nothing in the subtitle: a thought
+        # opened with (( and closed with a single ), or one that runs over
+        # several subtitles. Paired brackets stay.
+        ("((京楽がそう言うなら\\N任せて行こう)", "京楽がそう言うなら\\N任せて行こう"),
+        ("母上…　泣かないで…)", "母上…　泣かないで…"),
+        ("（朝姫）うちらにとって\\N宝物なんです)", "（朝姫）うちらにとって\\N宝物なんです"),
+        ("（スパイクの", "スパイクの"),
+        # Three parentheses draw the sound of a device.
+        ("{\\fscx33}))){\\fscx50}（電子音）", "{\\fscx33}{\\fscx50}（電子音）"),
+        ("((衛宮(えみや)だ))", "衛宮(えみや)だ"),
+        # A bracket alone is a piece of a caption whose words are lines of their own.
+        ("{\\pos(192,497)\\fscx50}（", "{\\pos(192,497)\\fscx50}（"),
     ],
 )
 def test_remove_symbols(text, expected):
     assert remove_symbols(text) == expected
+
+
+def test_stray_brackets_stay_when_asked_or_not_japanese():
+    assert remove_symbols("泣かないで…)", stray_brackets=False) == "泣かないで…)"
+    assert remove_symbols("Sure)", japanese=False) == "Sure)"
 
 
 def test_chinese_and_korean_titles_keep_their_brackets():
