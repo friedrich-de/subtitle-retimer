@@ -2,6 +2,7 @@ import pytest
 
 from retimer import Options, Plan, PlanError, apply_plan, build_views, dumps, loads, validate_plan
 from retimer.plan import Shift, parse_timestamp
+from retimer.text import strip_tags
 
 
 def times(subtitle):
@@ -222,3 +223,100 @@ def test_symbols_take_the_caption_brackets_only_from_japanese():
 
     assert delivered(japanese) == ["この女は…　違う", "ウウ～…"]
     assert delivered(chinese) == ["此处出自《神曲》地狱篇"]
+
+
+def _pieces(*events: tuple[str, str, str]) -> str:
+    """An ASS file whose lines are (start, end, text)."""
+    head = (
+        "[Script Info]\nScriptType: v4.00+\n\n"
+        "[V4+ Styles]\nFormat: Name, Fontname, Fontsize\nStyle: Default,Arial,40\n\n"
+        "[Events]\n"
+        "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
+    )
+    return head + "".join(
+        f"Dialogue: 0,{start},{end},Default,,0,0,0,,{text}\n" for start, end, text in events
+    )
+
+
+def _cleaned(subtitle, **options):
+    views = build_views(subtitle, Options(**options))
+    return apply_plan(subtitle, Plan(content_ops=views.content_ops)).subtitle
+
+
+def _delivered(subtitle, **options):
+    return [strip_tags(line.text) for line in _cleaned(subtitle, **options).lines]
+
+
+def test_names_and_sounds_whose_brackets_are_lines_of_their_own_go():
+    # A broadcast caption with every piece in a line of its own, placed side
+    # by side: the brackets of a speaker's name, the name, and the words.
+    first = ("0:00:07.61", "0:00:10.61")
+    second = ("0:00:10.61", "0:00:12.65")
+    third = ("0:00:15.00", "0:00:17.00")
+    fourth = ("0:00:18.00", "0:00:19.00")
+    pieces = loads(
+        _pieces(
+            (*first, "{\\pos(292,497)\\fscx50}）"),
+            (*first, "{\\pos(212,497)}少女"),
+            (*first, "{\\pos(192,497)\\fscx50}（"),
+            (*first, "{\\pos(312,497)}《僕のママは　ふわふわ》"),
+            (*second, "{\\pos(392,497)\\fscx50}（"),
+            (*second, "{\\pos(412,497)}泣き声"),
+            (*second, "{\\pos(532,497)\\fscx50}）"),
+            (*third, "{\\pos(230,389)}（"),
+            (*third, "{\\pos(250,389)}音響監督"),
+            (*third, "{\\pos(410,389)}）キューランプ"),
+            (*third, "{\\pos(250,449)}がついたら"),
+            (*fourth, "{\\pos(212,497)}ほら（"),
+            (*fourth, "{\\pos(252,497)}手術岾"),
+            (*fourth, "{\\pos(392,497)\\fscx50}）　「"),
+            (*fourth, "{\\pos(452,497)}な？"),
+            (*fourth, "{\\pos(532,497)\\fscx50}」"),
+        )
+    )
+
+    # The pieces are read left to right, not in the order of the file. A line
+    # with words before the opener or after the closer keeps them, and its tags.
+    both = _cleaned(pieces, remove_hearing_impaired=True, remove_symbols=True)
+    assert [line.text for line in both.lines] == [
+        "{\\pos(312,497)}僕のママは　ふわふわ",
+        "{\\pos(410,389)}キューランプ",
+        "{\\pos(250,449)}がついたら",
+        "{\\pos(212,497)}ほら",
+        "{\\pos(392,497)\\fscx50}「",
+        "{\\pos(452,497)}な？",
+        "{\\pos(532,497)\\fscx50}」",
+    ]
+    # Without the hearing-impaired option names stay, and so do their brackets.
+    assert _delivered(pieces, remove_symbols=True) == [
+        "）",
+        "少女",
+        "（",
+        "僕のママは　ふわふわ",
+        "（",
+        "泣き声",
+        "）",
+        "（",
+        "音響監督",
+        "）キューランプ",
+        "がついたら",
+        "ほら（",
+        "手術岾",
+        "）　「",
+        "な？",
+        "」",
+    ]
+
+
+def test_a_thought_closed_by_a_single_parenthesis_loses_it():
+    subtitle = loads(
+        "1\n00:00:01,000 --> 00:00:02,000\n((十四郎！\n\n"
+        "2\n00:00:03,000 --> 00:00:04,000\nあぁ…　十四郎…)\n\n"
+        "3\n00:00:05,000 --> 00:00:06,000\n"
+        "（宗弦(そうけん)）“皇帝ユーハバッハは\n滅却師(クインシー)の救世主ではない”\n"
+    )
+    assert _delivered(subtitle, remove_hearing_impaired=True, remove_symbols=True) == [
+        "十四郎！",
+        "あぁ…　十四郎…",
+        "“皇帝ユーハバッハは\\N滅却師の救世主ではない”",
+    ]

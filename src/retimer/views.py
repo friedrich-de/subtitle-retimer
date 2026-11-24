@@ -90,7 +90,7 @@ def build_content_ops(
         text = line.text
         changed_by = []
         for what, strip_step in steps:
-            new_text = strip_step(text)
+            new_text = strip_step(line.id, text)
             if new_text == text:
                 continue
             if not to_plain(new_text):

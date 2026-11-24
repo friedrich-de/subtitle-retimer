@@ -48,11 +48,11 @@ Audio is taken in Ogg, Matroska or WebM, MP3, MP4 or M4A, FLAC, WAV and AAC.
 
 | Option | Default | Meaning |
 | --- | --- | --- |
-| `remove_hearing_impaired` | `false` | Drop sound descriptions and speaker labels from the output: `[door slams]`, `（笑い）`, `〔エラー音〕`, a name with its reading such as `（六導(りくどう)玲霞(れいか)）`, and in Japanese captions a name after the bracket of a thought or a voice (`《ハルリ：`). |
+| `remove_hearing_impaired` | `false` | Drop sound descriptions and speaker labels from the output: `[door slams]`, `（笑い）`, `〔エラー音〕`, a name with its reading such as `（六導(りくどう)玲霞(れいか)）`, a description over two lines whose words carry readings, and in Japanese captions a name after the bracket of a thought or a voice (`《ハルリ：`). Where a broadcast caption puts each piece in a line of its own, with the brackets apart from the name (`（` / `少女` / `）`), those lines go together. |
 | `remove_karaoke` | `false` | Drop karaoke and song lines from the output. |
 | `remove_signs_and_credits` | `false` | Drop what is shown on screen and not spoken: signs, and the credits and advertisements of whoever made or passed on the file. |
 | `strip_formatting` | `false` | Remove styling tags, keep the text. |
-| `remove_symbols` | `false` | Remove music notes and similar symbols, among them the arrows and device icons of Japanese broadcast captions (`➡`, `📱`, `☎`). In a Japanese subtitle also the brackets that captions put around a thought, a narration or a voice off screen (`《》`, `≪≫`, `＜＞`, `〈〉`, `｟｠`, `⸨⸩`, doubled parentheses); their words stay, and so do quotation marks such as `「」` and `『』`. |
+| `remove_symbols` | `false` | Remove music notes and similar symbols, among them the arrows and device icons of Japanese broadcast captions (`➡`, `📱`, `☎`). In a Japanese subtitle also the brackets that captions put around a thought, a narration or a voice off screen (`《》`, `≪≫`, `＜＞`, `〈〉`, `｟｠`, `⸨⸩`, doubled parentheses), and round brackets that pair with nothing, such as the single `)` that closes a thought opened with `((`; their words stay, and so do quotation marks such as `「」` and `『』`. |
 | `drop_unmatched` | `true` | Trim leading or trailing lines when the reference confirms the content is absent. |
 | `matched_reference` | `false` | Also hand back the reference subtitle, reduced to the dialogue lines the delivered target has a counterpart for. See [The matched reference](how-it-works.md#the-matched-reference). Needs a `reference_subtitle`. |
 | `audio_language`, `reference_language` | detected | Hints such as `"ja"`. |

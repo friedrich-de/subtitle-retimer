@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from collections import Counter
-from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from pydantic import BaseModel
@@ -204,7 +203,7 @@ def apply_plan(subtitle: Subtitle, plan: Plan) -> ApplyResult:
                 summary.removed[op.reason] = summary.removed.get(op.reason, 0) + len(fresh)
 
     stripped: Counter[str] = Counter()
-    strippers: dict[str, Callable[[str], str]] | None = None
+    strippers: dict[str, clean.Stripper] | None = None
     for op in plan.content_ops:
         if not isinstance(op, StripText):
             continue
@@ -219,7 +218,7 @@ def apply_plan(subtitle: Subtitle, plan: Plan) -> ApplyResult:
             if event.is_comment:
                 # Comment events are notes for editors and never reach a viewer.
                 continue
-            new_text = strip(event.text)
+            new_text = strip(line_id, event.text)
             if new_text == event.text:
                 continue
             if not to_plain(new_text):
